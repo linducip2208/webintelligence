@@ -19,14 +19,12 @@ API-key auth, org isolation on every collection (IDOR-tested), HMAC webhook
 ingestion with replay window, per-IP rate limits (429), body-size guard
 (413), secret-redacted logs. Set `REQUIRE_AUTH=1` in production.
 
-API surface: 78 versioned paths under `/api/v1` (see `contracts/openapi/openapi.json`):
+API surface: 102 versioned paths under `/api/v1` (see `contracts/openapi/openapi.json`):
 orgs, roles, memberships, apikeys, projects, targets, jobs, results,
-prices, changes, articles, search, analytics, intel (compare/reviews/news),
-entities, costs, ml, alerts (+send), reports (+export), schedules, worker,
-strategy, quality, proxies, brightdata, ai, graph, events, evidence, claims,
-contradictions, findings, feed, opportunities, ask, research, watchlists,
-workflows, datasets, connectors, documents, webhooks, i18n, audit,
-dashboard, health, metrics.
+prices, changes, articles, search (+semantic), analytics, intel (compare/reviews/news),
+entities, costs, ml (+predict), alerts (+check/send), reports (+export), search, ask, feed (+subscriptions),
+opportunities, research, watchlists, workflows, datasets, connectors, documents (+reviews),
+webhooks (+ingest/deliveries), i18n, audit, dashboard, health, metrics, browser.
 
 ## Quick start (Windows dev / Linux same, minus service files)
 

@@ -92,6 +92,346 @@
     }
    }
   },
+  "/api/v1/proxies/health": {
+   "get": {
+    "summary": "Proxy Health",
+    "operationId": "proxy_health_api_v1_proxies_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/brightdata/test": {
+   "post": {
+    "summary": "Bright Test",
+    "operationId": "bright_test_api_v1_brightdata_test_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/providers": {
+   "get": {
+    "summary": "Ai Providers",
+    "operationId": "ai_providers_api_v1_ai_providers_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/chat": {
+   "post": {
+    "summary": "Ai Chat",
+    "operationId": "ai_chat_api_v1_ai_chat_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/health": {
+   "get": {
+    "summary": "Ai Health",
+    "operationId": "ai_health_api_v1_ai_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/browser/health": {
+   "get": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Browser Health",
+    "operationId": "browser_health_api_v1_browser_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/providers/db": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Provider Create",
+    "operationId": "ai_provider_create_api_v1_ai_providers_db_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Provider List",
+    "operationId": "ai_provider_list_api_v1_ai_providers_db_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/providers/db/{pid}/disable": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Provider Disable",
+    "operationId": "ai_provider_disable_api_v1_ai_providers_db__pid__disable_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/i18n": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Get Strings",
+    "operationId": "get_strings_api_v1_i18n_get",
+    "parameters": [
+     {
+      "name": "lang",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "en",
+       "title": "Lang"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/dashboard": {
+   "get": {
+    "summary": "Dashboard",
+    "operationId": "dashboard_api_v1_dashboard_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/projects": {
    "post": {
     "summary": "Create Project",
@@ -375,6 +715,169 @@
        "type": "string",
        "default": "",
        "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/connectors": {
+   "post": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Register Connector",
+    "operationId": "register_connector_api_v1_connectors_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "List Connectors",
+    "operationId": "list_connectors_api_v1_connectors_get",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/connectors/match": {
+   "get": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Match Connector",
+    "operationId": "match_connector_api_v1_connectors_match_get",
+    "parameters": [
+     {
+      "name": "capability",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Capability"
+      }
+     },
+     {
+      "name": "category",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Category"
       }
      }
     ],
@@ -1013,10 +1516,13 @@
     }
    }
   },
-  "/api/v1/reports": {
+  "/api/v1/reviews/import": {
    "post": {
-    "summary": "Build Report",
-    "operationId": "build_report_api_v1_reports_post",
+    "tags": [
+     "intelligence"
+    ],
+    "summary": "Reviews Import",
+    "operationId": "reviews_import_api_v1_reviews_import_post",
     "parameters": [
      {
       "name": "authorization",
@@ -1071,29 +1577,24 @@
       }
      }
     }
-   },
+   }
+  },
+  "/api/v1/reviews/summary": {
    "get": {
-    "summary": "List Reports",
-    "operationId": "list_reports_api_v1_reports_get",
+    "tags": [
+     "intelligence"
+    ],
+    "summary": "Reviews Summary",
+    "operationId": "reviews_summary_api_v1_reviews_summary_get",
     "parameters": [
      {
-      "name": "page",
+      "name": "product_id",
       "in": "query",
       "required": false,
       "schema": {
        "type": "integer",
-       "default": 1,
-       "title": "Page"
-      }
-     },
-     {
-      "name": "size",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 20,
-       "title": "Size"
+       "default": 0,
+       "title": "Product Id"
       }
      },
      {
@@ -1314,6 +1815,272 @@
     }
    }
   },
+  "/api/v1/jobs/{job_id}/cancel": {
+   "post": {
+    "tags": [
+     "jobs"
+    ],
+    "summary": "Cancel Job",
+    "operationId": "cancel_job_api_v1_jobs__job_id__cancel_post",
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Job Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/jobs/{job_id}/retry": {
+   "post": {
+    "tags": [
+     "jobs"
+    ],
+    "summary": "Retry Job",
+    "operationId": "retry_job_api_v1_jobs__job_id__retry_post",
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Job Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/dlq": {
+   "get": {
+    "tags": [
+     "jobs"
+    ],
+    "summary": "Dead Letters",
+    "description": "Dead-letter queue depth (Redis when available, else empty \u2014 honest).",
+    "operationId": "dead_letters_api_v1_dlq_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/reports": {
+   "post": {
+    "summary": "Build Report",
+    "operationId": "build_report_api_v1_reports_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "summary": "List Reports",
+    "operationId": "list_reports_api_v1_reports_get",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 1,
+       "title": "Page"
+      }
+     },
+     {
+      "name": "size",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 20,
+       "title": "Size"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/strategy/decide": {
    "post": {
     "summary": "Decide Strategy",
@@ -1441,138 +2208,6 @@
     }
    }
   },
-  "/api/v1/proxies/health": {
-   "get": {
-    "summary": "Proxy Health",
-    "operationId": "proxy_health_api_v1_proxies_health_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/brightdata/test": {
-   "post": {
-    "summary": "Bright Test",
-    "operationId": "bright_test_api_v1_brightdata_test_post",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/ai/providers": {
-   "get": {
-    "summary": "Ai Providers",
-    "operationId": "ai_providers_api_v1_ai_providers_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/ai/chat": {
-   "post": {
-    "summary": "Ai Chat",
-    "operationId": "ai_chat_api_v1_ai_chat_post",
-    "parameters": [
-     {
-      "name": "model",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Model"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "multipart/form-data": {
-       "schema": {
-        "$ref": "#/components/schemas/Body_ai_chat_api_v1_ai_chat_post"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/ai/health": {
-   "get": {
-    "summary": "Ai Health",
-    "operationId": "ai_health_api_v1_ai_health_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
   "/api/v1/alerts": {
    "post": {
     "summary": "Create Alert",
@@ -1692,6 +2327,57 @@
        "type": "string",
        "default": "",
        "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/search/semantic": {
+   "get": {
+    "tags": [
+     "search"
+    ],
+    "summary": "Search Semantic",
+    "operationId": "search_semantic_api_v1_search_semantic_get",
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Q"
+      }
+     },
+     {
+      "name": "k",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 5,
+       "title": "K"
       }
      }
     ],
@@ -2323,160 +3009,13 @@
     }
    }
   },
-  "/api/v1/audit": {
-   "get": {
-    "summary": "List Audit",
-    "operationId": "list_audit_api_v1_audit_get",
-    "parameters": [
-     {
-      "name": "page",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 1,
-       "title": "Page"
-      }
-     },
-     {
-      "name": "size",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 20,
-       "title": "Size"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/orgs": {
+  "/api/v1/entities/merge": {
    "post": {
     "tags": [
-     "admin"
+     "entities"
     ],
-    "summary": "Create Org",
-    "operationId": "create_org_api_v1_orgs_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   },
-   "get": {
-    "tags": [
-     "admin"
-    ],
-    "summary": "List Orgs",
-    "operationId": "list_orgs_api_v1_orgs_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/roles": {
-   "get": {
-    "tags": [
-     "admin"
-    ],
-    "summary": "Roles Matrix",
-    "operationId": "roles_matrix_api_v1_roles_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/memberships": {
-   "post": {
-    "tags": [
-     "admin"
-    ],
-    "summary": "Add Member",
-    "operationId": "add_member_api_v1_memberships_post",
+    "summary": "Entity Merge",
+    "operationId": "entity_merge_api_v1_entities_merge_post",
     "parameters": [
      {
       "name": "authorization",
@@ -2533,13 +3072,13 @@
     }
    }
   },
-  "/api/v1/apikeys": {
+  "/api/v1/entities/split": {
    "post": {
     "tags": [
-     "admin"
+     "entities"
     ],
-    "summary": "Create Apikey",
-    "operationId": "create_apikey_api_v1_apikeys_post",
+    "summary": "Entity Split",
+    "operationId": "entity_split_api_v1_entities_split_post",
     "parameters": [
      {
       "name": "authorization",
@@ -2594,13 +3133,78 @@
       }
      }
     }
-   },
+   }
+  },
+  "/api/v1/entities/reject": {
+   "post": {
+    "tags": [
+     "entities"
+    ],
+    "summary": "Entity Reject",
+    "operationId": "entity_reject_api_v1_entities_reject_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/entities/history": {
    "get": {
     "tags": [
-     "admin"
+     "entities"
     ],
-    "summary": "List Apikeys",
-    "operationId": "list_apikeys_api_v1_apikeys_get",
+    "summary": "Entity History",
+    "operationId": "entity_history_api_v1_entities_history_get",
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -2613,21 +3217,62 @@
     }
    }
   },
-  "/api/v1/apikeys/{kid}/revoke": {
-   "post": {
+  "/api/v1/entities/{eid}": {
+   "get": {
     "tags": [
-     "admin"
+     "entities"
     ],
-    "summary": "Revoke Apikey",
-    "operationId": "revoke_apikey_api_v1_apikeys__kid__revoke_post",
+    "summary": "Entity Detail",
+    "description": "Rich explorer: overview, timeline, relationships, events, changes, evidence.",
+    "operationId": "entity_detail_api_v1_entities__eid__get",
     "parameters": [
      {
-      "name": "kid",
+      "name": "eid",
       "in": "path",
       "required": true,
       "schema": {
        "type": "integer",
-       "title": "Kid"
+       "title": "Eid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/findings/{fid}": {
+   "get": {
+    "tags": [
+     "intelligence"
+    ],
+    "summary": "Finding Detail",
+    "operationId": "finding_detail_api_v1_findings__fid__get",
+    "parameters": [
+     {
+      "name": "fid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Fid"
       }
      },
      {
@@ -2651,6 +3296,328 @@
       }
      }
     ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/reliability/targets": {
+   "get": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Target Reliability",
+    "operationId": "target_reliability_api_v1_reliability_targets_get",
+    "parameters": [
+     {
+      "name": "target_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Target Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/correlate/prices": {
+   "post": {
+    "tags": [
+     "intelligence"
+    ],
+    "summary": "Correlate Prices",
+    "operationId": "correlate_prices_api_v1_correlate_prices_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ml/predict": {
+   "post": {
+    "tags": [
+     "ml"
+    ],
+    "summary": "Ml Predict",
+    "operationId": "ml_predict_api_v1_ml_predict_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Spec"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/feed/subscriptions": {
+   "post": {
+    "tags": [
+     "intelligence"
+    ],
+    "summary": "Feed Subscribe",
+    "operationId": "feed_subscribe_api_v1_feed_subscriptions_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/feed/personalized": {
+   "get": {
+    "tags": [
+     "intelligence"
+    ],
+    "summary": "Feed Personal",
+    "operationId": "feed_personal_api_v1_feed_personalized_get",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/alerts/check": {
+   "post": {
+    "tags": [
+     "alerts"
+    ],
+    "summary": "Alert Check",
+    "operationId": "alert_check_api_v1_alerts_check_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -3807,6 +4774,913 @@
     }
    }
   },
+  "/api/v1/datasets": {
+   "post": {
+    "tags": [
+     "datasets"
+    ],
+    "summary": "Create Dataset",
+    "operationId": "create_dataset_api_v1_datasets_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "datasets"
+    ],
+    "summary": "List Datasets",
+    "operationId": "list_datasets_api_v1_datasets_get",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/datasets/{did}/publish": {
+   "post": {
+    "tags": [
+     "datasets"
+    ],
+    "summary": "Dataset Publish",
+    "operationId": "dataset_publish_api_v1_datasets__did__publish_post",
+    "parameters": [
+     {
+      "name": "did",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Did"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/datasets/{did}/export": {
+   "get": {
+    "tags": [
+     "datasets"
+    ],
+    "summary": "Dataset Export",
+    "operationId": "dataset_export_api_v1_datasets__did__export_get",
+    "parameters": [
+     {
+      "name": "did",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Did"
+      }
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "csv",
+       "title": "Format"
+      }
+     },
+     {
+      "name": "version",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Version"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/documents": {
+   "post": {
+    "tags": [
+     "knowledge"
+    ],
+    "summary": "Ingest Document",
+    "operationId": "ingest_document_api_v1_documents_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "knowledge"
+    ],
+    "summary": "List Documents",
+    "operationId": "list_documents_api_v1_documents_get",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 1,
+       "title": "Page"
+      }
+     },
+     {
+      "name": "size",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 20,
+       "title": "Size"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/graph/render": {
+   "get": {
+    "tags": [
+     "knowledge"
+    ],
+    "summary": "Graph Svg",
+    "operationId": "graph_svg_api_v1_graph_render_get",
+    "parameters": [
+     {
+      "name": "node",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Node"
+      }
+     },
+     {
+      "name": "depth",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 1,
+       "title": "Depth"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 30,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "rel",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Rel"
+      }
+     },
+     {
+      "name": "kind",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Kind"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Since"
+      }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Until"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/datasets/{did}/archive": {
+   "post": {
+    "tags": [
+     "datasets"
+    ],
+    "summary": "Dataset Archive",
+    "operationId": "dataset_archive_api_v1_datasets__did__archive_post",
+    "parameters": [
+     {
+      "name": "did",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Did"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/audit": {
+   "get": {
+    "summary": "List Audit",
+    "operationId": "list_audit_api_v1_audit_get",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 1,
+       "title": "Page"
+      }
+     },
+     {
+      "name": "size",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 20,
+       "title": "Size"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/orgs": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Create Org",
+    "operationId": "create_org_api_v1_orgs_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "List Orgs",
+    "operationId": "list_orgs_api_v1_orgs_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roles": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Roles Matrix",
+    "operationId": "roles_matrix_api_v1_roles_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/memberships": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Add Member",
+    "operationId": "add_member_api_v1_memberships_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/apikeys": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Create Apikey",
+    "operationId": "create_apikey_api_v1_apikeys_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "List Apikeys",
+    "operationId": "list_apikeys_api_v1_apikeys_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/apikeys/{kid}/revoke": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Revoke Apikey",
+    "operationId": "revoke_apikey_api_v1_apikeys__kid__revoke_post",
+    "parameters": [
+     {
+      "name": "kid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Kid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/watchlists": {
    "post": {
     "tags": [
@@ -4204,545 +6078,6 @@
     }
    }
   },
-  "/api/v1/datasets": {
-   "post": {
-    "tags": [
-     "datasets"
-    ],
-    "summary": "Create Dataset",
-    "operationId": "create_dataset_api_v1_datasets_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   },
-   "get": {
-    "tags": [
-     "datasets"
-    ],
-    "summary": "List Datasets",
-    "operationId": "list_datasets_api_v1_datasets_get",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/datasets/{did}/publish": {
-   "post": {
-    "tags": [
-     "datasets"
-    ],
-    "summary": "Dataset Publish",
-    "operationId": "dataset_publish_api_v1_datasets__did__publish_post",
-    "parameters": [
-     {
-      "name": "did",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "integer",
-       "title": "Did"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/datasets/{did}/export": {
-   "get": {
-    "tags": [
-     "datasets"
-    ],
-    "summary": "Dataset Export",
-    "operationId": "dataset_export_api_v1_datasets__did__export_get",
-    "parameters": [
-     {
-      "name": "did",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "integer",
-       "title": "Did"
-      }
-     },
-     {
-      "name": "format",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "csv",
-       "title": "Format"
-      }
-     },
-     {
-      "name": "version",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 0,
-       "title": "Version"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/connectors": {
-   "post": {
-    "tags": [
-     "sources"
-    ],
-    "summary": "Register Connector",
-    "operationId": "register_connector_api_v1_connectors_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   },
-   "get": {
-    "tags": [
-     "sources"
-    ],
-    "summary": "List Connectors",
-    "operationId": "list_connectors_api_v1_connectors_get",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/connectors/match": {
-   "get": {
-    "tags": [
-     "sources"
-    ],
-    "summary": "Match Connector",
-    "operationId": "match_connector_api_v1_connectors_match_get",
-    "parameters": [
-     {
-      "name": "capability",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Capability"
-      }
-     },
-     {
-      "name": "category",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Category"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/documents": {
-   "post": {
-    "tags": [
-     "knowledge"
-    ],
-    "summary": "Ingest Document",
-    "operationId": "ingest_document_api_v1_documents_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   },
-   "get": {
-    "tags": [
-     "knowledge"
-    ],
-    "summary": "List Documents",
-    "operationId": "list_documents_api_v1_documents_get",
-    "parameters": [
-     {
-      "name": "page",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 1,
-       "title": "Page"
-      }
-     },
-     {
-      "name": "size",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 20,
-       "title": "Size"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
   "/api/v1/webhooks": {
    "post": {
     "tags": [
@@ -5066,945 +6401,6 @@
      }
     }
    }
-  },
-  "/api/v1/i18n": {
-   "get": {
-    "tags": [
-     "admin"
-    ],
-    "summary": "Get Strings",
-    "operationId": "get_strings_api_v1_i18n_get",
-    "parameters": [
-     {
-      "name": "lang",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "en",
-       "title": "Lang"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/jobs/{job_id}/cancel": {
-   "post": {
-    "tags": [
-     "jobs"
-    ],
-    "summary": "Cancel Job",
-    "operationId": "cancel_job_api_v1_jobs__job_id__cancel_post",
-    "parameters": [
-     {
-      "name": "job_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "Job Id"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/jobs/{job_id}/retry": {
-   "post": {
-    "tags": [
-     "jobs"
-    ],
-    "summary": "Retry Job",
-    "operationId": "retry_job_api_v1_jobs__job_id__retry_post",
-    "parameters": [
-     {
-      "name": "job_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "Job Id"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/dlq": {
-   "get": {
-    "tags": [
-     "jobs"
-    ],
-    "summary": "Dead Letters",
-    "description": "Dead-letter queue depth (Redis when available, else empty \u2014 honest).",
-    "operationId": "dead_letters_api_v1_dlq_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/entities/merge": {
-   "post": {
-    "tags": [
-     "entities"
-    ],
-    "summary": "Entity Merge",
-    "operationId": "entity_merge_api_v1_entities_merge_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/entities/split": {
-   "post": {
-    "tags": [
-     "entities"
-    ],
-    "summary": "Entity Split",
-    "operationId": "entity_split_api_v1_entities_split_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/entities/reject": {
-   "post": {
-    "tags": [
-     "entities"
-    ],
-    "summary": "Entity Reject",
-    "operationId": "entity_reject_api_v1_entities_reject_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/entities/history": {
-   "get": {
-    "tags": [
-     "entities"
-    ],
-    "summary": "Entity History",
-    "operationId": "entity_history_api_v1_entities_history_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/entities/{eid}": {
-   "get": {
-    "tags": [
-     "entities"
-    ],
-    "summary": "Entity Detail",
-    "description": "Rich explorer: overview, timeline, relationships, events, changes, evidence.",
-    "operationId": "entity_detail_api_v1_entities__eid__get",
-    "parameters": [
-     {
-      "name": "eid",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "integer",
-       "title": "Eid"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/findings/{fid}": {
-   "get": {
-    "tags": [
-     "intelligence"
-    ],
-    "summary": "Finding Detail",
-    "operationId": "finding_detail_api_v1_findings__fid__get",
-    "parameters": [
-     {
-      "name": "fid",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "integer",
-       "title": "Fid"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/graph/render": {
-   "get": {
-    "tags": [
-     "knowledge"
-    ],
-    "summary": "Graph Svg",
-    "operationId": "graph_svg_api_v1_graph_render_get",
-    "parameters": [
-     {
-      "name": "node",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 0,
-       "title": "Node"
-      }
-     },
-     {
-      "name": "depth",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 1,
-       "title": "Depth"
-      }
-     },
-     {
-      "name": "limit",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 30,
-       "title": "Limit"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/reliability/targets": {
-   "get": {
-    "tags": [
-     "sources"
-    ],
-    "summary": "Target Reliability",
-    "operationId": "target_reliability_api_v1_reliability_targets_get",
-    "parameters": [
-     {
-      "name": "target_id",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "default": 0,
-       "title": "Target Id"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/correlate/prices": {
-   "post": {
-    "tags": [
-     "intelligence"
-    ],
-    "summary": "Correlate Prices",
-    "operationId": "correlate_prices_api_v1_correlate_prices_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/ml/predict": {
-   "post": {
-    "tags": [
-     "ml"
-    ],
-    "summary": "Ml Predict",
-    "operationId": "ml_predict_api_v1_ml_predict_post",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "additionalProperties": true,
-        "type": "object",
-        "title": "Spec"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/feed/subscriptions": {
-   "post": {
-    "tags": [
-     "intelligence"
-    ],
-    "summary": "Feed Subscribe",
-    "operationId": "feed_subscribe_api_v1_feed_subscriptions_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/feed/personalized": {
-   "get": {
-    "tags": [
-     "intelligence"
-    ],
-    "summary": "Feed Personal",
-    "operationId": "feed_personal_api_v1_feed_personalized_get",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/alerts/check": {
-   "post": {
-    "tags": [
-     "alerts"
-    ],
-    "summary": "Alert Check",
-    "operationId": "alert_check_api_v1_alerts_check_post",
-    "parameters": [
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "title": "Spec"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/datasets/{did}/archive": {
-   "post": {
-    "tags": [
-     "datasets"
-    ],
-    "summary": "Dataset Archive",
-    "operationId": "dataset_archive_api_v1_datasets__did__archive_post",
-    "parameters": [
-     {
-      "name": "did",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "integer",
-       "title": "Did"
-      }
-     },
-     {
-      "name": "authorization",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "Authorization"
-      }
-     },
-     {
-      "name": "x-api-key",
-      "in": "header",
-      "required": false,
-      "schema": {
-       "type": "string",
-       "default": "",
-       "title": "X-Api-Key"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/v1/dashboard": {
-   "get": {
-    "summary": "Dashboard",
-    "operationId": "dashboard_api_v1_dashboard_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
   }
  },
  "components": {
@@ -6036,20 +6432,6 @@
      "message"
     ],
     "title": "AlertRuleIn"
-   },
-   "Body_ai_chat_api_v1_ai_chat_post": {
-    "properties": {
-     "messages": {
-      "items": {},
-      "type": "array",
-      "title": "Messages"
-     }
-    },
-    "type": "object",
-    "required": [
-     "messages"
-    ],
-    "title": "Body_ai_chat_api_v1_ai_chat_post"
    },
    "Body_classify_change_api_v1_changes_classify_post": {
     "properties": {

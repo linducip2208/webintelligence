@@ -1,20 +1,81 @@
-"""Playwright browser worker (requires `pip install playwright && playwright install chromium`)."""
+"""Playwright browser worker (requires `pip install playwright && playwright install chromium`).
+
+The browser launches ONCE and is reused across jobs (new context per job);
+crashes trigger a relaunch. Never one browser process per request.
+"""
+import threading
+
 POOL_SIZE = 2
 BLOCKED = ("*.mp4", "*.woff2", "*.png", "*.jpg")
+_LOCK = threading.Lock()
+_PW = {"p": None, "browser": None}
+
+
+def _browser():
+    from playwright.sync_api import sync_playwright
+    with _LOCK:
+        b = _PW["browser"]
+        try:
+            if b is not None and b.is_connected():
+                return b
+        except Exception:
+            pass
+        if _PW["p"] is None:
+            _PW["p"] = sync_playwright().start()
+        _PW["browser"] = _PW["p"].chromium.launch(
+            args=["--no-sandbox", "--disable-dev-shm-usage"])
+        return _PW["browser"]
+
+
+def pool_status():
+    try:
+        import playwright  # noqa: F401
+        installed = True
+    except ImportError:
+        installed = False
+    alive = False
+    try:
+        alive = _PW["browser"] is not None and _PW["browser"].is_connected()
+    except Exception:
+        pass
+    return {"installed": installed, "pool": POOL_SIZE, "browser_alive": alive,
+            "reused": True}
+
+
 def fetch(url, timeout_ms=30000):
-    try: from playwright.sync_api import sync_playwright
-    except ImportError: return {"ok": False, "error": "playwright-not-installed"}
-    with sync_playwright() as p:
-        b = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+    try:
+        import playwright  # noqa: F401
+    except ImportError:
+        return {"ok": False, "error": "playwright-not-installed"}
+    try:
+        b = _browser()
+    except Exception as e:
+        return {"ok": False, "error": f"browser-launch-failed: {e}"[:300]}
+    try:
         ctx = b.new_context(user_agent="Mozilla/5.0 WebIntel/1.0")
         pg = ctx.new_page()
         try:
             resp = pg.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
             html = pg.content()
-            out = {"ok": True, "http_status": resp.status if resp else 0, "url": pg.url, "size": len(html), "html": html}
-        except Exception as e: out = {"ok": False, "error": str(e)}
-        finally: b.close()
+            out = {"ok": True, "http_status": resp.status if resp else 0,
+                   "url": pg.url, "size": len(html), "html": html}
+        except Exception as e:
+            out = {"ok": False, "error": str(e)[:300]}
+        finally:
+            try:
+                ctx.close()
+            except Exception:
+                pass
         return out
+    except Exception as e:
+        with _LOCK:
+            try:
+                if _PW["browser"] is not None:
+                    _PW["browser"].close()
+            except Exception:
+                pass
+            _PW["browser"] = None
+        return {"ok": False, "error": f"browser-crash-recovered: {e}"[:300]}
 
 
 def main():

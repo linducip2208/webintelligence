@@ -251,6 +251,49 @@ class Repo:
             pass
         return out
 
+    def page(self, coll, page=1, size=20, sort="", order="asc",
+             filters=None, in_filters=None, colmap=None):
+        """DB-level pagination (LIMIT/OFFSET + COUNT) so large collections
+        never load fully into memory. colmap: STORE key -> column name."""
+        model = _model_for(coll)
+        hyd = _HYDRATE[coll][1]
+        page = max(1, page)
+        size = max(1, min(100, size))
+        try:
+            s = self._session()
+            q = s.query(model)
+            for k, v in (filters or {}).items():
+                if hasattr(model, k):
+                    q = q.filter(getattr(model, k) == v)
+            for k, vs in (in_filters or {}).items():
+                if hasattr(model, k):
+                    vs = list(vs)
+                    if not vs:
+                        s.close()
+                        return {"items": [], "total": 0, "page": page, "size": size}
+                    q = q.filter(getattr(model, k).in_(vs))
+            total = q.count()
+            col = None
+            if sort:
+                col = getattr(model, (colmap or {}).get(sort, sort), None)
+            if col is None and hasattr(model, "id"):
+                col, order = model.id, "desc"
+            if col is not None:
+                q = q.order_by(col.desc() if order == "desc" else col.asc())
+            rows = q.offset((page - 1) * size).limit(size).all()
+            items = []
+            for r in rows:
+                try:
+                    items.append(hyd(r))
+                except Exception:
+                    continue
+            s.close()
+            return {"items": items, "total": total, "page": page, "size": size}
+        except Exception as e:
+            from ..core.logging import log
+            log("repo-page-failed", coll=coll, error=str(e)[:200])
+            return {"items": [], "total": 0, "page": page, "size": size}
+
     def kv_set(self, key, value):
         try:
             from ..models.universal import KV
@@ -459,6 +502,18 @@ def _h_attempts(row):
     return {"target_id": dg.get("target_id"), "ok": bool(row.ok),
             "latency_ms": row.latency_ms or 0, "completeness": dg.get("completeness", 0),
             "at": dg.get("at", 0)}
+
+
+def _m_reviews(item):
+    from ..models.entities import Review
+    return Review, {"product_id": item.get("product_id"), "rating": item.get("rating"),
+                    "text": item.get("text", ""), "sentiment": item.get("sentiment", ""),
+                    "raw_document_id": item.get("raw_document_id", 0) or 0}
+
+
+def _h_reviews(row):
+    return {"id": row.id, "product_id": row.product_id, "rating": row.rating,
+            "text": row.text or "", "sentiment": row.sentiment or ""}
 
 
 def _m_orgs(item):
@@ -749,6 +804,19 @@ def _h_feedsubs(row):
             "keywords": row.keywords or []}
 
 
+def _m_aiproviders(item):
+    from ..models.entities import AIProvider
+    return AIProvider, {"name": item.get("name", ""), "base_url": item.get("base_url", ""),
+                        "api_key_enc": item.get("api_key_enc", ""),
+                        "model": item.get("model", ""),
+                        "enabled": bool(item.get("enabled", True))}
+
+
+def _h_aiproviders(row):
+    return {"id": row.id, "name": row.name, "base_url": row.base_url,
+            "model": row.model, "enabled": bool(row.enabled)}
+
+
 def _m_entity_history(item):
     from ..models.universal import Snapshot
     return Snapshot, {"key": "entity_op", "state": _full(item), "at_ts": 0}
@@ -772,7 +840,8 @@ _MIRRORS = {
     "dsversions": _m_dsversions, "connectors": _m_connectors,
     "documents": _m_documents, "webhooks": _m_webhooks,
     "deliveries": _m_deliveries, "history": _m_snapshots, "feed_subs": _m_feedsubs,
-    "entity_history": _m_entity_history,
+    "entity_history": _m_entity_history, "ai_providers": _m_aiproviders,
+    "reviews": _m_reviews,
 }
 
 _HYDRATE = {
@@ -793,6 +862,7 @@ _HYDRATE = {
     "documents": (None, _h_documents), "webhooks": (None, _h_webhooks),
     "deliveries": (None, _h_deliveries), "history": (None, _h_snapshots),
     "feed_subs": (None, _h_feedsubs), "entity_history": (None, _h_entity_history),
+    "ai_providers": (None, _h_aiproviders), "reviews": (None, _h_reviews),
 }
 
 _KEYS = {"jobs": "job_uid", "apikeys": "key_hash"}
@@ -801,7 +871,8 @@ _KEYS = {"jobs": "job_uid", "apikeys": "key_hash"}
 def _model_for(coll):
     from ..models.entities import (Project, Target, CollectionJob, Price, Article,
                                    Report, Schedule, RawDocument, Change, Alert,
-                                   NormalizedEntity, AuditLog, CollectionAttempt)
+                                   NormalizedEntity, AuditLog, CollectionAttempt,
+                                   AIProvider, Review)
     from ..models.universal import (Organization, Membership, APIKey, GraphNode,
                                     GraphEdge, Event, Evidence, Claim, Finding,
                                     ResearchRun, Watchlist, Workflow, WorkflowRun,
@@ -810,7 +881,7 @@ def _model_for(coll):
     return {"projects": Project, "targets": Target, "jobs": CollectionJob,
             "prices": Price, "articles": Article, "reports": Report,
             "schedules": Schedule, "raw": RawDocument, "changes": Change,
-            "alerts": Alert,
+            "alerts": Alert, "ai_providers": AIProvider, "reviews": Review,
             "entities": NormalizedEntity, "audit": AuditLog,
             "attempts": CollectionAttempt, "orgs": Organization,
             "memberships": Membership, "apikeys": APIKey, "nodes": GraphNode,

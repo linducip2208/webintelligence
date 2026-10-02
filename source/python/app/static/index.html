@@ -46,7 +46,7 @@ const NAV=[
  ['Research',[['research','research'],['runs','runs'],['reports','reports']]],
  ['Sources',[['sources','projects'],['targets','targets'],['connectors','connectors'],['jobs','jobs'],['reliability','health']]],
  ['Entities',[['companies','entities'],['products','prices'],['domains','entities'],['locations','entities']]],
- ['Knowledge',[['graph','graph'],['relationships','graph'],['events','events'],['changes','changes'],['evidence','evidence'],['claims','claims'],['documents','documents'],['reliability','reliability']]],
+ ['Knowledge',[['graph','graph'],['relationships','graph'],['events','events'],['changes','changes'],['evidence','evidence'],['claims','claims'],['documents','documents'],['reliability','reliability'],['reviews','reviews']]],
  ['Datasets',[['datasets','datasets'],['quality','analytics']]],
  ['Monitoring',[['watchlists','watchlists'],['alerts','alerts'],['workflows','workflows'],['webhooks','webhooks']]],
  ['AI',[['providers','ai'],['models','ai'],['usage','ai']]],
@@ -79,7 +79,8 @@ else if(view==='feed'){const d=await api('/api/v1/feed?limit=50');C.innerHTML=d.
 else if(view==='opps'){const d=await api('/api/v1/opportunities');C.innerHTML=table(d.items||[],['type','product_id','price','z']);}
 else if(view==='research'){C.innerHTML=`<div class="card"><h3>New research</h3><form class="inline" onsubmit="mkResearch(event)"><input name="q" style="width:340px" placeholder="Research question…"><button class="primary">Plan</button></form><pre id="rp"></pre><pre id="rr"></pre></div>`;}
 else if(view==='runs'){const d=await api('/api/v1/research/runs');C.innerHTML=table(d.items||[],['id','question','status','ai_model']);}
-else if(view==='graph'){C.innerHTML=`<div class="card"><h3>Add node</h3>${form([['kind','kind: company'],['key','key'],['name','name']],'addNode')}<h3>Add edge</h3>${form([['src','src id'],['dst','dst id'],['rel','OWNS']],'addEdge')}<h3>Traverse</h3><form class="inline" onsubmit="trav(event)"><input name="node" placeholder="node id"><button>Go</button><button type="button" onclick="svg()">SVG</button></form><pre id="g"></pre><div id="gv"></div></div>`;}
+else if(view==='graph'){C.innerHTML=`<div class="card"><h3>Add node</h3>${form([['kind','kind: company'],['key','key'],['name','name']],'addNode')}<h3>Add edge</h3>${form([['src','src id'],['dst','dst id'],['rel','OWNS']],'addEdge')}<h3>Traverse / render (paginated subgraph)</h3><form class="inline" onsubmit="trav(event)"><input name="node" placeholder="node id"><input name="rel" placeholder="rel filter"><input name="kind" placeholder="kind filter"><button>Go</button><button type="button" onclick="svg()">SVG</button></form><pre id="g"></pre><div id="gv"></div></div>`;}
+else if(view==='reviews'){const s=await api('/api/v1/reviews/summary');C.innerHTML=`<div class="grid"><div class="card"><h3>Reviews</h3><div class="v">${s.count}</div><div>avg ${s.avg_rating??'—'}</div></div><div class="card"><h3>Sentiment</h3><pre>${esc(JSON.stringify(s.sentiment))}</pre></div></div>`;}
 else if(view==='events'){const d=await api('/api/v1/events?size=50');C.innerHTML=form([['type','type: PRICE'],['entity_key','entity key']],'addEvent')+table(d.items||[],['id','type','entity_key','severity']);}
 else if(view==='evidence'){const d=await api('/api/v1/evidence?size=50');C.innerHTML=form([['source','source'],['url','https://…'],['content_hash','hash']],'addEvidence')+table(d.items||[],['id','source','url','content_hash','confidence']);}
 else if(view==='claims'){C.innerHTML=`<div class="card"><h3>Verify a claim against evidence</h3><form class="inline" onsubmit="verifyCl(event)"><input name="value" placeholder="claim value"><input name="ev" placeholder='evidence JSON: [{"value":"..","reliability":0.9}]' style="width:340px"><button class="primary">Verify</button></form><pre id="vc"></pre></div>`;}
@@ -138,7 +139,7 @@ async function addEdge(e){e.preventDefault();await post('/api/v1/graph/edges',{s
 async function trav(e){e.preventDefault();document.querySelector('#g').textContent=JSON.stringify(await api('/api/v1/graph/traverse?node='+val('node')),null,2).slice(0,3000);}
 async function entDetail(id){location.hash='id='+id;view='entity';load();}
 async function entHist(){alert(JSON.stringify(await api('/api/v1/entities/history')).slice(0,500));}
-async function svg(){const r=await api('/api/v1/graph/render?node='+val('node'));document.querySelector('#gv').innerHTML=r.svg;}
+async function svg(){const q=`node=${val('node')}&rel=${encodeURIComponent(val('rel'))}&kind=${encodeURIComponent(val('kind'))}`;const r=await api('/api/v1/graph/render?'+q);document.querySelector('#gv').innerHTML=r.svg;}
 async function addEvent(e){e.preventDefault();await post('/api/v1/events',{type:val('type'),entity_key:val('entity_key')});load()}
 async function addEvidence(e){e.preventDefault();await post('/api/v1/evidence',{source:val('source'),url:val('url'),content_hash:val('content_hash')});load()}
 async function verifyCl(e){e.preventDefault();let ev=[];try{ev=JSON.parse(val('ev'))}catch(e2){}document.querySelector('#vc').textContent=JSON.stringify(await post('/api/v1/claims/verify',{value:val('value'),evidence:ev}),null,2);}
