@@ -16,6 +16,7 @@ from .core.ssrf import validate_url, SSRFError
 from .core.metrics import inc, render
 from .core.pagination import paginate
 from .core.deps import get_redis, redis_status, init_db, data_dir
+from .core import mirror as dbmirror
 from .services import decision as dec
 from .services import cost as costeng
 from .services import change as changedet
@@ -46,7 +47,8 @@ if _os.path.isdir(_STATIC):
 STORE = {
     "projects": [], "targets": [], "jobs": [], "alerts": [],
     "prices": [], "articles": [], "reports": [], "health": [],
-    "schedules": [], "raw": [], "changes": [],
+    "schedules": [], "raw": [], "changes": [], "entities": [],
+    "audit": [], "budgets": {},
 }
 USERS = {"admin@local": {"password_hash": hash_password("admin123")}}
 
@@ -80,6 +82,13 @@ def _providers():
                            "configured": bright.configured}}
 
 
+def _audit(actor, action, ref=""):
+    STORE["audit"].append({"actor": actor, "action": action, "ref": ref,
+                           "at": time.time()})
+    if DB_OK:
+        dbmirror.mirror_audit(actor, action, ref)
+
+
 def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
     """Persist a pipeline/collector result bundle into STORE. Shared by
     inline runs, /results ingestion, and worker ticks."""
@@ -96,12 +105,16 @@ def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
         STORE["prices"].append({"product_id": target_id, "price": p["price"],
                                 "currency": p.get("currency", "USD"), "seller": "",
                                 "observed_at": time.time(), "job_id": res.get("job_id")})
+        if DB_OK:
+            dbmirror.mirror_price(target_id, p["price"], p.get("currency", "USD"))
     if res.get("change") in ("CHANGED", "NEW"):
         STORE["changes"].append({"target_id": target_id, "kind": res["change"],
                                  "diff": res.get("diagnostics", {}), "at": time.time()})
     for a in res.get("alerts", []):
         STORE["alerts"].append({"id": len(STORE["alerts"]) + 1, **a,
                                 "project_id": project_id, "is_read": False})
+        if DB_OK:
+            dbmirror.mirror_alert(a.get("rule", ""), a.get("message", "")[:500], project_id)
     if res.get("status") == "success":
         inc("jobs_success")
     elif res.get("status") in ("failed",):
@@ -152,6 +165,11 @@ def readyz():
     ]
     live = [c for c in checks if c["name"] in ("api", "redis", "mysql")]
     status = "healthy" if all(c["status"] == "up" for c in live) else "degraded"
+    STORE["health"].append({"at": time.time(), "status": status,
+                            "checks": {c["name"]: c["status"] for c in checks}})
+    if DB_OK:
+        for c in checks:
+            dbmirror.mirror_health(c["name"], c["status"], c.get("detail", ""))
     return {"status": status, "checks": checks}
 
 
@@ -167,6 +185,9 @@ def create_project(p: ProjectIn, authorization: str = Header("")):
     item = {"id": len(STORE["projects"]) + 1, "name": p.name, "description": p.description}
     STORE["projects"].append(item)
     inc("projects_total")
+    _audit(authorization[:12] if authorization else "anon", "project.create", item["name"])
+    if DB_OK:
+        dbmirror.mirror_project(p.name, p.description)
     return item
 
 
@@ -187,6 +208,9 @@ def create_target(t: TargetIn, authorization: str = Header("")):
     item = t.model_dump() | {"id": len(STORE["targets"]) + 1, "attempts": 0,
                              "successes": 0, "failures": 0}
     STORE["targets"].append(item)
+    _audit(authorization[:12] if authorization else "anon", "target.create", t.url[:120])
+    if DB_OK:
+        dbmirror.mirror_target(t.project_id, t.domain, t.url, t.source_type)
     return item
 
 
@@ -214,6 +238,10 @@ def create_job(j: JobIn, authorization: str = Header("")):
            "created_at": time.time(),
            "estimated_cost": costeng.estimate(plan["plan"][0] if plan["plan"] else "DIRECT_HTTP")}
     STORE["jobs"].append(job)
+    _audit(authorization[:12] if authorization else "anon", "job.create", job["job_id"])
+    if DB_OK:
+        dbmirror.mirror_job(job["trace_id"], j.project_id, j.target_id,
+                            j.url, j.strategy, "queued")
     r = get_redis()
     if r is not None:
         try:
@@ -369,6 +397,8 @@ def worker_tick(authorization: str = Header("")):
             if job["url"]:
                 STORE["jobs"].append(job)
                 fired.append(job["job_id"])
+                _audit(authorization[:12] if authorization else "anon",
+                       "job.scheduled", job["job_id"])
             s["last_run"] = now.isoformat()
             s["next_run"] = sched.next_run(s.get("kind", "interval"),
                                            s.get("every_min", 60)).isoformat()
@@ -443,6 +473,204 @@ def create_alert(a: AlertRuleIn, authorization: str = Header("")):
 @app.get("/api/v1/alerts")
 def list_alerts(page: int = 1, size: int = 20):
     return paginate(STORE["alerts"], page, size)
+
+
+# ---- analytics ----
+@app.get("/api/v1/analytics/prices")
+def analytics_prices(product_id: int = 0):
+    from .analytics.stats import mean, volatility, anomaly_marks, pct_change
+    pts = [p for p in STORE["prices"] if not product_id or p.get("product_id") == product_id]
+    vals = [p["price"] for p in pts]
+    marks = anomaly_marks(vals) if len(vals) > 3 else []
+    return {"count": len(vals), "avg": mean(vals) if vals else None,
+            "min": min(vals) if vals else None, "max": max(vals) if vals else None,
+            "volatility": volatility(vals) if len(vals) > 1 else 0.0,
+            "change_pct": pct_change(vals[0], vals[-1]) if len(vals) > 1 else None,
+            "anomalies": [{"index": i, "price": vals[i]} for i in marks],
+            "history": pts[-100:]}
+
+
+@app.get("/api/v1/analytics/trends")
+def analytics_trends():
+    from .analytics.trends import emerging_topics
+    titles = [a.get("title", "") for a in STORE["articles"]]
+    return {"topics": emerging_topics(titles),
+            "review_volume": len([1 for _ in STORE["prices"]]),
+            "articles": len(STORE["articles"])}
+
+
+@app.get("/api/v1/analytics/quality")
+def analytics_quality():
+    from .services.quality import score
+    recs = [{"price": p.get("price"), "url": "job:" + str(p.get("job_id", ""))} for p in STORE["prices"]]
+    req = ["price", "url"]
+    scores = [score(r, req)["overall"] for r in recs] if recs else []
+    return {"records": len(recs), "avg_overall": round(sum(scores) / len(scores), 3) if scores else None,
+            "required": req}
+
+
+# ---- intelligence ----
+@app.post("/api/v1/intel/competitors/compare")
+def intel_compare(spec: dict):
+    from .intelligence.competitors import compare
+    return compare(spec.get("a", []), spec.get("b", []))
+
+
+@app.post("/api/v1/intel/reviews")
+def intel_reviews(spec: dict):
+    from .intelligence.reviews import analyze
+    return analyze(spec.get("reviews", []))
+
+
+@app.post("/api/v1/intel/news/summarize")
+def intel_news(spec: dict):
+    from .intelligence.news import summarize_article
+    return summarize_article(spec.get("title", ""), spec.get("body", ""))
+
+
+# ---- entities ----
+@app.post("/api/v1/entities/resolve")
+def entity_resolve(spec: dict, authorization: str = Header("")):
+    _require_auth(authorization)
+    from .services.entity_resolution import score, decide
+    cand = spec.get("candidate", {})
+    best, best_s = None, -1.0
+    for e in STORE["entities"]:
+        s = score(cand, e)
+        if s > best_s:
+            best, best_s = e, s
+    verdict = decide(best_s) if best else "NEW"
+    if verdict == "NEW":
+        item = {"id": len(STORE["entities"]) + 1, **cand}
+        STORE["entities"].append(item)
+        return {"verdict": "NEW", "entity": item, "score": 0.0}
+    if verdict == "LINK":
+        return {"verdict": "LINK", "entity": best, "score": best_s}
+    return {"verdict": "REVIEW", "entity": best, "score": best_s}
+
+
+@app.get("/api/v1/entities")
+def list_entities(page: int = 1, size: int = 20):
+    return paginate(STORE["entities"], page, size)
+
+
+# ---- costs & budgets ----
+@app.get("/api/v1/costs/summary")
+def costs_summary():
+    return costeng.summary(STORE["jobs"])
+
+
+@app.post("/api/v1/costs/budget")
+def set_budget(spec: dict, authorization: str = Header("")):
+    _require_auth(authorization)
+    STORE["budgets"][str(spec.get("project_id", 1))] = float(spec.get("limit", 0))
+    return {"ok": True, "budgets": STORE["budgets"]}
+
+
+@app.get("/api/v1/costs/budget/check")
+def budget_check(project_id: int = 1):
+    spent = sum(j.get("actual_cost", 0) or j.get("estimated_cost", 0)
+                for j in STORE["jobs"] if j.get("project_id") == project_id)
+    limit = STORE["budgets"].get(str(project_id))
+    return {"spent": round(spent, 6), "limit": limit,
+            "over": limit is not None and spent > limit}
+
+
+# ---- ML registry ----
+@app.post("/api/v1/ml/register")
+def ml_register(spec: dict, authorization: str = Header("")):
+    _require_auth(authorization)
+    from .analytics.ml import register
+    register(spec.get("name", "model"), spec.get("version", "v1"),
+             spec.get("metrics", {}))
+    return {"ok": True}
+
+
+@app.get("/api/v1/ml/models")
+def ml_models():
+    from .analytics.ml import REGISTRY
+    return {"models": REGISTRY}
+
+
+# ---- alert delivery ----
+@app.post("/api/v1/alerts/{alert_id}/send")
+def alert_send(alert_id: int, authorization: str = Header("")):
+    _require_auth(authorization)
+    a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
+    if not a:
+        raise HTTPException(404, "alert not found")
+    channel = a.get("channel", "inapp")
+    if channel == "webhook":
+        url = os.getenv("ALERT_WEBHOOK_URL", "")
+        if not url:
+            return {"delivered": False, "reason": "ALERT_WEBHOOK_URL not set"}
+        try:
+            import json as _j
+            import urllib.request as _u
+            req = _u.Request(url, data=_j.dumps(a, default=str).encode(),
+                             headers={"Content-Type": "application/json"})
+            with _u.urlopen(req, timeout=10) as r:
+                a["delivered"] = True
+                return {"delivered": True, "status": r.status}
+        except Exception as e:
+            a["delivery_error"] = str(e)[:200]
+            return {"delivered": False, "error": str(e)[:200]}
+    if channel == "email":
+        host = os.getenv("SMTP_HOST", "")
+        if not host:
+            return {"delivered": False, "reason": "SMTP not configured"}
+        try:
+            import smtplib
+            from email.message import EmailMessage
+            msg = EmailMessage()
+            msg["Subject"] = f"[WebIntel] {a.get('rule')}"
+            msg["From"] = os.getenv("SMTP_USER", "webintel@localhost")
+            msg["To"] = os.getenv("ALERT_EMAIL_TO", msg["From"])
+            msg.set_content(a.get("message", ""))
+            with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=15) as s:
+                s.starttls()
+                if os.getenv("SMTP_USER"):
+                    s.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASS", ""))
+                s.send_message(msg)
+            a["delivered"] = True
+            return {"delivered": True}
+        except Exception as e:
+            a["delivery_error"] = str(e)[:200]
+            return {"delivered": False, "error": str(e)[:200]}
+    a["is_read"] = False
+    return {"delivered": True, "channel": "inapp"}
+
+
+# ---- report export ----
+@app.get("/api/v1/reports/{rep_id}/export")
+def report_export(rep_id: int, format: str = "json"):
+    r = next((x for x in STORE["reports"] if x.get("id") == rep_id), None)
+    if not r:
+        raise HTTPException(404, "report not found")
+    if format == "csv":
+        from .reports.builder import to_csv
+        return JSONResponse(content={"csv": to_csv(r)})
+    if format == "xlsx":
+        try:
+            import io as _io
+            from openpyxl import Workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.append(["kind", "project", "generated_at"])
+            ws.append([r.get("kind"), r.get("project"), r.get("generated_at")])
+            buf = _io.BytesIO()
+            wb.save(buf)
+            return {"xlsx_bytes": len(buf.getvalue())}
+        except ImportError:
+            from .reports.builder import to_csv
+            return {"fallback": "csv", "csv": to_csv(r)}
+    return r
+
+
+# ---- audit ----
+@app.get("/api/v1/audit")
+def list_audit(page: int = 1, size: int = 20):
+    return paginate(list(reversed(STORE["audit"])), page, size)
 
 
 # ---- dashboard ----

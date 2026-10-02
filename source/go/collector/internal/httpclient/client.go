@@ -5,6 +5,7 @@ import (
  "encoding/hex"
  "io"
  "net/http"
+ "net/url"
  "time"
 )
 
@@ -38,14 +39,22 @@ func New(timeoutMs int, maxBody int64) *Client {
  }
 }
 
-func (c *Client) Get(url, proxyURL string) (*Response, error) {
+func (c *Client) Get(urlStr, proxyURL string) (*Response, error) {
  t0 := time.Now()
- req, err := http.NewRequest("GET", url, nil)
+ req, err := http.NewRequest("GET", urlStr, nil)
  if err != nil {
   return nil, err
  }
  req.Header.Set("User-Agent", "Mozilla/5.0 WebIntel-Collector/1.0")
- resp, err := c.http.Do(req)
+ hc := c.http
+ if proxyURL != "" {
+  px, err := url.Parse(proxyURL)
+  if err == nil {
+   tr := &http.Transport{Proxy: http.ProxyURL(px)}
+   hc = &http.Client{Timeout: c.http.Timeout, CheckRedirect: c.http.CheckRedirect, Transport: tr}
+  }
+ }
+ resp, err := hc.Do(req)
  if err != nil {
   return nil, err
  }

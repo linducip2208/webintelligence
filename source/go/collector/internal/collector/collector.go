@@ -10,8 +10,9 @@ import (
  "webintel-collector/pkg/protocol"
 )
 
-// Collect executes one job: rate-limit, fetch, validate. Proxy hook ready.
-func Collect(client *httpclient.Client, lim *ratelimit.Limiter, _ proxy.Provider, job protocol.Job) protocol.Result {
+// Collect executes one job: rate-limit, fetch (via proxy provider when the
+// strategy calls for it), validate. Proxy hook ready.
+func Collect(client *httpclient.Client, lim *ratelimit.Limiter, px proxy.Provider, job protocol.Job) protocol.Result {
  res := protocol.Result{
   SchemaVersion: "1.0",
   JobID:         job.JobID,
@@ -19,7 +20,13 @@ func Collect(client *httpclient.Client, lim *ratelimit.Limiter, _ proxy.Provider
   RetrievedAt:   time.Now().UTC().Format(time.RFC3339),
   ParseStatus:   "pending",
  }
- r, err := client.Get(job.URL, "")
+ proxyURL := ""
+ if (job.Strategy == "OWN_PROXY" || job.Strategy == "BRIGHT_DATA") && px != nil {
+  proxyURL = px.GetProxy(job.Region)
+  res.Strategy = job.Strategy
+  defer px.ReleaseProxy(proxyURL, true)
+ }
+ r, err := client.Get(job.URL, proxyURL)
  if err != nil {
   res.Status = "failed"
   res.Diagnostics = map[string]string{"error": err.Error()}

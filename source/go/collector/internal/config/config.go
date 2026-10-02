@@ -11,6 +11,8 @@ type Config struct {
  BrightKey   string
  BrightZone  string
  OwnProxies  []string
+ APIBase     string
+ APIToken    string
 }
 
 func Load() Config {
@@ -23,6 +25,8 @@ func Load() Config {
   BrightKey:  os.Getenv("BRIGHTDATA_API_KEY"),
   BrightZone: os.Getenv("BRIGHTDATA_ZONE"),
   OwnProxies: split(os.Getenv("OWN_PROXY_URLS")),
+  APIBase:    getenv("API_BASE", "http://127.0.0.1:8000"),
+  APIToken:   os.Getenv("API_TOKEN"),
  }
 }
 

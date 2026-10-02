@@ -13,6 +13,7 @@ import (
  "webintel-collector/internal/proxy"
  "webintel-collector/internal/queue"
  "webintel-collector/internal/ratelimit"
+ "webintel-collector/internal/reporter"
  "webintel-collector/pkg/protocol"
 )
 
@@ -20,6 +21,7 @@ func Run(ctx context.Context, cfg config.Config, q *queue.Queue, out chan protoc
  client := httpclient.New(cfg.TimeoutMs, cfg.MaxBody)
  lim := ratelimit.New(20, time.Minute)
  var px proxy.Provider = proxy.NewOwn(cfg.OwnProxies)
+ rep := reporter.New(cfg.APIBase, cfg.APIToken)
  var wg sync.WaitGroup
  for i := 0; i < cfg.Workers; i++ {
   wg.Add(1)
@@ -42,6 +44,7 @@ func Run(ctx context.Context, cfg config.Config, q *queue.Queue, out chan protoc
      TargetID:      str(job, "target_id"),
      URL:           str(job, "url"),
      Strategy:      str(job, "strategy"),
+     Region:        str(job, "region"),
     }
     r := collector.Collect(client, lim, px, pj)
     metrics.Inc("jobs_total", 1)
@@ -49,6 +52,11 @@ func Run(ctx context.Context, cfg config.Config, q *queue.Queue, out chan protoc
      metrics.Inc("jobs_success", 1)
     } else {
      metrics.Inc("jobs_failed", 1)
+    }
+    if err := rep.Send(r); err != nil {
+     metrics.Inc("reporter_failed", 1)
+    } else {
+     metrics.Inc("reporter_sent", 1)
     }
     select {
     case out <- r:

@@ -6,3 +6,9 @@ def estimate(strategy, pages=1, ai_in=0, ai_out=0, ai_rate_in=1.5e-6, ai_rate_ou
 def per_record(total_cost, n_ok): return round(total_cost / n_ok, 6) if n_ok else None
 def per_1k(total_cost, n_ok): return round(total_cost / n_ok * 1000, 4) if n_ok else None
 def within_budget(cost, budget): return cost <= budget
+def summary(jobs):
+    est = round(sum(j.get("estimated_cost", 0) for j in jobs), 6)
+    act = round(sum(j.get("actual_cost", 0) for j in jobs if j.get("actual_cost") is not None), 6)
+    ok = sum(1 for j in jobs if j.get("status") == "success")
+    return {"estimated": est, "actual": act, "jobs": len(jobs), "success": ok,
+            "per_success": per_record(act, ok), "per_1k": per_1k(act, ok)}

@@ -36,7 +36,7 @@ form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:280px}
 </div>
 <script>
 const $=s=>document.querySelector(s);
-const VIEWS=['dashboard','projects','targets','jobs','prices','changes','articles','reports','alerts','schedules','proxies','ai','search','health'];
+const VIEWS=['dashboard','projects','targets','jobs','prices','changes','articles','reports','alerts','schedules','analytics','costs','entities','audit','proxies','ai','search','health'];
 let view='dashboard';
 const EP={projects:'/api/v1/projects',targets:'/api/v1/targets',jobs:'/api/v1/jobs',prices:'/api/v1/prices',changes:'/api/v1/changes',articles:'/api/v1/articles',reports:'/api/v1/reports',alerts:'/api/v1/alerts',schedules:'/api/v1/schedules'};
 function nav(){$('#nav').innerHTML=VIEWS.map(v=>`<a href="#" data-v="${v}" class="${v===view?'active':''}">${v[0].toUpperCase()+v.slice(1)}</a>`).join('');
@@ -69,7 +69,25 @@ else if(view==='reports'){$('#actions').innerHTML='';const d=await api('/api/v1/
 else if(view==='prices'){const d=await api('/api/v1/prices?size=50');C.innerHTML=table(d.items||[],['product_id','price','currency','observed_at','job_id']);}
 else if(view==='changes'){const d=await api('/api/v1/changes?size=50');C.innerHTML=table(d.items||[],['target_id','kind','at']);}
 else if(view==='articles'){const d=await api('/api/v1/articles');C.innerHTML=form([['publisher','publisher'],['title','title'],['url','url']],'addArticle')+table(d.items||[],['id','publisher','title','url']);}
-else if(view==='alerts'){const d=await api('/api/v1/alerts');C.innerHTML=table(d.items||[],['id','rule','message','channel','project_id']);}
+else if(view==='alerts'){const d=await api('/api/v1/alerts');C.innerHTML=table((d.items||[]).map(r=>({...r,send:`<button onclick="sendAlert(${r.id})">Send</button>`})),['id','rule','message','channel','project_id','send']);}
+else if(view==='analytics'){const p=await api('/api/v1/analytics/prices');const t=await api('/api/v1/analytics/trends');const q=await api('/api/v1/analytics/quality');
+C.innerHTML=`<div class="grid">
+<div class="card"><h3>Price points</h3><div class="v">${p.count}</div><div>avg ${p.avg??'—'} · min ${p.min??'—'} · max ${p.max??'—'}</div></div>
+<div class="card"><h3>Volatility</h3><div class="v">${p.volatility}</div><div>change ${p.change_pct??'—'}%</div></div>
+<div class="card"><h3>Anomalies</h3><div class="v">${(p.anomalies||[]).length}</div></div>
+<div class="card"><h3>Quality avg</h3><div class="v">${q.avg_overall??'—'}</div><div>${q.records} records</div></div></div>
+<div class="card"><h3>Emerging topics</h3><pre>${esc(JSON.stringify(t.topics,null,2))}</pre></div>
+<div class="card"><h3>Price history (last ${(p.history||[]).length})</h3><pre>${esc(JSON.stringify((p.history||[]).map(x=>[x.price,x.currency]),null,0).slice(0,1500))}</pre></div>`;}
+else if(view==='costs'){const s=await api('/api/v1/costs/summary');const b=await api('/api/v1/costs/budget/check?project_id=1');
+C.innerHTML=`<div class="grid">
+<div class="card"><h3>Estimated</h3><div class="v">$${(s.estimated||0).toFixed(4)}</div></div>
+<div class="card"><h3>Actual</h3><div class="v">$${(s.actual||0).toFixed(4)}</div></div>
+<div class="card"><h3>Per success</h3><div class="v">$${s.per_success??'—'}</div></div>
+<div class="card"><h3>Per 1k</h3><div class="v">$${s.per_1k??'—'}</div></div>
+<div class="card"><h3>Budget (project 1)</h3><div class="v">${b.over?'OVER':'ok'}</div><div>spent $${b.spent} / limit ${b.limit??'—'}</div></div></div>
+<form class="inline" onsubmit="setBudget(event)"><input name="limit" placeholder="budget limit, e.g. 10"><button class="primary">Set budget</button></form>`;}
+else if(view==='entities'){const d=await api('/api/v1/entities');C.innerHTML=`<div class="card"><h3>Resolve (exact → fuzzy → review, never silent merge)</h3><form class="inline" onsubmit="resolveE(event)"><input name="name" placeholder="name"><input name="domain" placeholder="domain"><button class="primary">Resolve</button></form><pre id="er"></pre></div>`+table(d.items||[],['id','name','domain']);}
+else if(view==='audit'){const d=await api('/api/v1/audit');C.innerHTML=table(d.items||[],['actor','action','ref','at']);}
 else if(view==='projects'){const d=await api('/api/v1/projects');C.innerHTML=form([['name','name'],['description','description']],'addProject')+table(d.items||[],['id','name','description']);}
 else if(view==='targets'){const d=await api('/api/v1/targets');C.innerHTML=form([['project_id','project_id=1'],['domain','domain'],['url','https://…']],'addTarget')+table(d.items||[],['id','domain','url','preferred_strategy','attempts','successes','failures']);}
 }catch(e){C.innerHTML=`<div class="empty">Error: ${esc(e)}</div>`}}
@@ -82,6 +100,9 @@ async function addReport(e){e.preventDefault();const r=await post('/api/v1/repor
 async function addSched(e){e.preventDefault();await post('/api/v1/schedules',{kind:val('kind')||'interval',every_min:+val('every_min')||60,url:val('url'),project_id:+val('project_id')||1,target_id:+val('target_id')||1});load()}
 async function runJob(id){const r=await post(`/api/v1/jobs/${id}/run`,{});alert(`status=${r.status} strategy=${r.strategy} prices=${(r.prices||[]).length} change=${r.change}`);load()}
 async function tick(){const r=await post('/api/v1/worker/tick',{});alert('fired '+(r.fired||[]).length+' jobs');load()}
+async function sendAlert(id){const r=await post(`/api/v1/alerts/${id}/send`,{});alert(JSON.stringify(r).slice(0,300));load()}
+async function setBudget(e){e.preventDefault();await post('/api/v1/costs/budget',{project_id:1,limit:+val('limit')||0});load()}
+async function resolveE(e){e.preventDefault();try{document.querySelector('#er').textContent=JSON.stringify(await post('/api/v1/entities/resolve',{candidate:{name:val('name'),domain:val('domain')}}),null,2)}catch(e2){document.querySelector('#er').textContent=String(e2)}}
 async function testBD(){try{document.querySelector('#bd').textContent=JSON.stringify(await post('/api/v1/brightdata/test',{}),null,2)}catch(e){document.querySelector('#bd').textContent=String(e)}}
 async function chat(e){e.preventDefault();try{document.querySelector('#ans').textContent=JSON.stringify(await post('/api/v1/ai/chat',{messages:[{role:'user',content:val('q')}]}),null,2).slice(0,2000)}catch(e2){document.querySelector('#ans').textContent=String(e2)}}
 async function doSearch(e){e.preventDefault();const q=val('q');const r=await api('/api/v1/search?q='+encodeURIComponent(q));document.querySelector('#res').innerHTML=table(r.items||[],Object.keys((r.items||[])[0]||{kind:0}).slice(0,5))}
