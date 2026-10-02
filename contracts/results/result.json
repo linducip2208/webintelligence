@@ -12,6 +12,8 @@
     "content_hash": {"type": "string"},
     "content_size": {"type": "integer"},
     "retrieved_at": {"type": "string", "format": "date-time"},
-    "parse_status": {"enum": ["pending", "ok", "failed"]}
+    "parse_status": {"enum": ["pending", "ok", "failed"]},
+    "etag": {"type": "string"},
+    "last_modified": {"type": "string"}
   }
 }

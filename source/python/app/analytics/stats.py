@@ -12,6 +12,10 @@ def anomaly_marks(series):
 def pct_change(old, new):
     if not old: return None
     return round((new-old)/abs(old)*100, 2)
+def moving_avg(xs, w=3):
+    return [round(sum(xs[max(0, i-w+1):i+1]) / len(xs[max(0, i-w+1):i+1]), 4) for i in range(len(xs))]
+def growth(xs):
+    return [None] + [pct_change(xs[i-1], xs[i]) for i in range(1, len(xs))]
 def volatility(prices):
     m = mean(prices)
     return round(stdev(prices)/m, 4) if m else 0.0

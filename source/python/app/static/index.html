@@ -3,30 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Web Intelligence Platform</title>
+<title>Universal Intelligence Platform</title>
 <style>
 :root{color-scheme:light dark}*{box-sizing:border-box}body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:#0b1220;color:#e6edf3}
-.layout{display:flex;min-height:100vh}aside{width:240px;background:#0d1526;padding:16px;position:sticky;top:0;height:100vh;overflow:auto}
-aside h1{font-size:16px;margin:0 0 4px}aside .ver{font-size:11px;color:#9fb0c9;margin-bottom:12px}
-aside a{display:block;color:#c9d4e3;text-decoration:none;padding:7px 10px;border-radius:8px;font-size:14px}
-aside a:hover,aside a.active{background:#1b2942}main{flex:1;padding:20px;max-width:1250px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+.layout{display:flex;min-height:100vh}aside{width:250px;background:#0d1526;padding:14px;position:sticky;top:0;height:100vh;overflow:auto}
+aside h1{font-size:15px;margin:0}aside .ver{font-size:11px;color:#9fb0c9;margin:2px 0 8px}
+aside h4{font-size:11px;text-transform:uppercase;color:#7d8ea8;margin:12px 0 4px;letter-spacing:.06em}
+aside a{display:block;color:#c9d4e3;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:13.5px}
+aside a:hover,aside a.active{background:#1b2942}main{flex:1;padding:20px;max-width:1300px;min-width:0}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.card{background:#111c33;border:1px solid #22314f;border-radius:12px;padding:14px;margin-bottom:12px}
 .card h3{margin:0 0 6px;font-size:13px;color:#9fb0c9}.card .v{font-size:24px;font-weight:700}
 table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:7px;border-bottom:1px solid #22314f;font-size:13px;vertical-align:top;word-break:break-word}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}input,select,button,textarea{background:#0d1526;border:1px solid #2a3c5e;color:#e6edf3;border-radius:8px;padding:8px 10px;font-size:13px}
-button{cursor:pointer}button.primary{background:#2563eb;border-color:#2563eb}button.danger{border-color:#7f1d1d}
+button{cursor:pointer}button.primary{background:#2563eb;border-color:#2563eb}
 .empty{padding:24px;text-align:center;color:#9fb0c9}.status{font-size:12px;padding:2px 8px;border-radius:99px;background:#1b2942;white-space:nowrap}
-.ok{background:#0f3d26}.err{background:#4a1620}.warn{background:#4a3416}pre{background:#0d1526;padding:10px;border-radius:8px;overflow:auto;font-size:12px}
-form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:280px}
-@media(max-width:800px){aside{display:none}}
+.ok{background:#0f3d26}.err{background:#4a1620}pre{background:#0d1526;padding:10px;border-radius:8px;overflow:auto;font-size:12px}
+form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:100%;margin-top:6px}
+@media(max-width:900px){aside{display:none}}
 </style>
 </head>
 <body>
 <div class="layout">
 <aside>
-<h1>Web Intelligence</h1><div class="ver">v1.0.0 · live data only</div>
+<h1>Universal Intel</h1><div class="ver">v2.0.0 · live data only</div>
+<div><select id="lang" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option></select></div>
 <div id="nav"></div>
-<div style="margin-top:14px"><input id="tok" placeholder="API token (if REQUIRE_AUTH=1)"></div>
+<div style="margin-top:10px"><input id="tok" placeholder="API token / key"></div>
 </aside>
 <main>
 <header><div><strong id="title">Dashboard</strong><div id="sub" style="color:#9fb0c9;font-size:13px"></div></div>
@@ -36,77 +39,106 @@ form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:280px}
 </div>
 <script>
 const $=s=>document.querySelector(s);
-const VIEWS=['dashboard','projects','targets','jobs','prices','changes','articles','reports','alerts','schedules','analytics','costs','entities','audit','proxies','ai','search','health'];
-let view='dashboard';
-const EP={projects:'/api/v1/projects',targets:'/api/v1/targets',jobs:'/api/v1/jobs',prices:'/api/v1/prices',changes:'/api/v1/changes',articles:'/api/v1/articles',reports:'/api/v1/reports',alerts:'/api/v1/alerts',schedules:'/api/v1/schedules'};
-function nav(){$('#nav').innerHTML=VIEWS.map(v=>`<a href="#" data-v="${v}" class="${v===view?'active':''}">${v[0].toUpperCase()+v.slice(1)}</a>`).join('');
+let view='dashboard', LANG=localStorage.getItem('wi-lang')||'en', I18N={};
+const NAV=[
+ ['Dashboard',[['dashboard','dashboard']]],
+ ['Intelligence',[['feed','feed'],['findings','findings'],['trends','analytics'],['anomalies','analytics'],['opportunities','opps']]],
+ ['Research',[['research','research'],['runs','runs'],['reports','reports']]],
+ ['Sources',[['sources','projects'],['targets','targets'],['connectors','connectors'],['jobs','jobs'],['reliability','health']]],
+ ['Entities',[['companies','entities'],['products','prices'],['domains','entities'],['locations','entities']]],
+ ['Knowledge',[['graph','graph'],['relationships','graph'],['events','events'],['changes','changes'],['evidence','evidence'],['claims','claims'],['documents','documents']]],
+ ['Datasets',[['datasets','datasets'],['quality','analytics']]],
+ ['Monitoring',[['watchlists','watchlists'],['alerts','alerts'],['workflows','workflows'],['webhooks','webhooks']]],
+ ['AI',[['providers','ai'],['models','ai'],['usage','ai']]],
+ ['Administration',[['organizations','orgs'],['users','orgs'],['apikeys','apikeys'],['audit','audit'],['health','health'],['costs','costs'],['search','search'],['articles','articles'],['schedules','schedules']]],
+];
+function T(k){return (I18N[k]||k)}
+async function init(){try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}$('#lang').value=LANG;load();}
+function setLang(v){LANG=v;localStorage.setItem('wi-lang',v);init();}
+function nav(){$('#nav').innerHTML=NAV.map(([s,items])=>`<h4>${T(s.toLowerCase())}</h4>`+items.map(([label,v])=>`<a href="#" data-v="${v}" data-l="${label}" class="${v===view?'active':''}">${T(label)}</a>`).join('')).join('');
 document.querySelectorAll('#nav a').forEach(a=>a.onclick=e=>{e.preventDefault();view=a.dataset.v;load()});}
-function H(){const t=$('#tok').value.trim();return t?{'Authorization':'Bearer '+t,'Content-Type':'application/json'}:{'Content-Type':'application/json'};}
+function H(){const t=$('#tok').value.trim();if(!t)return{'Content-Type':'application/json'};
+return t.startsWith('wi_')?{'X-API-Key':t,'Content-Type':'application/json'}:{'Authorization':'Bearer '+t,'Content-Type':'application/json'};}
 async function api(p,o={}){o.headers={...H(),...(o.headers||{})};const r=await fetch(p,o);if(!r.ok)throw new Error(r.status+' '+(await r.text()).slice(0,300));const t=await r.text();try{return JSON.parse(t)}catch{return t}}
-function esc(s){return String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])).slice(0,200)}
-function table(rows,cols){if(!rows.length)return '<div class="empty">No records yet — create one below. Empty states are real, not errors.</div>';
-return `<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(typeof r[c]==='object'?JSON.stringify(r[c]):r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
-function form(fields,fn){return `<form class="inline" onsubmit="${fn}(event)">${fields.map(f=>`<input name="${f[0]}" placeholder="${f[1]}" ${f[2]||''}>`).join('')}<button class="primary">Add</button></form>`}
 async function post(p,b){return api(p,{method:'POST',body:JSON.stringify(b)})}
-async function load(){nav();$('#title').textContent=view[0].toUpperCase()+view.slice(1);$('#actions').innerHTML='';const C=$('#content');
+function esc(s){return String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])).slice(0,300)}
+function table(rows,cols,extra=''){if(!rows.length)return '<div class="empty">No records yet — create data via the forms or API. Empty states are real.</div>';
+return `<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}${extra?'<th></th>':''}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(typeof r[c]==='object'?JSON.stringify(r[c]):r[c])}</td>`).join('')}${extra?`<td>${extra.replaceAll('{id}',r.id).replaceAll('{job_id}',r.job_id||'')}</td>`:''}</tr>`).join('')}</tbody></table>`}
+function form(fields,fn){return `<form class="inline" onsubmit="${fn}(event)">${fields.map(f=>`<input name="${f[0]}" placeholder="${f[1]}">`).join('')}<button class="primary">Add</button></form>`}
+const val=n=>{const e=document.querySelector(`[name="${n}"]`);return e?e.value:''};
+async function load(){nav();$('#title').textContent=T(view);$('#actions').innerHTML='';const C=$('#content');
 try{
-if(view==='dashboard'){const d=await api('/api/v1/dashboard');
+if(view==='dashboard'){const d=await api('/api/v1/dashboard');const f=await api('/api/v1/feed?limit=5');
 C.innerHTML=`<div class="grid">
-<div class="card"><h3>Jobs total</h3><div class="v">${d.jobs_total}</div></div>
-<div class="card"><h3>Success</h3><div class="v">${d.jobs_success}</div></div>
-<div class="card"><h3>Failed</h3><div class="v">${d.jobs_failed}</div></div>
+<div class="card"><h3>Jobs</h3><div class="v">${d.jobs_total}</div><div>${d.jobs_success} ok / ${d.jobs_failed} failed</div></div>
 <div class="card"><h3>Open alerts</h3><div class="v">${d.alerts_open}</div></div>
 <div class="card"><h3>Price points</h3><div class="v">${d.price_points}</div></div>
 <div class="card"><h3>Est. cost</h3><div class="v">$${(d.costs.estimated||0).toFixed(4)}</div></div></div>
-${d.jobs_total===0?'<div class="empty">Create a project → target → job, then press “Run now” on the job. Numbers appear only from real runs.</div>':''}`;}
-else if(view==='health'){const h=await api('/readyz');C.innerHTML=`<div class="grid">${h.checks.map(c=>`<div class="card"><h3>${esc(c.name)}</h3><div class="v"><span class="status ${c.status==='up'?'ok':'err'}">${c.status}</span></div><div>${esc(c.detail||'')}</div></div>`).join('')}</div><div class="card"><h3>Overall: ${h.status}</h3></div>`;}
-else if(view==='proxies'){const h=await api('/api/v1/proxies/health');C.innerHTML=`<div class="card"><h3>Own proxy pool</h3><pre>${esc(JSON.stringify(h.own,null,2))}</pre></div><div class="card"><h3>Bright Data</h3><pre>${esc(JSON.stringify(h.brightdata,null,2))}</pre><button onclick="testBD()">Test connection</button><pre id="bd"></pre></div>`;}
-else if(view==='ai'){const h=await api('/api/v1/ai/providers');const s=await api('/api/v1/ai/health');C.innerHTML=`<div class="card"><h3>Providers</h3><pre>${esc(JSON.stringify(h,null,2))}</pre><h3>Health</h3><pre>${esc(JSON.stringify(s,null,2))}</pre></div><div class="card"><h3>Chat (evidence in, answer out)</h3><form class="inline" onsubmit="chat(event)"><input name="q" placeholder="Ask about collected evidence…" style="width:320px"><button class="primary">Send</button></form><pre id="ans"></pre></div>`;}
-else if(view==='search'){C.innerHTML=`<form class="inline" onsubmit="doSearch(event)"><input name="q" placeholder="Search projects, targets, articles…" style="width:320px"><button class="primary">Search</button></form><div id="res"></div>`;}
-else if(view==='jobs'){const d=await api('/api/v1/jobs?size=50');const rows=(d.items||[]).map(r=>({...r,run:`<button onclick="runJob('${r.job_id}')">Run now</button>`,plan:JSON.stringify((r.plan||{}).plan||r.plan)}));C.innerHTML=form([['project_id','project_id=1'],['target_id','target_id=1'],['url','https://…']],'addJob')+table(rows,['job_id','url','strategy','status','plan','estimated_cost','run']);}
-else if(view==='schedules'){$('#actions').innerHTML='<button onclick="tick()">Run scheduler now</button>';const d=await api('/api/v1/schedules');C.innerHTML=form([['kind','kind: interval'],['every_min','every_min=60'],['url','https://…'],['project_id','project_id=1'],['target_id','target_id=1']],'addSched')+table(d.items||[],['id','kind','url','status','next_run','last_run']);}
-else if(view==='reports'){$('#actions').innerHTML='';const d=await api('/api/v1/reports');C.innerHTML=form([['kind','kind: price'],['product_id','product_id (target id)'],['project','project name']],'addReport')+table(d.items||[],['id','kind','project','generated_at','source_coverage']);}
-else if(view==='prices'){const d=await api('/api/v1/prices?size=50');C.innerHTML=table(d.items||[],['product_id','price','currency','observed_at','job_id']);}
-else if(view==='changes'){const d=await api('/api/v1/changes?size=50');C.innerHTML=table(d.items||[],['target_id','kind','at']);}
-else if(view==='articles'){const d=await api('/api/v1/articles');C.innerHTML=form([['publisher','publisher'],['title','title'],['url','url']],'addArticle')+table(d.items||[],['id','publisher','title','url']);}
-else if(view==='alerts'){const d=await api('/api/v1/alerts');C.innerHTML=table((d.items||[]).map(r=>({...r,send:`<button onclick="sendAlert(${r.id})">Send</button>`})),['id','rule','message','channel','project_id','send']);}
+<div class="card"><h3>${T('feed')}</h3>${f.items.map(i=>`<div>• [${esc(i.kind)}] ${esc(i.title)}</div>`).join('')||'<div class="empty">Feed empty — run collections to generate intelligence.</div>'}</div>`;}
+else if(view==='feed'){const d=await api('/api/v1/feed?limit=50');C.innerHTML=d.items.map(i=>`<div class="card"><h3>[${esc(i.kind)}] ${esc(i.title)}</h3><div>${esc(JSON.stringify(i.ref))}</div></div>`).join('')||'<div class="empty">No feed items.</div>';}
+else if(view==='opps'){const d=await api('/api/v1/opportunities');C.innerHTML=table(d.items||[],['type','product_id','price','z']);}
+else if(view==='research'){C.innerHTML=`<div class="card"><h3>New research</h3><form class="inline" onsubmit="mkResearch(event)"><input name="q" style="width:340px" placeholder="Research question…"><button class="primary">Plan</button></form><pre id="rp"></pre><pre id="rr"></pre></div>`;}
+else if(view==='runs'){const d=await api('/api/v1/research/runs');C.innerHTML=table(d.items||[],['id','question','status','ai_model']);}
+else if(view==='graph'){C.innerHTML=`<div class="card"><h3>Add node</h3>${form([['kind','kind: company'],['key','key'],['name','name']],'addNode')}<h3>Add edge</h3>${form([['src','src id'],['dst','dst id'],['rel','OWNS']],'addEdge')}<h3>Traverse</h3><form class="inline" onsubmit="trav(event)"><input name="node" placeholder="node id"><button>Go</button></form><pre id="g"></pre></div>`;}
+else if(view==='events'){const d=await api('/api/v1/events?size=50');C.innerHTML=form([['type','type: PRICE'],['entity_key','entity key']],'addEvent')+table(d.items||[],['id','type','entity_key','severity']);}
+else if(view==='evidence'){const d=await api('/api/v1/evidence?size=50');C.innerHTML=form([['source','source'],['url','https://…'],['content_hash','hash']],'addEvidence')+table(d.items||[],['id','source','url','content_hash','confidence']);}
+else if(view==='claims'){C.innerHTML=`<div class="card"><h3>Verify a claim against evidence</h3><form class="inline" onsubmit="verifyCl(event)"><input name="value" placeholder="claim value"><input name="ev" placeholder='evidence JSON: [{"value":"..","reliability":0.9}]' style="width:340px"><button class="primary">Verify</button></form><pre id="vc"></pre></div>`;}
+else if(view==='documents'){const d=await api('/api/v1/documents');C.innerHTML=`<div class="card"><h3>Ingest document (txt/html/csv; pdf needs pypdf)</h3><form class="inline" onsubmit="addDoc(event)"><input name="kind" placeholder="txt"><input name="title" placeholder="title"><input name="text" placeholder="text content…" style="width:300px"><button class="primary">Ingest</button></form></div>`+table(d.items||[],['id','kind','title','fingerprint','extracted']);}
+else if(view==='datasets'){const d=await api('/api/v1/datasets');C.innerHTML=form([['name','name'],['kind','kind']],'addDataset')+table(d.items||[],['id','name','kind','status']);}
+else if(view==='watchlists'){const d=await api('/api/v1/watchlists');C.innerHTML=form([['kind','keyword|company|domain'],['value','value']],'addWl')+table(d.items||[],['id','kind','value']);}
+else if(view==='workflows'){const d=await api('/api/v1/workflows');C.innerHTML=`<div class="card"><h3>New workflow (alert on event type)</h3><form class="inline" onsubmit="addWf(event)"><input name="name" placeholder="name"><input name="etype" placeholder="event type"><button class="primary">Create</button></form></div>`+table((d.items||[]).map(r=>({...r})),['id','name','enabled'],'<button onclick="runWf({id})">Run</button>');}
+else if(view==='webhooks'){const d=await api('/api/v1/webhooks');$('#actions').innerHTML='';C.innerHTML=form([['url','https://…'],['secret','secret']],'addWh')+table((d.items||[]),['id','url','enabled'],'<button onclick="testWh({id})">Test</button>');}
+else if(view==='orgs'){const d=await api('/api/v1/orgs');C.innerHTML=form([['name','org name']],'addOrg')+table(d.items||[],['id','name','slug']);}
+else if(view==='apikeys'){const d=await api('/api/v1/apikeys');C.innerHTML=form([['name','name'],['scopes','read (comma ok)']],'addKey')+table(d.items||[],['id','name','scopes','revoked']);}
+else if(view==='health'){const h=await api('/readyz');C.innerHTML=`<div class="grid">${h.checks.map(c=>`<div class="card"><h3>${esc(c.name)}</h3><div class="v"><span class="status ${c.status==='up'?'ok':'err'}">${c.status}</span></div><div>${esc(c.detail||'')}</div></div>`).join('')}</div>`;}
+else if(view==='ai'){const h=await api('/api/v1/ai/providers');const s=await api('/api/v1/ai/health');C.innerHTML=`<div class="card"><h3>Providers</h3><pre>${esc(JSON.stringify(h,null,2))}</pre><h3>Health</h3><pre>${esc(JSON.stringify(s,null,2))}</pre></div><div class="card"><h3>Ask (evidence-grounded)</h3><form class="inline" onsubmit="chat(event)"><input name="q" style="width:320px"><button class="primary">Send</button></form><pre id="ans"></pre></div>`;}
+else if(view==='search'){C.innerHTML=`<form class="inline" onsubmit="doSearch(event)"><input name="q" style="width:320px"><button class="primary">Search</button></form><div id="res"></div>`;}
+else if(view==='jobs'){const d=await api('/api/v1/jobs?size=50');C.innerHTML=form([['project_id','project_id'],['target_id','target_id'],['url','https://…']],'addJob')+table(d.items||[],['job_id','url','strategy','status','estimated_cost'],'<button onclick="runJob(\'{job_id}\')">Run now</button>');}
+else if(view==='schedules'){$('#actions').innerHTML='<button onclick="tick()">Run scheduler now</button>';const d=await api('/api/v1/schedules');C.innerHTML=form([['kind','interval|cron'],['every_min','every_min'],['cron','cron expr'],['url','https://…']],'addSched')+table(d.items||[],['id','kind','url','status','next_run','last_run']);}
+else if(view==='reports'){$('#actions').innerHTML='';const d=await api('/api/v1/reports');C.innerHTML=form([['kind','price'],['product_id','product/target id'],['project','project']],'addReport')+table(d.items||[],['id','kind','project','generated_at','source_coverage']);}
 else if(view==='analytics'){const p=await api('/api/v1/analytics/prices');const t=await api('/api/v1/analytics/trends');const q=await api('/api/v1/analytics/quality');
-C.innerHTML=`<div class="grid">
-<div class="card"><h3>Price points</h3><div class="v">${p.count}</div><div>avg ${p.avg??'—'} · min ${p.min??'—'} · max ${p.max??'—'}</div></div>
-<div class="card"><h3>Volatility</h3><div class="v">${p.volatility}</div><div>change ${p.change_pct??'—'}%</div></div>
-<div class="card"><h3>Anomalies</h3><div class="v">${(p.anomalies||[]).length}</div></div>
-<div class="card"><h3>Quality avg</h3><div class="v">${q.avg_overall??'—'}</div><div>${q.records} records</div></div></div>
-<div class="card"><h3>Emerging topics</h3><pre>${esc(JSON.stringify(t.topics,null,2))}</pre></div>
-<div class="card"><h3>Price history (last ${(p.history||[]).length})</h3><pre>${esc(JSON.stringify((p.history||[]).map(x=>[x.price,x.currency]),null,0).slice(0,1500))}</pre></div>`;}
-else if(view==='costs'){const s=await api('/api/v1/costs/summary');const b=await api('/api/v1/costs/budget/check?project_id=1');
-C.innerHTML=`<div class="grid">
-<div class="card"><h3>Estimated</h3><div class="v">$${(s.estimated||0).toFixed(4)}</div></div>
-<div class="card"><h3>Actual</h3><div class="v">$${(s.actual||0).toFixed(4)}</div></div>
-<div class="card"><h3>Per success</h3><div class="v">$${s.per_success??'—'}</div></div>
-<div class="card"><h3>Per 1k</h3><div class="v">$${s.per_1k??'—'}</div></div>
-<div class="card"><h3>Budget (project 1)</h3><div class="v">${b.over?'OVER':'ok'}</div><div>spent $${b.spent} / limit ${b.limit??'—'}</div></div></div>
-<form class="inline" onsubmit="setBudget(event)"><input name="limit" placeholder="budget limit, e.g. 10"><button class="primary">Set budget</button></form>`;}
-else if(view==='entities'){const d=await api('/api/v1/entities');C.innerHTML=`<div class="card"><h3>Resolve (exact → fuzzy → review, never silent merge)</h3><form class="inline" onsubmit="resolveE(event)"><input name="name" placeholder="name"><input name="domain" placeholder="domain"><button class="primary">Resolve</button></form><pre id="er"></pre></div>`+table(d.items||[],['id','name','domain']);}
-else if(view==='audit'){const d=await api('/api/v1/audit');C.innerHTML=table(d.items||[],['actor','action','ref','at']);}
-else if(view==='projects'){const d=await api('/api/v1/projects');C.innerHTML=form([['name','name'],['description','description']],'addProject')+table(d.items||[],['id','name','description']);}
-else if(view==='targets'){const d=await api('/api/v1/targets');C.innerHTML=form([['project_id','project_id=1'],['domain','domain'],['url','https://…']],'addTarget')+table(d.items||[],['id','domain','url','preferred_strategy','attempts','successes','failures']);}
+C.innerHTML=`<div class="grid"><div class="card"><h3>Prices</h3><div class="v">${p.count}</div><div>avg ${p.avg??'—'} · vol ${p.volatility}</div></div><div class="card"><h3>Anomalies</h3><div class="v">${(p.anomalies||[]).length}</div></div><div class="card"><h3>Quality</h3><div class="v">${q.avg_overall??'—'}</div></div></div><div class="card"><h3>Topics</h3><pre>${esc(JSON.stringify(t.topics))}</pre></div>`;}
+else if(view==='costs'){const s=await api('/api/v1/costs/summary');C.innerHTML=`<div class="grid"><div class="card"><h3>Estimated</h3><div class="v">$${(s.estimated||0).toFixed(4)}</div></div><div class="card"><h3>Actual</h3><div class="v">$${(s.actual||0).toFixed(4)}</div></div><div class="card"><h3>Per 1k</h3><div class="v">$${s.per_1k??'—'}</div></div></div><form class="inline" onsubmit="setBudget(event)"><input name="limit" placeholder="budget limit"><button class="primary">Set budget p1</button></form>`;}
+else if(view==='entities'){const d=await api('/api/v1/entities');C.innerHTML=`<div class="card"><h3>Resolve</h3><form class="inline" onsubmit="resolveE(event)"><input name="name"><input name="domain"><button class="primary">Resolve</button></form><pre id="er"></pre></div>`+table(d.items||[],['id','name','domain']);}
+else if(view==='connectors'){const d=await api('/api/v1/connectors');C.innerHTML=table(d.items||[],['id','name','category','version','enabled']);}
+else if(view==='audit'){const d=await api('/api/v1/audit');C.innerHTML=table(d.items||[],['actor','action','ref']);}
+else if(view==='articles'){const d=await api('/api/v1/articles');C.innerHTML=form([['publisher','publisher'],['title','title'],['url','url']],'addArticle')+table(d.items||[],['id','publisher','title']);}
+else if(view==='alerts'){const d=await api('/api/v1/alerts');C.innerHTML=table(d.items||[],['id','rule','message','channel'],'<button onclick="sendAlert({id})">Send</button>');}
+else if(view==='prices'){const d=await api('/api/v1/prices?size=50');C.innerHTML=table(d.items||[],['product_id','price','currency','job_id']);}
+else if(view==='changes'){const d=await api('/api/v1/changes?size=50');C.innerHTML=table(d.items||[],['target_id','kind']);}
+else{const ep={projects:'/api/v1/projects',targets:'/api/v1/targets',findings:'/api/v1/findings'}[view];const d=await api(ep);C.innerHTML=table(d.items||[],Object.keys((d.items||[{}])[0]).slice(0,5));}
 }catch(e){C.innerHTML=`<div class="empty">Error: ${esc(e)}</div>`}}
-const val=n=>document.querySelector(`[name="${n}"]`).value;
-async function addProject(e){e.preventDefault();await post('/api/v1/projects',{name:val('name'),description:val('description')});load()}
-async function addTarget(e){e.preventDefault();await post('/api/v1/targets',{project_id:+val('project_id')||1,domain:val('domain'),url:val('url')});load()}
-async function addJob(e){e.preventDefault();await post('/api/v1/jobs',{project_id:+val('project_id')||1,target_id:+val('target_id')||1,url:val('url'),strategy:'AUTO'});load()}
+async function addProject(e){e.preventDefault();await post('/api/v1/projects',{name:val('name'),description:''});load()}
+async function addTarget(e){e.preventDefault();await post('/api/v1/targets',{project_id:1,domain:val('domain'),url:val('url')});load()}
+async function addJob(e){e.preventDefault();await post('/api/v1/jobs',{project_id:+(val('project_id')||1),target_id:+(val('target_id')||1),url:val('url'),strategy:'AUTO'});load()}
 async function addArticle(e){e.preventDefault();await post('/api/v1/articles',{publisher:val('publisher'),title:val('title'),url:val('url')});load()}
-async function addReport(e){e.preventDefault();const r=await post('/api/v1/reports',{kind:val('kind')||'price',product_id:+val('product_id')||0,project:val('project')});alert('Report #'+r.id+' built from '+r.source_coverage+' price points');load()}
-async function addSched(e){e.preventDefault();await post('/api/v1/schedules',{kind:val('kind')||'interval',every_min:+val('every_min')||60,url:val('url'),project_id:+val('project_id')||1,target_id:+val('target_id')||1});load()}
-async function runJob(id){const r=await post(`/api/v1/jobs/${id}/run`,{});alert(`status=${r.status} strategy=${r.strategy} prices=${(r.prices||[]).length} change=${r.change}`);load()}
-async function tick(){const r=await post('/api/v1/worker/tick',{});alert('fired '+(r.fired||[]).length+' jobs');load()}
-async function sendAlert(id){const r=await post(`/api/v1/alerts/${id}/send`,{});alert(JSON.stringify(r).slice(0,300));load()}
-async function setBudget(e){e.preventDefault();await post('/api/v1/costs/budget',{project_id:1,limit:+val('limit')||0});load()}
-async function resolveE(e){e.preventDefault();try{document.querySelector('#er').textContent=JSON.stringify(await post('/api/v1/entities/resolve',{candidate:{name:val('name'),domain:val('domain')}}),null,2)}catch(e2){document.querySelector('#er').textContent=String(e2)}}
+async function addReport(e){e.preventDefault();const r=await post('/api/v1/reports',{kind:val('kind')||'price',product_id:+val('product_id')||0,project:val('project')});alert('Report #'+r.id);load()}
+async function addSched(e){e.preventDefault();await post('/api/v1/schedules',{kind:val('kind')||'interval',every_min:+val('every_min')||60,cron:val('cron'),url:val('url'),project_id:1,target_id:1});load()}
+async function runJob(id){const r=await post(`/api/v1/jobs/${id}/run`,{});alert(`status=${r.status} prices=${(r.prices||[]).length}`);load()}
+async function tick(){const r=await post('/api/v1/worker/tick',{});alert('fired '+(r.fired||[]).length);load()}
 async function testBD(){try{document.querySelector('#bd').textContent=JSON.stringify(await post('/api/v1/brightdata/test',{}),null,2)}catch(e){document.querySelector('#bd').textContent=String(e)}}
 async function chat(e){e.preventDefault();try{document.querySelector('#ans').textContent=JSON.stringify(await post('/api/v1/ai/chat',{messages:[{role:'user',content:val('q')}]}),null,2).slice(0,2000)}catch(e2){document.querySelector('#ans').textContent=String(e2)}}
-async function doSearch(e){e.preventDefault();const q=val('q');const r=await api('/api/v1/search?q='+encodeURIComponent(q));document.querySelector('#res').innerHTML=table(r.items||[],Object.keys((r.items||[])[0]||{kind:0}).slice(0,5))}
-load();
+async function doSearch(e){e.preventDefault();const r=await api('/api/v1/search?q='+encodeURIComponent(val('q')));document.querySelector('#res').innerHTML=table(r.items||[],Object.keys((r.items||[{}])[0]).slice(0,5));}
+async function sendAlert(id){alert(JSON.stringify(await post(`/api/v1/alerts/${id}/send`,{})).slice(0,300));load()}
+async function setBudget(e){e.preventDefault();await post('/api/v1/costs/budget',{project_id:1,limit:+val('limit')||0});load()}
+async function resolveE(e){e.preventDefault();try{document.querySelector('#er').textContent=JSON.stringify(await post('/api/v1/entities/resolve',{candidate:{name:val('name'),domain:val('domain')}}),null,2)}catch(e2){document.querySelector('#er').textContent=String(e2)}}
+async function addNode(e){e.preventDefault();await post('/api/v1/graph/nodes',{kind:val('kind'),key:val('key'),name:val('name')});load()}
+async function addEdge(e){e.preventDefault();await post('/api/v1/graph/edges',{src:+val('src'),dst:+val('dst'),rel:val('rel')||'RELATED'});load()}
+async function trav(e){e.preventDefault();document.querySelector('#g').textContent=JSON.stringify(await api('/api/v1/graph/traverse?node='+val('node')),null,2).slice(0,3000);}
+async function addEvent(e){e.preventDefault();await post('/api/v1/events',{type:val('type'),entity_key:val('entity_key')});load()}
+async function addEvidence(e){e.preventDefault();await post('/api/v1/evidence',{source:val('source'),url:val('url'),content_hash:val('content_hash')});load()}
+async function verifyCl(e){e.preventDefault();let ev=[];try{ev=JSON.parse(val('ev'))}catch(e2){}document.querySelector('#vc').textContent=JSON.stringify(await post('/api/v1/claims/verify',{value:val('value'),evidence:ev}),null,2);}
+async function addDoc(e){e.preventDefault();const r=await post('/api/v1/documents',{kind:val('kind')||'txt',title:val('title'),text:val('text')});alert(r.duplicate_of?('duplicate of #'+r.duplicate_of):('chunks: '+(r.chunks||[]).length));load()}
+async function addDataset(e){e.preventDefault();await post('/api/v1/datasets',{name:val('name'),kind:val('kind')||'generic'});load()}
+async function addWl(e){e.preventDefault();await post('/api/v1/watchlists',{kind:val('kind'),value:val('value')});load()}
+async function addWf(e){e.preventDefault();await post('/api/v1/workflows',{name:val('name'),definition:{steps:[{condition:{type:val('etype')},action:'create_alert',params:{rule:'workflow',message:'fired'}}]}});load()}
+async function runWf(id){alert(JSON.stringify(await post(`/api/v1/workflows/${id}/run`,{event:{type:'manual'}})).slice(0,400));load()}
+async function addWh(e){e.preventDefault();await post('/api/v1/webhooks',{event_types:['*'],url:val('url'),secret:val('secret')});load()}
+async function testWh(id){alert(JSON.stringify(await post(`/api/v1/webhooks/${id}/test`,{})).slice(0,300));load()}
+async function addOrg(e){e.preventDefault();await post('/api/v1/orgs',{name:val('name')});load()}
+async function addKey(e){e.preventDefault();const r=await post('/api/v1/apikeys',{name:val('name'),scopes:(val('scopes')||'read').split(',').map(s=>s.trim())});alert('KEY (shown once): '+r.key);load()}
+async function mkResearch(e){e.preventDefault();const p=await post('/api/v1/research/plan',{question:val('q')});document.querySelector('#rp').textContent=JSON.stringify(p,null,2).slice(0,2000);const r=await post('/api/v1/research/runs',{question:val('q'),plan:p});document.querySelector('#rr').textContent='run #'+r.id+' planned — collect evidence, then finish via API';}
+init();
 </script>
 </body>
 </html>

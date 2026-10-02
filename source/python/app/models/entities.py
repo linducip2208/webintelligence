@@ -48,7 +48,7 @@ class NormalizedEntity(Base, Timestamp):
 class Price(Base, Timestamp):
     __tablename__ = "prices"
     id = Column(Integer, primary_key=True); product_id = Column(Integer, index=True); price = Column(Float)
-    currency = Column(String(8, default="USD")); seller = Column(String(255), default=""); availability = Column(String(32), default="")
+    currency = Column(String(8), default="USD"); seller = Column(String(255), default=""); availability = Column(String(32), default="")
     observed_at = Column(DateTime, server_default=func.now()); raw_document_id = Column(Integer)
 class Review(Base, Timestamp):
     __tablename__ = "reviews"
@@ -64,7 +64,7 @@ class Change(Base, Timestamp):
 class Alert(Base, Timestamp):
     __tablename__ = "alerts"
     id = Column(Integer, primary_key=True); rule = Column(String(64)); message = Column(Text)
-    channel = Column(String(16, default="inapp")); project_id = Column(Integer); is_read = Column(Boolean, default=False)
+    channel = Column(String(16), default="inapp"); project_id = Column(Integer); is_read = Column(Boolean, default=False)
 class Report(Base, Timestamp):
     __tablename__ = "reports"
     id = Column(Integer, primary_key=True); kind = Column(String(64)); project_id = Column(Integer)
@@ -72,7 +72,7 @@ class Report(Base, Timestamp):
 class AIProvider(Base, Timestamp):
     __tablename__ = "ai_providers"
     id = Column(Integer, primary_key=True); name = Column(String(64), unique=True); base_url = Column(String(512))
-    api_key_enc = Column(String(1024, default="")); model = Column(String(128, default="muse-spark-1.3")); enabled = Column(Boolean, default=True)
+    api_key_enc = Column(String(1024), default=""); model = Column(String(128), default="muse-spark-1.3"); enabled = Column(Boolean, default=True)
 class AIUsage(Base, Timestamp):
     __tablename__ = "ai_usage"
     id = Column(Integer, primary_key=True); provider = Column(String(64)); model = Column(String(128))
@@ -84,7 +84,7 @@ class ProxyProviderRow(Base, Timestamp):
 class Schedule(Base, Timestamp):
     __tablename__ = "schedules"
     id = Column(Integer, primary_key=True); project_id = Column(Integer); kind = Column(String(32))
-    cron = Column(String(128, default="")); status = Column(String(32, default="active"))
+    cron = Column(String(128), default=""); status = Column(String(32), default="active")
     next_run = Column(DateTime); last_run = Column(DateTime)
 class SystemHealth(Base, Timestamp):
     __tablename__ = "system_health"

@@ -17,11 +17,15 @@ type Response struct {
  Header     http.Header
  Body       []byte
  LatencyMs  float64
+ NotModified bool
+ ETag       string
+ LastMod    string
 }
 
 type Client struct {
  http *http.Client
  Max  int64
+ UA   string
 }
 
 func New(timeoutMs int, maxBody int64) *Client {
@@ -36,16 +40,29 @@ func New(timeoutMs int, maxBody int64) *Client {
    },
   },
   Max: maxBody,
+  UA:  "Mozilla/5.0 WebIntel-Collector/1.0",
  }
 }
 
 func (c *Client) Get(urlStr, proxyURL string) (*Response, error) {
+ return c.GetWith(urlStr, proxyURL, map[string]string{})
+}
+
+// Plain exposes the underlying client for policy fetches (robots.txt).
+func (c *Client) Plain() *http.Client { return c.http }
+
+func (c *Client) GetWith(urlStr, proxyURL string, cond map[string]string) (*Response, error) {
  t0 := time.Now()
  req, err := http.NewRequest("GET", urlStr, nil)
  if err != nil {
   return nil, err
  }
- req.Header.Set("User-Agent", "Mozilla/5.0 WebIntel-Collector/1.0")
+ req.Header.Set("User-Agent", c.UA)
+ for k, v := range cond {
+  if v != "" {
+   req.Header.Set(k, v)
+  }
+ }
  hc := c.http
  if proxyURL != "" {
   px, err := url.Parse(proxyURL)
@@ -59,6 +76,10 @@ func (c *Client) Get(urlStr, proxyURL string) (*Response, error) {
   return nil, err
  }
  defer resp.Body.Close()
+ if resp.StatusCode == http.StatusNotModified {
+  return &Response{Status: 304, FinalURL: urlStr, NotModified: true,
+   LatencyMs: float64(time.Since(t0).Milliseconds())}, nil
+ }
  body, err := io.ReadAll(io.LimitReader(resp.Body, c.Max+1))
  if err != nil {
   return nil, err
@@ -72,5 +93,7 @@ func (c *Client) Get(urlStr, proxyURL string) (*Response, error) {
   Header:    resp.Header,
   Body:      body,
   LatencyMs: float64(time.Since(t0).Milliseconds()),
+  ETag:      resp.Header.Get("ETag"),
+  LastMod:   resp.Header.Get("Last-Modified"),
  }, nil
 }

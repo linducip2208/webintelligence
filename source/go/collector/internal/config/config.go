@@ -13,6 +13,7 @@ type Config struct {
  OwnProxies  []string
  APIBase     string
  APIToken    string
+ UserAgent   string
 }
 
 func Load() Config {
@@ -27,6 +28,7 @@ func Load() Config {
   OwnProxies: split(os.Getenv("OWN_PROXY_URLS")),
   APIBase:    getenv("API_BASE", "http://127.0.0.1:8000"),
   APIToken:   os.Getenv("API_TOKEN"),
+  UserAgent:  getenv("COLLECTOR_UA", "Mozilla/5.0 WebIntel-Collector/1.0"),
  }
 }
 

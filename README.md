@@ -1,9 +1,22 @@
-# Web Intelligence Platform v1.0.0
+# Universal Intelligence Platform v2.0.0
 
-Production-grade web-data intelligence: direct-first collection (Go),
-browser fallback (Playwright/Python), proxy abstraction (own + Bright Data),
-validation → normalization → MySQL → analytics/ML → Muse Spark 1.3 AI →
-reports/alerts/dashboard. Deploys on aaPanel without Docker.
+DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT.
+
+Web/API/document collection (Go engine + Playwright), extraction →
+normalization → quality → entity resolution → dedup → temporal snapshots →
+change/event detection → knowledge graph → evidence-grounded claims →
+research runs → findings → feed → watchlists → alerts → workflows →
+datasets → webhooks. AI via provider abstraction (Muse Spark 1.3 default).
+MySQL 8.4 + Redis. aaPanel-ready, no Docker.
+
+API surface: 78 versioned paths under `/api/v1` (see `contracts/openapi/openapi.json`):
+orgs, roles, memberships, apikeys, projects, targets, jobs, results,
+prices, changes, articles, search, analytics, intel (compare/reviews/news),
+entities, costs, ml, alerts (+send), reports (+export), schedules, worker,
+strategy, quality, proxies, brightdata, ai, graph, events, evidence, claims,
+contradictions, findings, feed, opportunities, ask, research, watchlists,
+workflows, datasets, connectors, documents, webhooks, i18n, audit,
+dashboard, health, metrics.
 
 ## Quick start (Windows dev / Linux same, minus service files)
 

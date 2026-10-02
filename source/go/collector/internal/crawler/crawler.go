@@ -7,8 +7,10 @@ import (
  "time"
 
  "webintel-collector/internal/collector"
+ "webintel-collector/internal/circuit"
  "webintel-collector/internal/config"
  "webintel-collector/internal/httpclient"
+ "webintel-collector/internal/jlog"
  "webintel-collector/internal/metrics"
  "webintel-collector/internal/proxy"
  "webintel-collector/internal/queue"
@@ -19,7 +21,12 @@ import (
 
 func Run(ctx context.Context, cfg config.Config, q *queue.Queue, out chan protocol.Result) {
  client := httpclient.New(cfg.TimeoutMs, cfg.MaxBody)
+ if cfg.UserAgent != "" {
+  client.UA = cfg.UserAgent
+ }
  lim := ratelimit.New(20, time.Minute)
+ cb := circuit.New(5, time.Minute)
+ var etags sync.Map // url -> map[string]string{etag,lastmod}
  var px proxy.Provider = proxy.NewOwn(cfg.OwnProxies)
  rep := reporter.New(cfg.APIBase, cfg.APIToken)
  var wg sync.WaitGroup
@@ -46,7 +53,26 @@ func Run(ctx context.Context, cfg config.Config, q *queue.Queue, out chan protoc
      Strategy:      str(job, "strategy"),
      Region:        str(job, "region"),
     }
-    r := collector.Collect(client, lim, px, pj)
+    cond := map[string]string{}
+    if v, ok := etags.Load(pj.URL); ok {
+     if m, ok := v.(map[string]string); ok {
+      cond["If-None-Match"] = m["etag"]
+      cond["If-Modified-Since"] = m["lastmod"]
+     }
+    }
+    host := pj.URL
+    if !cb.Allow(host) {
+     metrics.Inc("circuit_skipped", 1)
+     time.Sleep(200 * time.Millisecond)
+     continue
+    }
+    r := collector.CollectWith(client, lim, px, pj, cond)
+    if r.ETag != "" || r.LastModified != "" {
+     etags.Store(pj.URL, map[string]string{"etag": r.ETag, "lastmod": r.LastModified})
+    }
+    cb.Record(host, r.Status == "success")
+    jlog.Log("job_finished", map[string]any{"job_id": pj.JobID, "status": r.Status,
+     "strategy": r.Strategy, "http": r.HTTPStatus})
     metrics.Inc("jobs_total", 1)
     if r.Status == "success" {
      metrics.Inc("jobs_success", 1)

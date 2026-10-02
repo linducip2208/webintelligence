@@ -24,4 +24,6 @@ type Result struct {
  RetrievedAt   string `json:"retrieved_at"`
  ParseStatus   string `json:"parse_status"`
  Diagnostics   map[string]string `json:"diagnostics,omitempty"`
+ ETag          string `json:"etag,omitempty"`
+ LastModified  string `json:"last_modified,omitempty"`
 }
