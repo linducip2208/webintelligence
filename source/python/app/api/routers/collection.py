@@ -184,11 +184,15 @@ def search(q: str = "", scope: str = "all"):
     from ...search.service import search as svc
 
     if not q:
-        return {"items": []}
-    return {"items": svc({"projects": STORE["projects"], "targets": STORE["targets"],
-                          "articles": STORE["articles"], "events": STORE["events"],
-                          "findings": STORE["findings"],
-                          "documents": STORE["documents"]}, q, scope)}
+        return {"items": [], "facets": {}}
+    items = svc({"projects": STORE["projects"], "targets": STORE["targets"],
+                 "articles": STORE["articles"], "events": STORE["events"],
+                 "findings": STORE["findings"],
+                 "documents": STORE["documents"]}, q, scope)
+    facets = {}
+    for it in items:
+        facets[it.get("kind", "?")] = facets.get(it.get("kind", "?"), 0) + 1
+    return {"items": items, "facets": facets}
 
 
 

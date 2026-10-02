@@ -42,7 +42,7 @@ def graph_edge(spec: dict, authorization: str = Header(""), x_api_key: str = Hea
 
 
 @router.get("/api/v1/graph/traverse", tags=["knowledge"])
-def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "",
+def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "", at: str = "",
                    authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import graph as _g
     _, org, _ = _ctx(authorization, x_api_key)
@@ -52,7 +52,7 @@ def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "",
     items = _g.traverse(STORE["nodes"], [e for e in STORE["edges"] if e.get("org", 1) == org],
                         node, depth,
                         rel.split(",") if rel else None,
-                        kind.split(",") if kind else None)
+                        kind.split(",") if kind else None, at or None)
     return {"items": items}
 
 
@@ -194,6 +194,49 @@ def research_run(spec: dict, authorization: str = Header(""), x_api_key: str = H
     return item
 
 
+@router.post("/api/v1/research/runs/{rid}/analyze", tags=["research"])
+def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Generate evidence-grounded analysis via AI provider chain.
+    Without credentials returns an honest error; never fake analysis."""
+    from ...ai import fallback as _fb
+    from ...ai import safety as _safe
+    from ...ai.factory import fallback_order
+    from ...ai import registry as _reg
+    from ...ai import prompts as _pr
+    email, org, _ = _ctx(authorization, x_api_key)
+    run = next((x for x in STORE["research"]
+                if x.get("id") == rid and x.get("org", 1) == org), None)
+    if not run:
+        raise HTTPException(404, "not found")
+    ev = [x for x in STORE["evidence"] if x.get("id") in (run.get("evidence_ids") or [])]
+    if not ev:
+        raise HTTPException(400, "no evidence attached; attach evidence first")
+    prompt = _pr.render("summarize_evidence",
+                        evidence="\n".join(f"[{e['id']}] {e.get('snippet', '')}" for e in ev))
+    messages = [{"role": "user", "content": _safe.wrap_evidence(
+        [{"text": f"[{e['id']}] {e.get('snippet', '')} ({e.get('url', '')})"} for e in ev])},
+        {"role": "user", "content": prompt}]
+    names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
+    out = _fb.chat_fallback([(n, _reg.get(n)) for n in names], messages,
+                            run.get("ai_model", ""))
+    if out.get("error"):
+        raise HTTPException(502, f"ai unavailable: {out['error']}"[:300])
+    run.update({"status": "done", "analysis": out.get("text", "")[:8000],
+                "ai_provider": out.get("provider", ""),
+                "ai_model": out.get("model", ""),
+                "prompt_version": "summarize_evidence@v1",
+                "finished_at": time.time()})
+    repo.sync("research", run)
+    _audit(email, "research.analyze", f"{rid}:{out.get('provider', '')}")
+    return {"ok": True, "provider": out.get("provider"), "analysis": run["analysis"],
+            "reproducibility": {**_r_bundle(run), "prompt": "summarize_evidence@v1"}}
+
+
+def _r_bundle(run: dict):
+    from ...services import research as _r
+    return _r.bundle(run)
+
+
 @router.post("/api/v1/research/runs/{rid}/finish", tags=["research"])
 def research_finish(rid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import research as _r
@@ -259,6 +302,17 @@ def dataset_publish(did: int, spec: dict, authorization: str = Header(""), x_api
     rows = spec.get("rows", [])
     v = _d.publish(STORE["dsversions"], did, rows, spec.get("lineage", {}))
     return v
+
+
+@router.get("/api/v1/datasets/{did}/versions", tags=["datasets"])
+def dataset_versions(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    vs = [v for v in STORE["dsversions"] if v.get("dataset_id") == did]
+    return {"items": [{k: val for k, val in v.items() if k != "rows"} for v in vs]}
 
 
 @router.get("/api/v1/datasets/{did}/export", tags=["datasets"])

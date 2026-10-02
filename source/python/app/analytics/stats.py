@@ -16,6 +16,24 @@ def moving_avg(xs, w=3):
     return [round(sum(xs[max(0, i-w+1):i+1]) / len(xs[max(0, i-w+1):i+1]), 4) for i in range(len(xs))]
 def growth(xs):
     return [None] + [pct_change(xs[i-1], xs[i]) for i in range(1, len(xs))]
+def percentile(xs, p):
+    if not xs: return None
+    s = sorted(xs); k = (len(s) - 1) * min(max(p, 0), 100) / 100
+    lo, hi = int(k), min(int(k) + 1, len(s) - 1)
+    return round(s[lo] + (s[hi] - s[lo]) * (k - lo), 4)
+def distribution(xs, bins=5):
+    if not xs: return []
+    lo, hi = min(xs), max(xs)
+    if hi == lo: return [{"range": [lo, hi], "count": len(xs)}]
+    w = (hi - lo) / bins
+    out = [{"range": [round(lo + i * w, 4), round(lo + (i + 1) * w, 4)], "count": 0} for i in range(bins)]
+    for x in xs:
+        i = min(int((x - lo) / w), bins - 1)
+        out[i]["count"] += 1
+    return out
+def cagr(first, last, periods):
+    if not first or not periods or first <= 0 or last <= 0: return None
+    return round((last / first) ** (1 / periods) - 1, 4)
 def volatility(prices):
     m = mean(prices)
     return round(stdev(prices)/m, 4) if m else 0.0

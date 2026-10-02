@@ -1162,6 +1162,67 @@
     }
    }
   },
+  "/api/v1/targets/{tid}/test": {
+   "post": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Target Test",
+    "description": "Real connection test: strategy decision + live direct fetch attempt.\nUpdates the persisted target profile (attempts/latency/preferred).",
+    "operationId": "target_test_api_v1_targets__tid__test_post",
+    "parameters": [
+     {
+      "name": "tid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Tid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/connectors/{cid}/test": {
    "post": {
     "tags": [
@@ -3218,6 +3279,69 @@
     }
    }
   },
+  "/api/v1/alerts/bulk": {
+   "post": {
+    "tags": [
+     "alerts"
+    ],
+    "summary": "Alerts Bulk",
+    "operationId": "alerts_bulk_api_v1_alerts_bulk_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/costs/summary": {
    "get": {
     "summary": "Costs Summary",
@@ -3734,6 +3858,78 @@
       "content": {
        "application/json": {
         "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/entities/{eid}/aliases": {
+   "post": {
+    "tags": [
+     "entities"
+    ],
+    "summary": "Entity Alias",
+    "operationId": "entity_alias_api_v1_entities__eid__aliases_post",
+    "parameters": [
+     {
+      "name": "eid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Eid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
        }
       }
      }
@@ -4387,6 +4583,16 @@
        "type": "string",
        "default": "",
        "title": "Kind"
+      }
+     },
+     {
+      "name": "at",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "At"
       }
      },
      {
@@ -5277,6 +5483,79 @@
     }
    }
   },
+  "/api/v1/research/runs/{rid}/analyze": {
+   "post": {
+    "tags": [
+     "research"
+    ],
+    "summary": "Research Analyze",
+    "description": "Generate evidence-grounded analysis via AI provider chain.\nWithout credentials returns an honest error; never fake analysis.",
+    "operationId": "research_analyze_api_v1_research_runs__rid__analyze_post",
+    "parameters": [
+     {
+      "name": "rid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Rid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/research/runs/{rid}/finish": {
    "post": {
     "tags": [
@@ -5583,6 +5862,66 @@
       }
      }
     },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/datasets/{did}/versions": {
+   "get": {
+    "tags": [
+     "datasets"
+    ],
+    "summary": "Dataset Versions",
+    "operationId": "dataset_versions_api_v1_datasets__did__versions_get",
+    "parameters": [
+     {
+      "name": "did",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Did"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -6671,6 +7010,67 @@
      },
      "required": true
     },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/watchlists/{wid}/evaluate": {
+   "post": {
+    "tags": [
+     "monitoring"
+    ],
+    "summary": "Watchlist Evaluate",
+    "description": "Run a watchlist against recent prices/articles/events NOW.\nMatches create alerts (cooldown-guarded).",
+    "operationId": "watchlist_evaluate_api_v1_watchlists__wid__evaluate_post",
+    "parameters": [
+     {
+      "name": "wid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Wid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "description": "Successful Response",

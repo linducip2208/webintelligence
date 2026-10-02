@@ -16,6 +16,7 @@ from ..shared import (
     _visible_by_org,
     inc,
     paginate,
+    repo,
 )
 
 router = APIRouter()
@@ -87,6 +88,40 @@ def list_connectors(authorization: str = Header(""), x_api_key: str = Header("")
 def match_connector(capability: str = "", category: str = ""):
     from ...services import connectors as _c
     return {"items": _c.match(STORE["connectors"], capability, category)}
+
+
+@router.post("/api/v1/targets/{tid}/test", tags=["sources"])
+def target_test(tid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Real connection test: strategy decision + live direct fetch attempt.
+    Updates the persisted target profile (attempts/latency/preferred)."""
+    from ...services import pipeline as _pipe
+    from ...services import targets as _tgt
+    from ...services import decision as _dec
+    email, org, _ = _ctx(authorization, x_api_key)
+    t = next((x for x in STORE["targets"]
+              if x.get("id") == tid and x.get("org", 1) == org), None)
+    if not t:
+        raise HTTPException(404, "target not found")
+    engine = _dec.Engine()
+    plan = engine.decide(t, _dec.Policy(), {"own_proxy": {"healthy": True},
+                                            "brightdata": {"healthy": False,
+                                                           "configured": False}})
+    fetched = _pipe.fetch_direct(t["url"], timeout_s=20)
+    ok = fetched.get("ok") and fetched.get("http_status") == 200
+    prof = _tgt.record_attempt(t.get("profile", {}), plan["plan"][0] if plan["plan"] else "DIRECT_HTTP",
+                               ok, fetched.get("latency_ms", 0), 0.0)
+    t["profile"] = prof
+    t["attempts"] = prof.get("attempts", 0)
+    t["successes"] = prof.get("successes", 0)
+    t["failures"] = prof.get("failures", 0)
+    t["preferred_strategy"] = _tgt.preferred_strategy(prof)
+    repo.sync("targets", t)
+    _audit(email, "target.test", t["url"][:120])
+    return {"ok": ok, "http_status": fetched.get("http_status"),
+            "latency_ms": fetched.get("latency_ms"),
+            "strategy": plan["plan"][0] if plan["plan"] else None,
+            "profile": {k: prof.get(k) for k in ("attempts", "successes", "failures")},
+            "error": fetched.get("error", "")}
 
 
 @router.post("/api/v1/connectors/{cid}/test", tags=["sources"])

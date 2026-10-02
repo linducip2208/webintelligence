@@ -117,7 +117,8 @@ def search_semantic(q: str = "", k: int = 5):
 # ---- analytics ----
 @router.get("/api/v1/analytics/prices")
 def analytics_prices(product_id: int = 0):
-    from ...analytics.stats import mean, volatility, anomaly_marks, pct_change
+    from ...analytics.stats import (mean, volatility, anomaly_marks, pct_change,
+                                    percentile, distribution, moving_avg)
     pts = [p for p in STORE["prices"] if not product_id or p.get("product_id") == product_id]
     vals = [p["price"] for p in pts]
     marks = anomaly_marks(vals) if len(vals) > 3 else []
@@ -125,6 +126,9 @@ def analytics_prices(product_id: int = 0):
             "min": min(vals) if vals else None, "max": max(vals) if vals else None,
             "volatility": volatility(vals) if len(vals) > 1 else 0.0,
             "change_pct": pct_change(vals[0], vals[-1]) if len(vals) > 1 else None,
+            "p50": percentile(vals, 50), "p90": percentile(vals, 90),
+            "distribution": distribution(vals),
+            "moving_avg": moving_avg(vals)[-10:] if vals else [],
             "anomalies": [{"index": i, "price": vals[i]} for i in marks],
             "history": pts[-100:]}
 
@@ -224,6 +228,28 @@ def alert_resolve(alert_id: int, spec: dict, authorization: str = Header(""), x_
     repo.sync("alerts", a)
     _audit(email, "alert.resolve", str(alert_id))
     return {"ok": True}
+
+
+@router.post("/api/v1/alerts/bulk", tags=["alerts"])
+def alerts_bulk(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _ctx(authorization, x_api_key)
+    action = spec.get("action", "ack")
+    if action not in ("ack", "resolve", "read"):
+        raise HTTPException(400, "action must be ack|resolve|read")
+    n = 0
+    for aid in spec.get("ids", [])[:500]:
+        a = next((x for x in STORE["alerts"] if x.get("id") == aid), None)
+        if not a:
+            continue
+        if action == "ack":
+            a["acked"] = True
+        elif action == "resolve":
+            a["resolved"] = True
+        a["is_read"] = True
+        repo.sync("alerts", a)
+        n += 1
+    _audit(email, f"alert.bulk.{action}", str(n))
+    return {"ok": True, "updated": n}
 
 
 # ---- costs & budgets ----
@@ -332,6 +358,14 @@ def report_export(rep_id: int, format: str = "json",
     if format == "csv":
         from ...reports.builder import to_csv
         return JSONResponse(content={"csv": to_csv(r)})
+    if format == "pdf":
+        try:
+            from ...reports.builder import to_pdf
+            from fastapi.responses import Response
+            return Response(content=to_pdf(r), media_type="application/pdf",
+                            headers={"Content-Disposition": f"attachment; filename=report-{rep_id}.pdf"})
+        except ImportError:
+            raise HTTPException(501, "pdf requires reportlab (pip install reportlab)")
     if format == "xlsx":
         try:
             import io as _io
@@ -390,6 +424,21 @@ def entity_reject(spec: dict, authorization: str = Header(""), x_api_key: str = 
 @router.get("/api/v1/entities/history", tags=["entities"])
 def entity_history():
     return {"items": STORE["entity_history"]}
+
+
+@router.post("/api/v1/entities/{eid}/aliases", tags=["entities"])
+def entity_alias(eid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _need(authorization, "configure")
+    e = next((x for x in STORE["entities"] if x.get("id") == eid), None)
+    if not e:
+        raise HTTPException(404, "entity not found")
+    aliases = e.get("aliases", [])
+    if spec.get("alias") and spec["alias"] not in aliases:
+        aliases.append(spec["alias"])
+    e["aliases"] = aliases
+    repo.sync("entities", e)
+    _audit(email, "entity.alias", f"{eid}:{spec.get('alias', '')}"[:120])
+    return {"ok": True, "aliases": aliases}
 
 
 @router.get("/api/v1/reviews/queue", tags=["entities"])

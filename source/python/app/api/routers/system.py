@@ -127,17 +127,18 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
         names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
         chain = [(n, aireg.get(n)) for n in names]
     out = _fb.chat_fallback(chain, messages, use_model)
-    _record_usage(out)
+    _record_usage(out, spec.get("prompt_version", ""))
     inc("AI_requests")
     return out
 
 
-def _record_usage(out: dict):
+def _record_usage(out: dict, prompt_version: str = ""):
     try:
         name = out.get("provider", "muse-spark")
         p = aireg.get(name)
         cost = p.estimate_cost(out.get("input_tokens", 0), out.get("output_tokens", 0)) if p else 0.0
         STORE["ai_usage"].append({"provider": name, "model": out.get("model", ""),
+                                  "prompt_version": prompt_version,
                                   "input_tokens": out.get("input_tokens", 0),
                                   "output_tokens": out.get("output_tokens", 0),
                                   "cost": cost, "latency_ms": out.get("latency_ms", 0)})

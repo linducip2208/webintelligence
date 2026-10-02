@@ -123,6 +123,39 @@ def watchlist_check(spec: dict):
     return {"matches": _w.match(STORE["watchlists"], spec)}
 
 
+@router.post("/api/v1/watchlists/{wid}/evaluate", tags=["monitoring"])
+def watchlist_evaluate(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Run a watchlist against recent prices/articles/events NOW.
+    Matches create alerts (cooldown-guarded)."""
+    from ...services import watchlists as _w
+    from ...services import alertguard as _ag
+    email, org, _ = _ctx(authorization, x_api_key)
+    w = next((x for x in STORE["watchlists"]
+              if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not w:
+        raise HTTPException(404, "watchlist not found")
+    pool = ([{"value": p.get("product_id"), "text": f"{p.get('price')} {p.get('currency')}"}
+             for p in STORE["prices"][-200:]] +
+            [{"value": a.get("title", ""), "text": a.get("title", "")} for a in STORE["articles"][-200:]] +
+            [{"value": e.get("entity_key", ""), "text": e.get("type", "")} for e in STORE["events"][-200:]])
+    hits = [it for it in pool if w["id"] in _w.match([w], it)]
+    fired = 0
+    for h in hits[:20]:
+        key = f"watchlist:{wid}:{h['value']}"
+        if _ag.should_fire(key, STORE["alert_hist"], 86400):
+            STORE["alerts"].append({"id": len(STORE["alerts"]) + 1, "rule": "watchlist_hit",
+                                    "channel": "inapp",
+                                    "message": f"Watchlist '{w.get('value')}' matched: {h['value']}"[:300],
+                                    "project_id": 0, "is_read": False})
+            fired += 1
+    try:
+        repo.kv_set("alert_hist", STORE["alert_hist"])
+    except Exception:
+        pass
+    _audit(email, "watchlist.evaluate", f"{wid}:{len(hits)}")
+    return {"matches": len(hits), "alerts": fired}
+
+
 
 # ---- workflows ----
 @router.post("/api/v1/workflows", tags=["monitoring"])

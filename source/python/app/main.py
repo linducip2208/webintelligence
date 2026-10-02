@@ -30,6 +30,8 @@ if _os.path.isdir(_STATIC):
 @app.middleware("http")
 async def _guard(request, call_next):
     import os as _o
+    import uuid as _u
+    rid = request.headers.get("x-request-id", "") or _u.uuid4().hex[:12]
     if request.url.path.startswith("/api/v1"):
         try:
             maxb = int(_o.getenv("MAX_BODY_BYTES", "10485760") or 10485760)
@@ -50,8 +52,11 @@ async def _guard(request, call_next):
             if key and _key_lookup(key):
                 ok = True
             if not ok:
-                return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    return await call_next(request)
+                return JSONResponse({"detail": "unauthorized", "request_id": rid},
+                                    status_code=401)
+    resp = await call_next(request)
+    resp.headers["X-Request-ID"] = rid
+    return resp
 
 
 for _r in (system, catalog, collection, intel, knowledge, ops):

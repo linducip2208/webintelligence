@@ -22,7 +22,12 @@ def traverse(nodes, edges, start_id, depth=2, rels=None, kinds=None, at=None, li
         cur, d = frontier.pop(0)
         if d >= depth: continue
         for e in edges:
-            if e.get("valid_to") and at and str(e["valid_to"]) < str(at): continue
+            if at:
+                vf, vt = e.get("valid_from"), e.get("valid_to")
+                if vf and str(vf) > str(at):
+                    continue  # did not exist yet at T
+                if vt and str(vt) <= str(at):
+                    continue  # already superseded at T
             if rels and e.get("rel") not in rels: continue
             nxt = e["dst"] if e.get("src")==cur else (e["src"] if e.get("dst")==cur else None)
             if nxt is None or nxt in seen: continue
