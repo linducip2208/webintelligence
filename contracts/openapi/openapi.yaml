@@ -1,7 +1,18 @@
 openapi: 3.0.3
 info:
   title: Web Intelligence Platform
-  version: 1.0.0
+  version: 2.0.0
+  description: >
+    Authoritative machine-readable spec is contracts/openapi/openapi.json,
+    regenerated from the FastAPI app via source/python/gen_openapi.py.
+    This file documents authentication only.
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+    apiKeyAuth: {type: apiKey, in: header, name: X-API-Key}
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
 paths:
   /healthz:
     get:

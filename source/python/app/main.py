@@ -35,7 +35,11 @@ from .alerts.service import build as build_alert
 from .auth import tokens as tok
 from .core.security import hash_password, verify_password
 
-app = FastAPI(title="Web Intelligence Platform", version="1.0.0")
+app = FastAPI(title="Web Intelligence Platform", version="2.0.0",
+              description="Universal Intelligence Platform. Auth: Bearer login token "
+                          "(POST /api/v1/auth/login) or X-API-Key header with scopes. "
+                          "Mutating routes return 401 without credentials when REQUIRE_AUTH=1, "
+                          "403 when role/scopes lack the action. All errors are JSON.")
 _STATIC = _os.path.join(_os.path.dirname(__file__), "static")
 if _os.path.isdir(_STATIC):
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
@@ -49,6 +53,7 @@ STORE = {
     "prices": [], "articles": [], "reports": [], "health": [],
     "schedules": [], "raw": [], "changes": [], "entities": [],
     "audit": [], "budgets": {}, "orgs": [{"id": 1, "name": "Default", "slug": "default"}],
+    "attempts": [], "entity_history": [], "feed_subs": [], "alert_hist": {},
     "memberships": [{"org_id": 1, "email": "admin@local", "role": "owner"}],
     "apikeys": [], "nodes": [], "edges": [], "events": [], "evidence": [],
     "claims": [], "findings": [], "research": [], "watchlists": [],
@@ -83,8 +88,11 @@ def _require_auth(authorization: str = ""):
 
 
 def _ctx(authorization: str = "", x_api_key: str = ""):
-    """(email, org_id, role). API keys scope to their org; login tokens use membership."""
+    """(email, org_id, role). API keys scope to their org; login tokens use membership.
+    Dev-open (REQUIRE_AUTH!=1) acts as owner; production enforces real roles."""
     email = _require_auth(authorization)
+    if email == "dev-open":
+        return ("dev-open", 1, "owner")
     if x_api_key:
         import hashlib as _h
         h = _h.sha256(x_api_key.encode()).hexdigest()
@@ -161,6 +169,15 @@ def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
                                 "message": f"Job {res.get('job_id')} failed "
                                            f"({res.get('strategy')}, http={res.get('http_status')})",
                                 "project_id": project_id, "is_read": False})
+    STORE["attempts"].append({"target_id": target_id, "ok": res.get("status") == "success",
+                              "latency_ms": res.get("latency_ms", 0),
+                              "completeness": (res.get("quality") or {}).get("overall", 0),
+                              "at": time.time()})
+    if True:
+        from .services import temporal as _t
+        for p in res.get("prices", []):
+            _t.record(STORE["history"], f"price:{target_id}",
+                      {"price": p["price"], "currency": p.get("currency")}, time.time())
     return res
 
 
@@ -1183,6 +1200,220 @@ def webhook_replay(did: int, authorization: str = Header("")):
 def get_strings(lang: str = "en"):
     from .i18n.lang import STRINGS, langs
     return {"lang": lang, "strings": STRINGS.get(lang, STRINGS["en"]), "langs": langs()}
+
+
+# ---- job lifecycle: cancel / retry / dead-letter ----
+@app.post("/api/v1/jobs/{job_id}/cancel", tags=["jobs"])
+def cancel_job(job_id: str, authorization: str = Header("")):
+    _require_auth(authorization)
+    job = next((j for j in STORE["jobs"] if j.get("job_id") == job_id), None)
+    if not job:
+        raise HTTPException(404, "job not found")
+    if job["status"] not in ("queued",):
+        raise HTTPException(409, f"cannot cancel job in status {job['status']}")
+    job["status"] = "cancelled"
+    _audit(authorization[:12] if authorization else "anon", "job.cancel", job_id)
+    return job
+
+
+@app.post("/api/v1/jobs/{job_id}/retry", tags=["jobs"])
+def retry_job(job_id: str, authorization: str = Header("")):
+    _require_auth(authorization)
+    job = next((j for j in STORE["jobs"] if j.get("job_id") == job_id), None)
+    if not job:
+        raise HTTPException(404, "job not found")
+    if job["status"] not in ("failed", "cancelled"):
+        raise HTTPException(409, f"cannot retry job in status {job['status']}")
+    job["status"] = "queued"
+    job["retries"] = job.get("retries", 0) + 1
+    _audit(authorization[:12] if authorization else "anon", "job.retry", job_id)
+    return job
+
+
+@app.get("/api/v1/dlq", tags=["jobs"])
+def dead_letters():
+    """Dead-letter queue depth (Redis when available, else empty — honest)."""
+    r = get_redis()
+    if r is None:
+        return {"items": [], "backend": "none"}
+    try:
+        n = r.llen("webintel:queue:dlq")
+        return {"items": [], "depth": n, "backend": "redis",
+                "note": "depth only; use redis-cli to inspect payloads"}
+    except Exception as e:
+        return {"items": [], "backend": "error", "detail": str(e)[:200]}
+
+
+# ---- entity operations + explorer ----
+@app.post("/api/v1/entities/merge", tags=["entities"])
+def entity_merge(spec: dict, authorization: str = Header("")):
+    from .services import entityops as _o
+    email, _, _ = _need(authorization, "configure")
+    out = _o.merge(STORE["entities"], STORE["entity_history"],
+                   spec.get("keep_id"), spec.get("drop_id"), email)
+    if not out["ok"]:
+        raise HTTPException(404, out["error"])
+    _audit(email, "entity.merge", f"{spec.get('keep_id')}<-{spec.get('drop_id')}")
+    return out
+
+
+@app.post("/api/v1/entities/split", tags=["entities"])
+def entity_split(spec: dict, authorization: str = Header("")):
+    from .services import entityops as _o
+    email, _, _ = _need(authorization, "configure")
+    out = _o.split(STORE["entities"], STORE["entity_history"],
+                   spec.get("entity_id"), spec.get("parts", []), email)
+    if not out["ok"]:
+        raise HTTPException(404, out["error"])
+    _audit(email, "entity.split", str(spec.get("entity_id")))
+    return out
+
+
+@app.post("/api/v1/entities/reject", tags=["entities"])
+def entity_reject(spec: dict, authorization: str = Header("")):
+    from .services import entityops as _o
+    email, _, _ = _need(authorization, "configure")
+    _audit(email, "entity.reject", str(spec.get("entity_id")))
+    return _o.reject(STORE["entity_history"], spec.get("entity_id"),
+                     spec.get("reason", ""), email)
+
+
+@app.get("/api/v1/entities/history", tags=["entities"])
+def entity_history():
+    return {"items": STORE["entity_history"]}
+
+
+@app.get("/api/v1/entities/{eid}", tags=["entities"])
+def entity_detail(eid: int):
+    """Rich explorer: overview, timeline, relationships, events, changes, evidence."""
+    e = next((x for x in STORE["entities"] if x.get("id") == eid), None)
+    if not e:
+        raise HTTPException(404, "not found")
+    key = e.get("domain") or e.get("name", "")
+    nodes = [n for n in STORE["nodes"] if key and (n.get("key") == key or n.get("name") == e.get("name"))]
+    node_ids = {n["id"] for n in nodes}
+    rels = [x for x in STORE["edges"] if x.get("src") in node_ids or x.get("dst") in node_ids]
+    evts = [v for v in STORE["events"] if key and key.lower() in str(v.get("entity_key", "")).lower()]
+    ev = [x for x in STORE["evidence"] if key and key.lower() in (x.get("url", "") + x.get("snippet", "")).lower()]
+    from .services import temporal as _t
+    return {"entity": e, "timeline": _t.timeline(STORE["history"], f"price:{eid}"),
+            "graph_nodes": nodes, "relationships": rels, "events": evts,
+            "evidence": ev, "history": [h for h in STORE["entity_history"]
+                                        if h.get("keep") == eid or h.get("drop") == eid or h.get("src") == eid]}
+
+
+# ---- finding explorer ----
+@app.get("/api/v1/findings/{fid}", tags=["intelligence"])
+def finding_detail(fid: int):
+    f = next((x for x in STORE["findings"] if x.get("id") == fid), None)
+    if not f:
+        raise HTTPException(404, "not found")
+    ev = [x for x in STORE["evidence"] if x.get("id") in (f.get("evidence_ids") or [])]
+    rel_events = [v for v in STORE["events"]
+                  if set(v.get("entities", [])) & set(f.get("entities", []))]
+    return {"finding": f, "evidence": ev, "related_events": rel_events,
+            "why": f"belief rests on {len(ev)} evidence record(s); "
+                   f"confidence {f.get('confidence')}"}
+
+
+# ---- graph SVG (paginated subgraph, never the whole graph) ----
+@app.get("/api/v1/graph/render", tags=["knowledge"])
+def graph_svg(node: int = 0, depth: int = 1, limit: int = 30):
+    from .services import graph as _g
+    items = _g.traverse(STORE["nodes"], STORE["edges"], node, depth, limit=limit)[:limit]
+    by_id = {n["id"]: n for n in STORE["nodes"]}
+    cx, parts = 200, []
+    ids = [node] + [it["node"]["id"] for it in items if it.get("node")]
+    pos = {nid: (60 + (i % 6) * 120, 60 + (i // 6) * 110) for i, nid in enumerate(ids)}
+    for it in items:
+        e = it["edge"]
+        x1, y1 = pos.get(e["src"], (60, 60))
+        x2, y2 = pos.get(e["dst"], (200, 60))
+        parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#3b82f6"/>'
+                     f'<text x="{(x1+x2)//2}" y="{(y1+y2)//2}" fill="#9fb0c9" font-size="10">{e["rel"]}</text>')
+    for nid, (x, y) in pos.items():
+        n = by_id.get(nid, {"name": nid, "kind": "?"})
+        parts.append(f'<circle cx="{x}" cy="{y}" r="22" fill="#1b2942" stroke="#e6edf3"/>'
+                     f'<text x="{x}" y="{y+4}" fill="#e6edf3" font-size="9" text-anchor="middle">'
+                     f'{str(n.get("name", nid))[:10]}</text>')
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="{max(200, len(pos)//6*110+120)}">' + "".join(parts) + "</svg>"
+    return JSONResponse(content={"svg": svg, "nodes": len(pos), "truncated": len(items) == limit},
+                        media_type="application/json")
+
+
+# ---- reliability / correlation / prediction ----
+@app.get("/api/v1/reliability/targets", tags=["sources"])
+def target_reliability(target_id: int = 0):
+    from .services import reliability as _r
+    atts = [a for a in STORE["attempts"] if not target_id or a.get("target_id") == target_id]
+    return _r.score(atts)
+
+
+@app.post("/api/v1/correlate/prices", tags=["intelligence"])
+def correlate_prices(spec: dict, authorization: str = Header("")):
+    from .services import correlate as _c
+    _require_auth(authorization)
+    out = _c.correlate_price_sources(spec.get("series_by_source", {}))
+    saved = []
+    if spec.get("save"):
+        for co in out:
+            f = _c.to_finding(co, spec.get("evidence_ids", []))
+            f["id"] = len(STORE["findings"]) + 1
+            STORE["findings"].append(f)
+            saved.append(f["id"])
+    return {"correlations": out, "saved_findings": saved}
+
+
+@app.post("/api/v1/ml/predict", tags=["ml"])
+def ml_predict(spec: dict):
+    from .services import predict as _p
+    return _p.predict(spec.get("series", []), spec.get("model", "ewma"),
+                      spec.get("features"))
+
+
+# ---- feed subscriptions ----
+@app.post("/api/v1/feed/subscriptions", tags=["intelligence"])
+def feed_subscribe(spec: dict, authorization: str = Header("")):
+    email, _, _ = _ctx(authorization)
+    sub = {"id": len(STORE["feed_subs"]) + 1, "owner": email, **spec}
+    STORE["feed_subs"].append(sub)
+    return sub
+
+
+@app.get("/api/v1/feed/personalized", tags=["intelligence"])
+def feed_personal(authorization: str = Header("")):
+    from .services import feed as _f
+    email, _, _ = _ctx(authorization)
+    mine = [s for s in STORE["feed_subs"] if s.get("owner") == email]
+    items = _f.build(STORE["events"], STORE["findings"], STORE["changes"], STORE["alerts"])
+    return {"items": _f.subscribed(items, mine)}
+
+
+# ---- alert threshold check ----
+@app.post("/api/v1/alerts/check", tags=["alerts"])
+def alert_check(spec: dict, authorization: str = Header("")):
+    from .services import alertguard as _ag
+    _require_auth(authorization)
+    out = _ag.check_threshold(spec.get("value", 0), spec.get("op", "gt"), spec.get("threshold", 0))
+    if out.get("fired") and _ag.should_fire(spec.get("rule", "threshold"), STORE["alert_hist"],
+                                            spec.get("cooldown_s", 3600)):
+        item = {"id": len(STORE["alerts"]) + 1, "rule": spec.get("rule", "threshold"),
+                "channel": "inapp", "message": out["message"], "project_id": spec.get("project_id", 0),
+                "severity": spec.get("severity", "info"), "is_read": False}
+        STORE["alerts"].append(item)
+        out["alert_id"] = item["id"]
+    return out
+
+
+# ---- dataset archive ----
+@app.post("/api/v1/datasets/{did}/archive", tags=["datasets"])
+def dataset_archive(did: int, authorization: str = Header("")):
+    _require_auth(authorization)
+    d = next((x for x in STORE["datasets"] if x.get("id") == did), None)
+    if not d:
+        raise HTTPException(404, "not found")
+    d["status"] = "archived"
+    return {"ok": True}
 
 
 # ---- dashboard ----

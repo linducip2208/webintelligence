@@ -46,7 +46,7 @@ const NAV=[
  ['Research',[['research','research'],['runs','runs'],['reports','reports']]],
  ['Sources',[['sources','projects'],['targets','targets'],['connectors','connectors'],['jobs','jobs'],['reliability','health']]],
  ['Entities',[['companies','entities'],['products','prices'],['domains','entities'],['locations','entities']]],
- ['Knowledge',[['graph','graph'],['relationships','graph'],['events','events'],['changes','changes'],['evidence','evidence'],['claims','claims'],['documents','documents']]],
+ ['Knowledge',[['graph','graph'],['relationships','graph'],['events','events'],['changes','changes'],['evidence','evidence'],['claims','claims'],['documents','documents'],['reliability','reliability']]],
  ['Datasets',[['datasets','datasets'],['quality','analytics']]],
  ['Monitoring',[['watchlists','watchlists'],['alerts','alerts'],['workflows','workflows'],['webhooks','webhooks']]],
  ['AI',[['providers','ai'],['models','ai'],['usage','ai']]],
@@ -79,7 +79,7 @@ else if(view==='feed'){const d=await api('/api/v1/feed?limit=50');C.innerHTML=d.
 else if(view==='opps'){const d=await api('/api/v1/opportunities');C.innerHTML=table(d.items||[],['type','product_id','price','z']);}
 else if(view==='research'){C.innerHTML=`<div class="card"><h3>New research</h3><form class="inline" onsubmit="mkResearch(event)"><input name="q" style="width:340px" placeholder="Research question…"><button class="primary">Plan</button></form><pre id="rp"></pre><pre id="rr"></pre></div>`;}
 else if(view==='runs'){const d=await api('/api/v1/research/runs');C.innerHTML=table(d.items||[],['id','question','status','ai_model']);}
-else if(view==='graph'){C.innerHTML=`<div class="card"><h3>Add node</h3>${form([['kind','kind: company'],['key','key'],['name','name']],'addNode')}<h3>Add edge</h3>${form([['src','src id'],['dst','dst id'],['rel','OWNS']],'addEdge')}<h3>Traverse</h3><form class="inline" onsubmit="trav(event)"><input name="node" placeholder="node id"><button>Go</button></form><pre id="g"></pre></div>`;}
+else if(view==='graph'){C.innerHTML=`<div class="card"><h3>Add node</h3>${form([['kind','kind: company'],['key','key'],['name','name']],'addNode')}<h3>Add edge</h3>${form([['src','src id'],['dst','dst id'],['rel','OWNS']],'addEdge')}<h3>Traverse</h3><form class="inline" onsubmit="trav(event)"><input name="node" placeholder="node id"><button>Go</button><button type="button" onclick="svg()">SVG</button></form><pre id="g"></pre><div id="gv"></div></div>`;}
 else if(view==='events'){const d=await api('/api/v1/events?size=50');C.innerHTML=form([['type','type: PRICE'],['entity_key','entity key']],'addEvent')+table(d.items||[],['id','type','entity_key','severity']);}
 else if(view==='evidence'){const d=await api('/api/v1/evidence?size=50');C.innerHTML=form([['source','source'],['url','https://…'],['content_hash','hash']],'addEvidence')+table(d.items||[],['id','source','url','content_hash','confidence']);}
 else if(view==='claims'){C.innerHTML=`<div class="card"><h3>Verify a claim against evidence</h3><form class="inline" onsubmit="verifyCl(event)"><input name="value" placeholder="claim value"><input name="ev" placeholder='evidence JSON: [{"value":"..","reliability":0.9}]' style="width:340px"><button class="primary">Verify</button></form><pre id="vc"></pre></div>`;}
@@ -99,14 +99,25 @@ else if(view==='reports'){$('#actions').innerHTML='';const d=await api('/api/v1/
 else if(view==='analytics'){const p=await api('/api/v1/analytics/prices');const t=await api('/api/v1/analytics/trends');const q=await api('/api/v1/analytics/quality');
 C.innerHTML=`<div class="grid"><div class="card"><h3>Prices</h3><div class="v">${p.count}</div><div>avg ${p.avg??'—'} · vol ${p.volatility}</div></div><div class="card"><h3>Anomalies</h3><div class="v">${(p.anomalies||[]).length}</div></div><div class="card"><h3>Quality</h3><div class="v">${q.avg_overall??'—'}</div></div></div><div class="card"><h3>Topics</h3><pre>${esc(JSON.stringify(t.topics))}</pre></div>`;}
 else if(view==='costs'){const s=await api('/api/v1/costs/summary');C.innerHTML=`<div class="grid"><div class="card"><h3>Estimated</h3><div class="v">$${(s.estimated||0).toFixed(4)}</div></div><div class="card"><h3>Actual</h3><div class="v">$${(s.actual||0).toFixed(4)}</div></div><div class="card"><h3>Per 1k</h3><div class="v">$${s.per_1k??'—'}</div></div></div><form class="inline" onsubmit="setBudget(event)"><input name="limit" placeholder="budget limit"><button class="primary">Set budget p1</button></form>`;}
-else if(view==='entities'){const d=await api('/api/v1/entities');C.innerHTML=`<div class="card"><h3>Resolve</h3><form class="inline" onsubmit="resolveE(event)"><input name="name"><input name="domain"><button class="primary">Resolve</button></form><pre id="er"></pre></div>`+table(d.items||[],['id','name','domain']);}
+else if(view==='entities'){const d=await api('/api/v1/entities');C.innerHTML=`<div class="card"><h3>Resolve</h3><form class="inline" onsubmit="resolveE(event)"><input name="name"><input name="domain"><button class="primary">Resolve</button></form><pre id="er"></pre></div>`+table((d.items||[]).map(r=>({...r,hist:`<button onclick="entHist()">History</button>`})),['id','name','domain'],'<button onclick="entDetail({id})">Open</button>');}
+else if(view==='entity'){const id=new URLSearchParams(location.hash.slice(1)).get('id')||'1';const d=await api('/api/v1/entities/'+id);
+C.innerHTML=`<div class="card"><h3>${esc(d.entity.name)} (${esc(d.entity.kind||'entity')})</h3><pre>${esc(JSON.stringify(d.entity,null,2))}</pre></div>
+<div class="grid"><div class="card"><h3>Timeline</h3><pre>${esc(JSON.stringify(d.timeline))}</pre></div>
+<div class="card"><h3>Relationships (${d.relationships.length})</h3><pre>${esc(JSON.stringify(d.relationships.map(r=>r.rel)).slice(0,500)}</pre></div>
+<div class="card"><h3>Events (${d.events.length})</h3></div><div class="card"><h3>Evidence (${d.evidence.length})</h3></div></div>`;}
+else if(view==='finding'){const id=new URLSearchParams(location.hash.slice(1)).get('id')||'1';const d=await api('/api/v1/findings/'+id);
+C.innerHTML=`<div class="card"><h3>${esc(d.finding.title)}</h3><div>${esc(d.finding.body||'')}</div><div style="color:#9fb0c9">${esc(d.why)}</div></div>
+<div class="card"><h3>Evidence (${d.evidence.length})</h3><pre>${esc(JSON.stringify(d.evidence.map(e=>[e.source,e.url,e.content_hash]),null,1)).slice(0,2000)}</pre></div>
+<div class="card"><h3>Related events (${d.related_events.length})</h3></div>`;}
+else if(view==='reliability'){const d=await api('/api/v1/reliability/targets');C.innerHTML=d.score===null?'<div class="empty">No collection history yet — reliability appears after real runs.</div>':`<div class="grid"><div class="card"><h3>Score</h3><div class="v">${d.score}</div></div><div class="card"><h3>Success rate</h3><div class="v">${d.success_rate}</div><div>${d.attempts} attempts</div></div><div class="card"><h3>Avg latency</h3><div class="v">${d.avg_latency_ms}ms</div></div><div class="card"><h3>Stability</h3><div class="v">${d.stability}</div></div></div>`;}
 else if(view==='connectors'){const d=await api('/api/v1/connectors');C.innerHTML=table(d.items||[],['id','name','category','version','enabled']);}
 else if(view==='audit'){const d=await api('/api/v1/audit');C.innerHTML=table(d.items||[],['actor','action','ref']);}
 else if(view==='articles'){const d=await api('/api/v1/articles');C.innerHTML=form([['publisher','publisher'],['title','title'],['url','url']],'addArticle')+table(d.items||[],['id','publisher','title']);}
 else if(view==='alerts'){const d=await api('/api/v1/alerts');C.innerHTML=table(d.items||[],['id','rule','message','channel'],'<button onclick="sendAlert({id})">Send</button>');}
 else if(view==='prices'){const d=await api('/api/v1/prices?size=50');C.innerHTML=table(d.items||[],['product_id','price','currency','job_id']);}
 else if(view==='changes'){const d=await api('/api/v1/changes?size=50');C.innerHTML=table(d.items||[],['target_id','kind']);}
-else{const ep={projects:'/api/v1/projects',targets:'/api/v1/targets',findings:'/api/v1/findings'}[view];const d=await api(ep);C.innerHTML=table(d.items||[],Object.keys((d.items||[{}])[0]).slice(0,5));}
+else{const ep={projects:'/api/v1/projects',targets:'/api/v1/targets',findings:'/api/v1/findings'}[view];const d=await api(ep);const rows=(d.items||[]).map(r=>({...r}));C.innerHTML=table(rows,Object.keys((d.items||[{}])[0]).slice(0,5),view==='findings'?'<button onclick="openFinding({id})">Open</button>':'');}
+async function openFinding(id){location.hash='id='+id;view='finding';load();}
 }catch(e){C.innerHTML=`<div class="empty">Error: ${esc(e)}</div>`}}
 async function addProject(e){e.preventDefault();await post('/api/v1/projects',{name:val('name'),description:''});load()}
 async function addTarget(e){e.preventDefault();await post('/api/v1/targets',{project_id:1,domain:val('domain'),url:val('url')});load()}
@@ -125,6 +136,9 @@ async function resolveE(e){e.preventDefault();try{document.querySelector('#er').
 async function addNode(e){e.preventDefault();await post('/api/v1/graph/nodes',{kind:val('kind'),key:val('key'),name:val('name')});load()}
 async function addEdge(e){e.preventDefault();await post('/api/v1/graph/edges',{src:+val('src'),dst:+val('dst'),rel:val('rel')||'RELATED'});load()}
 async function trav(e){e.preventDefault();document.querySelector('#g').textContent=JSON.stringify(await api('/api/v1/graph/traverse?node='+val('node')),null,2).slice(0,3000);}
+async function entDetail(id){location.hash='id='+id;view='entity';load();}
+async function entHist(){alert(JSON.stringify(await api('/api/v1/entities/history')).slice(0,500));}
+async function svg(){const r=await api('/api/v1/graph/render?node='+val('node'));document.querySelector('#gv').innerHTML=r.svg;}
 async function addEvent(e){e.preventDefault();await post('/api/v1/events',{type:val('type'),entity_key:val('entity_key')});load()}
 async function addEvidence(e){e.preventDefault();await post('/api/v1/evidence',{source:val('source'),url:val('url'),content_hash:val('content_hash')});load()}
 async function verifyCl(e){e.preventDefault();let ev=[];try{ev=JSON.parse(val('ev'))}catch(e2){}document.querySelector('#vc').textContent=JSON.stringify(await post('/api/v1/claims/verify',{value:val('value'),evidence:ev}),null,2);}

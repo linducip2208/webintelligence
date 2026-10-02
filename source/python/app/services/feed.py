@@ -14,3 +14,13 @@ def build(events, findings, changes, alerts, kinds=None, limit=50):
     if kinds: items = [i for i in items if i["kind"] in kinds]
     items.sort(key=lambda x: str(x.get("at") or ""), reverse=True)
     return items[:limit]
+def subscribed(items: list, subs: list):
+    """subs: [{kinds:[...], keywords:[...]}]. Item passes if kind matches and any keyword in title."""
+    out = []
+    for it in items:
+        for s in subs:
+            if s.get("kinds") and it["kind"] not in s["kinds"]: continue
+            kws = [k.lower() for k in s.get("keywords", [])]
+            if kws and not any(k in (it.get("title") or "").lower() for k in kws): continue
+            out.append(it); break
+    return out

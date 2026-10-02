@@ -1,5 +1,5 @@
-# Final Audit — Universal Intelligence Platform v2.0.0
-Date: 2026-10-02. Method: code inspection + 38 green tests + live smoke runs.
+# Final Audit — Universal Intelligence Platform v2.1.0
+Date: 2026-10-02. Method: code inspection + 44 green tests + live smoke runs.
 Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 
 | # | Category | Verdict | Evidence |
@@ -33,6 +33,7 @@ Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 | 27 | Semantic/vector search backend | PARTIAL | Abstraction + in-memory store real; production vector DB (Qdrant etc.) is operator choice, adapter-ready |
 | 28 | Browser JS rendering at scale | PARTIAL | Playwright worker real; heavy load needs browser host tuning on deploy |
 | 29 | Live vendor credentials | MISSING (external) | Bright Data + Muse keys required from operator; adapters + test endpoints ready |
+| 30 | Round-2 hardening (v2.1) | IMPLEMENTED | Job cancel/retry/DLQ; entity merge-split-reject + history; entity/finding explorers; graph SVG; source reliability from real history; price correlation→findings; ML predict w/ uncertainty; feed subscriptions; threshold alerts w/ cooldown; dataset archive; auth documented; Go full-chain E2E (page→queue→crawler→reporter→API, 0.21s); OpenAPI sync test (95 paths) |
 
-Score: 26 IMPLEMENTED / 2 PARTIAL (by environment, not code) / 1 MISSING-external.
+Score: 27 IMPLEMENTED / 2 PARTIAL (by environment, not code) / 1 MISSING-external.
 No fake metrics, no hardcoded results, no committed secrets (verified: .env ignored, .env.example only).
