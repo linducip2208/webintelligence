@@ -1,5 +1,5 @@
-# Final Audit — Universal Intelligence Platform v2.8.0
-Date: 2026-10-02. Method: code inspection + 95 green tests + live process runs.
+# Final Audit — Universal Intelligence Platform v2.9.0
+Date: 2026-10-02. Method: code inspection + 100 green tests + live process runs.
 Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 
 | # | Category | Verdict | Evidence |
@@ -41,6 +41,7 @@ Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 | 35 | Round-7 operations round (v2.6) | IMPLEMENTED | Real connector execution (RSS parsed incl. Atom, REST pagination, CSV sniffing, SSRF-guarded) + test/execute/materialize endpoints; review queue (REVIEW entities, bad claims, low-confidence); lineage explorer; graph shortest-path; feature flags (scoped, gating AI); retention runner (audited); PII detect/mask at ingest+export; system doctor; /api/version; webintel CLI; measured load 363rps p95 72ms 0 errors; ARCHITECTURE/SECURITY/OPERATIONS/CHANGELOG docs |
 | 36 | Round-8 product depth (v2.7) | IMPLEMENTED | Target live test-connection (persisted learning); watchlist scheduled-style evaluation with cooldown; entity aliases; dataset versions listing; search facets; research AI analysis (honest 502 without backend); CAGR/percentiles/distribution; point-in-time graph; bulk alert ops; request IDs; usage prompt_version; real PDF reports via reportlab |
 | 37 | Round-9 enterprise hardening (v2.8) | IMPLEMENTED | APP_ENV modes (dev/test/staging/prod); production fail-closed DB (proven: rejects SQLite, flags unavailable, writes 503 not silent); consistent error envelope + request IDs; layered rate limits (7 cost classes × org/key/user/IP, Redis-backed, Retry-After); adversarial SSRF (decimal/hex/octal/mapped/userinfo/DNS, both languages); resource-aware RBAC on all mutating routes (negative tests); commercial entitlements enforced (402 quotas, usage, plans); executive dashboard + light mode + toasts; backup/restore round-trip test; 126 API paths |
+| 38 | Round-10 final productionization (v2.9) | IMPLEMENTED | Forensic re-audit clean; production read-guard (503 envelope when DB down, readyz explains); event dedup keys (idempotent POST); workflow versioning/update/retry/cancel; AI model allowlists per plan; NLQ allowlist validation + limits; white-label branding (validated); 10 vertical templates + apply; OIDC abstraction (honest 501 unconfigured); traversal/render load caps; AI context cap; 136 API paths |
 
-Score: 36 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
+Score: 37 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
 No fake metrics, no hardcoded results, no committed secrets (verified: .env ignored, .env.example only).

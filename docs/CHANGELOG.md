@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.9.0
+- APP_ENV production fail-closed (503 envelope, readyz explains, proven)
+- Consistent error envelope + request IDs everywhere
+- Layered rate limits (7 cost classes × identity, Redis-backed, Retry-After)
+- Adversarial SSRF hardening both languages (numeric/IP tricks, DNS-safe)
+- Resource-aware RBAC on all mutating routes + negative tests
+- Commercial entitlements enforced (plans, quotas, model allowlist, 402)
+- Executive dashboard, light mode, backup/restore round-trip test
+
 ## v2.8.0
 - APP_ENV modes + production fail-closed DB (proven by tests)
 - Consistent error envelope `{error:{code,message,request_id}}`

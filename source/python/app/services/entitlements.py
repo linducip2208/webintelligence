@@ -7,14 +7,17 @@ import time
 PLANS = {
     "starter": {"max_projects": 3, "max_targets": 25, "max_jobs_per_day": 500,
                 "max_ai_tokens": 100000, "max_connectors": 5,
-                "browser_allowed": False, "retention_days": 30},
+                "browser_allowed": False, "retention_days": 30,
+                "allowed_models": ["gpt-4o-mini", "muse-spark-1.3", "llama3.1"]},
     "pro": {"max_projects": 25, "max_targets": 500, "max_jobs_per_day": 10000,
             "max_ai_tokens": 5000000, "max_connectors": 50,
-            "browser_allowed": True, "retention_days": 365},
+            "browser_allowed": True, "retention_days": 365,
+            "allowed_models": ["gpt-4o-mini", "gpt-4o", "muse-spark-1.3",
+                               "claude-3-5-haiku-latest", "gemini-2.0-flash", "llama3.1"]},
     "enterprise": {"max_projects": 10 ** 9, "max_targets": 10 ** 9,
                    "max_jobs_per_day": 10 ** 9, "max_ai_tokens": 10 ** 9,
                    "max_connectors": 10 ** 9, "browser_allowed": True,
-                   "retention_days": 3650},
+                   "retention_days": 3650, "allowed_models": ["*"]},
 }
 
 

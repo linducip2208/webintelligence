@@ -34,6 +34,12 @@ async def _guard(request, call_next):
     rid = request.headers.get("x-request-id", "") or __import__("uuid").uuid4().hex[:12]
     request.state.request_id = rid
     if request.url.path.startswith("/api/v1"):
+        import app.api.shared as _sh
+        if _sh.repo.env == "production" and not _sh.repo.available and request.url.path not in (
+                "/api/v1/auth/login",):
+            return JSONResponse({"error": {"code": "db_unavailable",
+                                           "message": f"database unavailable: {_sh.repo.boot_error}",
+                                           "request_id": rid}}, status_code=503)
         try:
             maxb = int(_o.getenv("MAX_BODY_BYTES", "10485760") or 10485760)
         except ValueError:

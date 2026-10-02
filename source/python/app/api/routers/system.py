@@ -43,6 +43,37 @@ def login(creds: dict):
     return {"token": tok.issue(creds["email"], _secret()), "email": creds["email"]}
 
 
+@router.get("/api/v1/auth/providers", tags=["admin"])
+def auth_providers():
+    from ...auth.oidc import from_env
+    return {"providers": [p.status() for p in from_env().values()]}
+
+
+@router.post("/api/v1/auth/oidc/login", tags=["admin"])
+def oidc_login(spec: dict):
+    from ...auth.oidc import from_env
+    oidc = from_env()["oidc"]
+    if not oidc.configured:
+        raise HTTPException(501, "oidc not configured (set OIDC_ISSUER/OIDC_CLIENT_ID)")
+    try:
+        url = oidc.login_url(spec.get("redirect_uri", ""), spec.get("state", ""))
+    except Exception as e:
+        raise HTTPException(502, f"oidc discovery failed: {e}"[:300])
+    return {"login_url": url}
+
+
+@router.post("/api/v1/auth/oidc/callback", tags=["admin"])
+def oidc_callback(spec: dict):
+    from ...auth.oidc import from_env
+    if not from_env()["oidc"].configured:
+        raise HTTPException(501, "oidc not configured (set OIDC_ISSUER/OIDC_CLIENT_ID)")
+    if not spec.get("code") or not spec.get("state"):
+        raise HTTPException(400, "code and state required")
+    # code exchange happens against the real IdP only when configured;
+    # without a live round-trip we refuse instead of minting tokens.
+    raise HTTPException(502, "oidc callback requires live IdP exchange")
+
+
 @router.get("/healthz")
 def healthz():
     return {"status": "ok", "version": "1.0.0"}
@@ -109,6 +140,13 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     messages = list(spec.get("messages", []))
     model = spec.get("model", "")
     provider = spec.get("provider", "")
+    import os as _o
+    try:
+        max_chars = int(_o.getenv("MAX_AI_CHARS", "200000") or 200000)
+    except ValueError:
+        max_chars = 200000
+    if sum(len(str(m.get("content", ""))) for m in messages) > max_chars:
+        raise HTTPException(413, "ai context too large")
     if spec.get("evidence"):
         messages = messages + [{"role": "user",
                                 "content": _safe.wrap_evidence(spec["evidence"])}]
@@ -138,6 +176,10 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     else:
         names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
         chain = [(n, aireg.get(n)) for n in names]
+    org_plan = next((o.get("plan", "starter") for o in STORE["orgs"] if o.get("id") == org0), "starter")
+    allowed = _e.PLANS.get(org_plan, _e.PLANS["starter"]).get("allowed_models", [])
+    if use_model and allowed != ["*"] and use_model not in allowed:
+        raise HTTPException(403, f"model {use_model} not in plan {org_plan}")
     out = _fb.chat_fallback(chain, messages, use_model)
     out["org"] = org0
     _record_usage(out, spec.get("prompt_version", ""))

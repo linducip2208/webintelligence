@@ -130,4 +130,7 @@ def test_rbac_nlq_i18n():
     assert nlq.to_plan("What products increased in price this month?")["intent"] == "price_increases"
     store = {"prices": [{"product_id": 1, "price": 10}, {"product_id": 1, "price": 12}]}
     assert nlq.answer(nlq.to_plan("What products increased in price?"), store)[0]["pct"] == 20.0
+    assert nlq.validate({"dataset": "nope"})["ok"] is False
+    assert nlq.validate({"dataset": "prices", "params": {"limit": 9999}})["ok"] is False
+    assert nlq.answer({"dataset": "prices", "params": {"limit": 9999}}, store)["error"]
     assert t("id", "dashboard") == "Dasbor" and t("en", "dashboard") == "Dashboard"

@@ -605,12 +605,14 @@ def _h_reviews(row):
 def _m_orgs(item):
     from ..models.universal import Organization
     return Organization, {"name": item.get("name", ""), "slug": item.get("slug", ""),
-                          "plan": item.get("plan", "starter")}
+                          "plan": item.get("plan", "starter"),
+                          "branding": item.get("branding", {})}
 
 
 def _h_orgs(row):
     return {"id": row.id, "name": row.name, "slug": row.slug,
-            "plan": getattr(row, "plan", "starter") or "starter"}
+            "plan": getattr(row, "plan", "starter") or "starter",
+            "branding": getattr(row, "branding", {}) or {}}
 
 
 def _m_memberships(item):
@@ -673,7 +675,14 @@ def _m_events(item):
 
 
 def _h_events(row):
-    return dict(row.data or {}, id=row.id)
+    d = dict(row.data or {})
+    d.update({"id": row.id, "org": row.org_id, "type": row.type,
+              "entity_kind": row.entity_kind, "entity_key": row.entity_key,
+              "severity": row.severity, "confidence": row.confidence,
+              "evidence": row.evidence or []})
+    d.setdefault("dedup_key", "")
+    d.setdefault("_ts", 0)
+    return d
 
 
 def _m_evidence(item):

@@ -12,6 +12,7 @@ class Organization(Base):
     name = Column(String(255), unique=True, index=True)
     slug = Column(String(128), unique=True, index=True)
     plan = Column(String(32), default="starter")
+    branding = Column(JSON, default=dict)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

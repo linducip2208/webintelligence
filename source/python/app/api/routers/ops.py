@@ -76,7 +76,66 @@ def create_org(spec: dict, authorization: str = Header(""), x_api_key: str = Hea
 
 @router.get("/api/v1/orgs", tags=["admin"])
 def list_orgs():
-    return {"items": STORE["orgs"]}
+    return {"items": [{k: v for k, v in o.items() if k != "branding"} for o in STORE["orgs"]]}
+
+
+@router.get("/api/v1/orgs/{oid}/branding", tags=["admin"])
+def get_branding(oid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    o = next((x for x in STORE["orgs"] if x.get("id") == oid), None)
+    if not o or o.get("id") != org:
+        raise HTTPException(404, "organization not found")
+    return {"branding": o.get("branding", {})}
+
+
+@router.put("/api/v1/orgs/{oid}/branding", tags=["admin"])
+def set_branding(oid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import commercial as _cm
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    o = next((x for x in STORE["orgs"] if x.get("id") == oid and x.get("id") == org), None)
+    if not o:
+        raise HTTPException(404, "organization not found")
+    errs = _cm.validate_branding(spec.get("branding", {}))
+    if errs:
+        raise HTTPException(400, "; ".join(errs))
+    o["branding"] = spec["branding"]
+    repo.sync("orgs", o)
+    _audit(email, "org.branding", o["slug"])
+    return {"ok": True}
+
+
+@router.get("/api/v1/verticals", tags=["admin"])
+def list_verticals():
+    from ...services import commercial as _cm
+    return {"verticals": sorted(_cm.VERTICALS)}
+
+
+@router.get("/api/v1/verticals/{name}", tags=["admin"])
+def get_vertical(name: str):
+    from ...services import commercial as _cm
+    v = _cm.get_vertical(name)
+    if not v:
+        raise HTTPException(404, "unknown vertical")
+    return {"name": name.lower(), **v}
+
+
+@router.post("/api/v1/verticals/{name}/apply", tags=["admin"])
+def apply_vertical(name: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import commercial as _cm
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    v = _cm.get_vertical(name)
+    if not v:
+        raise HTTPException(404, "unknown vertical")
+    made = []
+    for w in v.get("watch", []):
+        if any(x.get("kind") == w["kind"] and x.get("value") == w["value"]
+               and x.get("org", 1) == org for x in STORE["watchlists"]):
+            continue
+        item = {"id": len(STORE["watchlists"]) + 1, "org": org, **w}
+        STORE["watchlists"].append(item)
+        made.append(item["id"])
+    _audit(email, "vertical.apply", f"{name}:{made}")
+    return {"ok": True, "watchlists": made, "questions": v.get("questions", [])}
 
 
 @router.get("/api/v1/roles", tags=["admin"])
@@ -194,9 +253,70 @@ def watchlist_evaluate(wid: int, authorization: str = Header(""), x_api_key: str
 @router.post("/api/v1/workflows", tags=["monitoring"])
 def create_workflow(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _need(authorization, "collect", x_api_key)
-    item = {"id": len(STORE["workflows"]) + 1, "org": org, "enabled": True, **spec}
+    item = {"id": len(STORE["workflows"]) + 1, "org": org, "enabled": True,
+            "version": 1, **{k: v for k, v in spec.items() if k != "version"}}
     STORE["workflows"].append(item)
     return item
+
+
+@router.put("/api/v1/workflows/{wid}", tags=["monitoring"])
+def update_workflow(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    wf = next((x for x in STORE["workflows"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+    if "definition" in spec:
+        wf["definition"] = spec["definition"]
+        wf["version"] = wf.get("version", 1) + 1
+    if "enabled" in spec:
+        wf["enabled"] = bool(spec["enabled"])
+    if "name" in spec:
+        wf["name"] = spec["name"]
+    repo.sync("workflows", wf)
+    _audit(email, "workflow.update", f"{wid}@v{wf['version']}")
+    return wf
+
+
+@router.post("/api/v1/workflows/{wid}/retry", tags=["monitoring"])
+def workflow_retry(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Idempotent retry: same event replays to the same idempotency keys,
+    returning the ORIGINAL run when nothing new executes."""
+    from ...services import workflows as _w
+    _, org, _ = _need(authorization, "collect", x_api_key)
+    wf = next((x for x in STORE["workflows"]
+               if x.get("id") == wid and x.get("enabled") and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found/disabled")
+    event = spec.get("event", {})
+    run_key = _w.key(wid, "run", event)
+    prior = next((r for r in STORE["wfruns"] if r.get("idempotency_key") == run_key), None)
+    effects = []
+    if prior is None:
+        for i, step in enumerate(wf.get("definition", {}).get("steps", [])):
+            if not _w.check_condition(step.get("condition", {}), event):
+                continue
+            effects.append(_w.run_step(step, event, STORE))
+        run = {"id": len(STORE["wfruns"]) + 1, "workflow_id": wid, "status": "done",
+               "workflow_version": wf.get("version", 1), "context": event,
+               "log": effects, "idempotency_key": run_key}
+        STORE["wfruns"].append(run)
+        return {"run": run, "effects": effects, "replayed": False}
+    return {"run": prior, "effects": [], "replayed": True}
+
+
+@router.post("/api/v1/workflows/{wid}/cancel", tags=["monitoring"])
+def workflow_cancel(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    run = next((x for x in STORE["wfruns"]
+                if x.get("id") == spec.get("run_id") and x.get("workflow_id") == wid), None)
+    if not run:
+        raise HTTPException(404, "run not found")
+    if run.get("status") != "running":
+        raise HTTPException(409, f"run is {run.get('status')}, only running runs cancel")
+    run["status"] = "cancelled"
+    repo.sync("wfruns", run)
+    _audit(email, "workflow.cancel", str(run["id"]))
+    return {"ok": True}
 
 
 @router.get("/api/v1/workflows", tags=["monitoring"])

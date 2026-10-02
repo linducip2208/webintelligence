@@ -47,6 +47,7 @@ def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "",
                    authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import graph as _g
     _, org, _ = _ctx(authorization, x_api_key)
+    depth = min(max(1, depth), 5)  # traversal cap: no accidental whole-graph loads
     start = next((n for n in STORE["nodes"] if n.get("id") == node), None)
     if node and (not start or start.get("org", 1) != org):
         raise HTTPException(404, "node not found")
@@ -61,8 +62,16 @@ def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "",
 # ---- events / evidence / claims / findings ----
 @router.post("/api/v1/events", tags=["knowledge"])
 def create_event(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    import hashlib as _h
+    import time as _t
     _, org, _ = _need(authorization, "collect", x_api_key)
-    item = {"id": len(STORE["events"]) + 1, "org": org, **spec}
+    key = _h.sha256(f"{spec.get('type')}|{spec.get('entity_key', '')}|{spec.get('severity', 'info')}".encode()).hexdigest()[:32]
+    now = _t.time()
+    dup = next((e for e in STORE["events"]
+                if e.get("dedup_key") == key and now - e.get("_ts", 0) < 3600), None)
+    if dup:
+        return {**dup, "duplicate": True}
+    item = {"id": len(STORE["events"]) + 1, "org": org, "dedup_key": key, "_ts": now, **spec}
     STORE["events"].append(item)
     _fire_watchlists(item)
     return item
@@ -425,6 +434,7 @@ def graph_svg(node: int = 0, depth: int = 1, limit: int = 30, rel: str = "",
               authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import graph as _g
     _, org, _ = _ctx(authorization, x_api_key)
+    depth, limit = min(max(1, depth), 4), min(max(1, limit), 100)
     start = next((n for n in STORE["nodes"] if n.get("id") == node), None) if node else None
     if node and (not start or start.get("org", 1) != org):
         raise HTTPException(404, "node not found")

@@ -79,5 +79,5 @@ def test_seed_and_login(tmp_path):
     assert r.verify_user("admin@local", "wrong") is None
     assert r.user_role("admin@local") == (1, "owner")
     s = r.load_all()
-    assert {"id": 1, "name": "Default", "slug": "default", "plan": "enterprise"} in [
-        {**o, "plan": o.get("plan", "enterprise")} for o in s["orgs"]]
+    org = next(o for o in s["orgs"] if o["id"] == 1)
+    assert (org["name"], org["slug"], org["plan"]) == ("Default", "default", "enterprise")
