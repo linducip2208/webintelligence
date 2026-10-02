@@ -143,6 +143,7 @@
   "/api/v1/ai/chat": {
    "post": {
     "summary": "Ai Chat",
+    "description": "Evidence-first chat: optional spec.evidence is sanitized + wrapped as\nuntrusted DATA; every call is usage/cost-tracked; fallback chain on error.",
     "operationId": "ai_chat_api_v1_ai_chat_post",
     "parameters": [
      {
@@ -194,6 +195,85 @@
         "schema": {
          "$ref": "#/components/schemas/HTTPValidationError"
         }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/usage": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Usage",
+    "operationId": "ai_usage_api_v1_ai_usage_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/models": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Models",
+    "operationId": "ai_models_api_v1_ai_models_get",
+    "parameters": [
+     {
+      "name": "provider",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Provider"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai/prompts": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Prompts",
+    "operationId": "ai_prompts_api_v1_ai_prompts_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
        }
       }
      }

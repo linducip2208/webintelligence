@@ -515,6 +515,21 @@ def _m_reviews(item):
                     "raw_document_id": item.get("raw_document_id", 0) or 0}
 
 
+def _m_aiusage(item):
+    from ..models.entities import AIUsage
+    return AIUsage, {"provider": item.get("provider", ""), "model": item.get("model", ""),
+                     "input_tokens": item.get("input_tokens", 0) or 0,
+                     "output_tokens": item.get("output_tokens", 0) or 0,
+                     "cost": item.get("cost", 0.0) or 0.0,
+                     "latency_ms": item.get("latency_ms", 0) or 0}
+
+
+def _h_aiusage(row):
+    return {"id": row.id, "provider": row.provider, "model": row.model,
+            "input_tokens": row.input_tokens, "output_tokens": row.output_tokens,
+            "cost": row.cost, "at": str(getattr(row, "created_at", "") or "")}
+
+
 def _h_reviews(row):
     return {"id": row.id, "product_id": row.product_id, "rating": row.rating,
             "text": row.text or "", "sentiment": row.sentiment or ""}
@@ -845,7 +860,7 @@ _MIRRORS = {
     "documents": _m_documents, "webhooks": _m_webhooks,
     "deliveries": _m_deliveries, "history": _m_snapshots, "feed_subs": _m_feedsubs,
     "entity_history": _m_entity_history, "ai_providers": _m_aiproviders,
-    "reviews": _m_reviews,
+    "reviews": _m_reviews, "ai_usage": _m_aiusage,
 }
 
 _HYDRATE = {
@@ -867,6 +882,7 @@ _HYDRATE = {
     "deliveries": (None, _h_deliveries), "history": (None, _h_snapshots),
     "feed_subs": (None, _h_feedsubs), "entity_history": (None, _h_entity_history),
     "ai_providers": (None, _h_aiproviders), "reviews": (None, _h_reviews),
+    "ai_usage": (None, _h_aiusage),
 }
 
 _KEYS = {"jobs": "job_uid", "apikeys": "key_hash"}
@@ -876,7 +892,7 @@ def _model_for(coll):
     from ..models.entities import (Project, Target, CollectionJob, Price, Article,
                                    Report, Schedule, RawDocument, Change, Alert,
                                    NormalizedEntity, AuditLog, CollectionAttempt,
-                                   AIProvider, Review)
+                                   AIProvider, AIUsage, Review)
     from ..models.universal import (Organization, Membership, APIKey, GraphNode,
                                     GraphEdge, Event, Evidence, Claim, Finding,
                                     ResearchRun, Watchlist, Workflow, WorkflowRun,
@@ -886,6 +902,7 @@ def _model_for(coll):
             "prices": Price, "articles": Article, "reports": Report,
             "schedules": Schedule, "raw": RawDocument, "changes": Change,
             "alerts": Alert, "ai_providers": AIProvider, "reviews": Review,
+            "ai_usage": AIUsage,
             "entities": NormalizedEntity, "audit": AuditLog,
             "attempts": CollectionAttempt, "orgs": Organization,
             "memberships": Membership, "apikeys": APIKey, "nodes": GraphNode,

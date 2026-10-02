@@ -89,26 +89,83 @@ def ai_providers():
 
 @router.post("/api/v1/ai/chat")
 def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Evidence-first chat: optional spec.evidence is sanitized + wrapped as
+    untrusted DATA; every call is usage/cost-tracked; fallback chain on error."""
+    from ...ai import fallback as _fb
+    from ...ai import safety as _safe
+    from ...ai.factory import fallback_order
     _require_auth(authorization, x_api_key)
-    messages = spec.get("messages", [])
+    messages = list(spec.get("messages", []))
     model = spec.get("model", "")
     provider = spec.get("provider", "")
-    p = aireg.get("muse-spark")
+    if spec.get("evidence"):
+        messages = messages + [{"role": "user",
+                                "content": _safe.wrap_evidence(spec["evidence"])}]
     use_model = model or settings.muse_model
-    if provider:
+    chain = []
+    db_name = provider[3:] if provider.startswith("db:") else provider
+    dbp = next((x for x in STORE["ai_providers"]
+                if x.get("name") == db_name and x.get("enabled")), None) if provider else None
+    if dbp:
         from ...core.crypto import decrypt
-        dbp = next((x for x in STORE["ai_providers"]
-                    if x.get("name") == provider and x.get("enabled")), None)
-        if not dbp:
-            raise HTTPException(404, "provider not found/disabled")
         from ...ai.muse_provider import MuseSparkProvider
-        p = MuseSparkProvider(dbp.get("base_url", ""), decrypt(dbp.get("api_key_enc", "")),
-                              dbp.get("model", "") or use_model)
+        chain = [(dbp["name"], MuseSparkProvider(
+            dbp.get("base_url", ""), decrypt(dbp.get("api_key_enc", "")),
+            dbp.get("model", "") or use_model))]
         use_model = dbp.get("model", "") or use_model
-    if not p:
-        raise HTTPException(503, "no ai provider registered")
+    elif provider:
+        p0 = aireg.get(provider)
+        if not p0:
+            raise HTTPException(404, f"unknown provider {provider}")
+        chain = [(provider, p0)]
+    else:
+        names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
+        chain = [(n, aireg.get(n)) for n in names]
+    out = _fb.chat_fallback(chain, messages, use_model)
+    _record_usage(out)
     inc("AI_requests")
-    return p.chat(messages, use_model)
+    return out
+
+
+def _record_usage(out: dict):
+    try:
+        name = out.get("provider", "muse-spark")
+        p = aireg.get(name)
+        cost = p.estimate_cost(out.get("input_tokens", 0), out.get("output_tokens", 0)) if p else 0.0
+        STORE["ai_usage"].append({"provider": name, "model": out.get("model", ""),
+                                  "input_tokens": out.get("input_tokens", 0),
+                                  "output_tokens": out.get("output_tokens", 0),
+                                  "cost": cost, "latency_ms": out.get("latency_ms", 0)})
+        inc("AI_tokens", out.get("input_tokens", 0) + out.get("output_tokens", 0))
+    except Exception:
+        pass
+
+
+@router.get("/api/v1/ai/usage", tags=["admin"])
+def ai_usage():
+    items = STORE["ai_usage"]
+    return {"calls": len(items),
+            "input_tokens": sum(i.get("input_tokens", 0) for i in items),
+            "output_tokens": sum(i.get("output_tokens", 0) for i in items),
+            "cost": round(sum(i.get("cost", 0) for i in items), 6),
+            "by_provider": {n: sum(1 for i in items if i.get("provider") == n)
+                            for n in {i.get("provider") for i in items}}}
+
+
+@router.get("/api/v1/ai/models", tags=["admin"])
+def ai_models(provider: str = ""):
+    p = aireg.get(provider) if provider else None
+    if provider and not p:
+        raise HTTPException(404, f"unknown provider {provider}")
+    if p:
+        return {"provider": provider, **p.list_models()}
+    return {n: aireg.get(n).list_models() for n in aireg.names()}
+
+
+@router.get("/api/v1/ai/prompts", tags=["admin"])
+def ai_prompts():
+    from ...ai import prompts as _pr
+    return {"prompts": _pr.catalog()}
 
 
 @router.get("/api/v1/ai/health")

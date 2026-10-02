@@ -94,9 +94,19 @@ USERS = {"admin@local": {"password_hash": hash_password("admin123")}}
 own_proxy = OwnProxyProvider(settings.own_proxy_urls)
 bright = BrightDataProvider(settings.brightdata_api_key, settings.brightdata_zone,
                             settings.brightdata_endpoint)
-muse = MuseSparkProvider(settings.muse_base_url, settings.muse_api_key, settings.muse_model)
+muse = MuseSparkProvider(settings.muse_base_url, settings.muse_api_key,
+                         settings.muse_model)
 aireg.register("muse-spark", muse)
-
+try:
+    from ..ai.factory import build_all as _build_ai
+    for _n, _p in _build_ai().items():
+        if _n == "muse-spark" and getattr(_p, "configured", False):
+            muse = _p  # prefer the fully-configured build
+        if _n not in aireg.names():
+            aireg.register(_n, _p)
+    aireg.register("muse-spark", muse)
+except Exception:
+    pass
 
 import time as _tmod
 _BUCKETS: dict = {}

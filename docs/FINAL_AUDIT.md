@@ -1,5 +1,5 @@
-# Final Audit — Universal Intelligence Platform v2.4.0
-Date: 2026-10-02. Method: code inspection + 66 green tests + live process runs.
+# Final Audit — Universal Intelligence Platform v2.5.0
+Date: 2026-10-02. Method: code inspection + 71 green tests + live smoke runs.
 Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 
 | # | Category | Verdict | Evidence |
@@ -37,6 +37,7 @@ Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 | 31 | Round-3 production (v2.2) | IMPLEMENTED | Write-through repository (35 collections, restart hydration verified by test); additive auto-migration for stale DBs; full org isolation incl. IDOR-proof details + cross-org target guard; key expiry/last-used; HMAC webhook ingestion with replay window+nonce; rate limiting (429) + body guard (413); log redaction; filename sanitize; cron/star-step scheduler; auto collection_failure alerts; sorting everywhere; mega-E2E (auth→…→webhook→audit + change 100→120→stable + contradiction + IDOR); gofmt clean |
 | 32 | Round-4 architecture (v2.3) | IMPLEMENTED | main.py split into api/shared + 6 routers (suite green = behavior identical); Fernet secret encryption with honest fallback; DB-backed AI providers; DB-level pagination; RUNNING state; reviews import/summary; graph filters; OPERATIONS.md; dead deps removed |
 | 33 | Round-5 live integration (v2.4) | IMPLEMENTED | Go SSRF guard (resolve-then-validate, metadata/private blocked, redirect recheck); fixed Go BLPOP double-read bug; collector body shipping (contract extended); extraction-on-ingest closes collect→price gap; LIVE chain green with REAL processes (MiniRedis RESP + uvicorn + Go binary) incl. kill-and-restart recovery from SQLite; alert ack/resolve; dataset CSV import |
+| 34 | Round-6 multi-vendor AI (v2.5) | IMPLEMENTED | No single hardcoded vendor: OpenAI + Anthropic + Google + Ollama + Muse Spark + DB-configured providers behind one interface, env-driven registry + fallback chain with per-attempt errors; real HTTP verified against stub (schemas, headers, SSE streaming, model discovery); usage/cost/latency tracked per call; versioned prompt registry; injection defense (override-strip + evidence DATA wrapping) applied to chat evidence path |
 
-Score: 32 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
+Score: 33 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
 No fake metrics, no hardcoded results, no committed secrets (verified: .env ignored, .env.example only).

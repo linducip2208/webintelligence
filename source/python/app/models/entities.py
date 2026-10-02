@@ -88,6 +88,7 @@ class AIUsage(Base, Timestamp):
     __tablename__ = "ai_usage"
     id = Column(Integer, primary_key=True); provider = Column(String(64)); model = Column(String(128))
     input_tokens = Column(Integer, default=0); output_tokens = Column(Integer, default=0); cost = Column(Float, default=0.0)
+    latency_ms = Column(Float, default=0.0)
 class ProxyProviderRow(Base, Timestamp):
     __tablename__ = "proxy_providers"
     id = Column(Integer, primary_key=True); name = Column(String(64), unique=True); kind = Column(String(32))
