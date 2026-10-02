@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.10.0
+- Redis-LIVE proofs (real server, not assumed)
+- Stale-DB auto-migration healing test
+- Real Chromium UI E2E (live numbers rendered)
+- JS syntax + UI↔OpenAPI consistency gates
+- Go benchmarks recorded (289ns / 349ns per op)
+
 ## v2.9.0
 - APP_ENV production fail-closed (503 envelope, readyz explains, proven)
 - Consistent error envelope + request IDs everywhere
