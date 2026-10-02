@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "title": "PlatformEvent",
+  "required": ["event", "ts"],
+  "properties": {
+    "event": {"enum": ["job.queued", "job.finished", "alert.fired", "report.ready"]},
+    "ts": {"type": "string", "format": "date-time"}
+  }
+}

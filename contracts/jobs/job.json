@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CollectionJob v1.0",
+  "type": "object",
+  "required": ["schema_version", "job_id", "target_id", "url", "strategy", "timeout_ms"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "job_id": {"type": "string"},
+    "target_id": {"type": "string"},
+    "url": {"type": "string", "format": "uri"},
+    "strategy": {"enum": ["AUTO", "DIRECT_HTTP", "OFFICIAL_API", "BROWSER", "OWN_PROXY", "BRIGHT_DATA"]},
+    "region": {"type": "string"},
+    "timeout_ms": {"type": "integer", "minimum": 1000, "maximum": 120000}
+  }
+}

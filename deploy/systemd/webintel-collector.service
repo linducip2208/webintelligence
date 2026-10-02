@@ -1,0 +1,11 @@
+[Unit]
+Description=WebIntel Go Collector
+After=network.target redis.service
+[Service]
+User=www-data
+WorkingDirectory=/www/wwwroot/web-intelligence
+EnvironmentFile=/www/wwwroot/web-intelligence/.env
+ExecStart=/www/wwwroot/web-intelligence/collector/webintel-collector
+Restart=always
+[Install]
+WantedBy=multi-user.target

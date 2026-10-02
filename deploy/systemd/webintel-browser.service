@@ -1,0 +1,11 @@
+[Unit]
+Description=WebIntel Browser Worker (Playwright)
+After=network.target redis.service
+[Service]
+User=www-data
+WorkingDirectory=/www/wwwroot/web-intelligence/source/python
+EnvironmentFile=/www/wwwroot/web-intelligence/.env
+ExecStart=/www/wwwroot/web-intelligence/source/python/venv/bin/python -m app.browser.worker
+Restart=always
+[Install]
+WantedBy=multi-user.target

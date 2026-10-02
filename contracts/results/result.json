@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CollectionResult v1.0",
+  "type": "object",
+  "required": ["schema_version", "job_id", "status", "strategy", "http_status", "content_hash", "content_size", "retrieved_at", "parse_status"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "job_id": {"type": "string"},
+    "status": {"enum": ["success", "failed"]},
+    "strategy": {"type": "string"},
+    "http_status": {"type": "integer"},
+    "content_hash": {"type": "string"},
+    "content_size": {"type": "integer"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "parse_status": {"enum": ["pending", "ok", "failed"]}
+  }
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=WebIntel Worker (schedules, ETL, alerts)
+After=network.target mysql.service redis.service
+[Service]
+User=www-data
+WorkingDirectory=/www/wwwroot/web-intelligence/source/python
+EnvironmentFile=/www/wwwroot/web-intelligence/.env
+ExecStart=/www/wwwroot/web-intelligence/source/python/venv/bin/python -m app.workers
+Restart=always
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: Web Intelligence Platform
+  version: 1.0.0
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      responses: {'200': {description: ok}}
+  /readyz:
+    get:
+      summary: Readiness
+      responses: {'200': {description: ok}}
+  /api/v1/projects:
+    get:
+      summary: List projects
+      responses: {'200': {description: ok}}
+    post:
+      summary: Create project
+      responses: {'200': {description: ok}}
+  /api/v1/targets:
+    get:
+      summary: List targets
+      responses: {'200': {description: ok}}
+    post:
+      summary: Create target
+      responses: {'200': {description: ok}}
+  /api/v1/jobs:
+    get:
+      summary: List jobs
+      responses: {'200': {description: ok}}
+    post:
+      summary: Create job
+      responses: {'200': {description: ok}}
+  /api/v1/dashboard:
+    get:
+      summary: Dashboard aggregates (real data only)
+      responses: {'200': {description: ok}}
