@@ -21,15 +21,20 @@ class Target(Base, Timestamp):
     attempts = Column(Integer, default=0); successes = Column(Integer, default=0); failures = Column(Integer, default=0)
     avg_latency_ms = Column(Float, default=0.0); avg_cost = Column(Float, default=0.0)
     parser_version = Column(String(32), default="v1"); schema_version = Column(String(32), default="1.0")
+    data = Column(JSON, default=dict)
 class CollectionJob(Base, Timestamp):
     __tablename__ = "collection_jobs"
     id = Column(Integer, primary_key=True); trace_id = Column(String(64), index=True)
+    job_uid = Column(String(64), unique=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id")); target_id = Column(Integer, ForeignKey("targets.id"))
     url = Column(Text); strategy = Column(String(32), default="AUTO"); region = Column(String(8), default="")
     status = Column(String(32), default="queued", index=True); idempotency_key = Column(String(128), unique=True)
+    plan = Column(JSON, default=dict); estimated_cost = Column(Float, default=0.0)
+    actual_cost = Column(Float, default=0.0); retries = Column(Integer, default=0)
+    finished_at = Column(Float, default=0.0)
 class CollectionAttempt(Base, Timestamp):
     __tablename__ = "collection_attempts"
-    id = Column(Integer, primary_key=True); job_id = Column(Integer, ForeignKey("collection_jobs.id"), index=True)
+    id = Column(Integer, primary_key=True); job_id = Column(Integer, ForeignKey("collection_jobs.id"), index=True, nullable=True)
     strategy = Column(String(32)); provider = Column(String(64)); http_status = Column(Integer)
     latency_ms = Column(Float); cost = Column(Float, default=0.0); ok = Column(Boolean); diagnostics = Column(JSON, default=dict)
 class RawDocument(Base, Timestamp):
@@ -38,7 +43,7 @@ class RawDocument(Base, Timestamp):
     retrieved_at = Column(DateTime, server_default=func.now()); strategy = Column(String(32)); provider = Column(String(64))
     collector_version = Column(String(32)); parser_version = Column(String(32))
     content_hash = Column(String(64), index=True); content_size = Column(Integer); status = Column(String(32))
-    body_path = Column(String(512), default="")
+    body_path = Column(String(512), default=""); data = Column(JSON, default=dict)
     __table_args__ = (Index("ix_raw_url_hash", "content_hash"),)
 class NormalizedEntity(Base, Timestamp):
     __tablename__ = "normalized_entities"
@@ -50,6 +55,7 @@ class Price(Base, Timestamp):
     id = Column(Integer, primary_key=True); product_id = Column(Integer, index=True); price = Column(Float)
     currency = Column(String(8), default="USD"); seller = Column(String(255), default=""); availability = Column(String(32), default="")
     observed_at = Column(DateTime, server_default=func.now()); raw_document_id = Column(Integer)
+    job_ref = Column(String(64), default="", index=True); observed_ts = Column(Float, default=0.0)
 class Review(Base, Timestamp):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True); product_id = Column(Integer, index=True); rating = Column(Float)
@@ -58,13 +64,16 @@ class Article(Base, Timestamp):
     __tablename__ = "articles"
     id = Column(Integer, primary_key=True); publisher = Column(String(255), default=""); title = Column(Text)
     summary = Column(Text); url = Column(Text); raw_document_id = Column(Integer)
+    data = Column(JSON, default=dict)
 class Change(Base, Timestamp):
     __tablename__ = "changes"
     id = Column(Integer, primary_key=True); target_id = Column(Integer, index=True); kind = Column(String(16)); diff = Column(JSON, default=dict)
+    at_ts = Column(Float, default=0.0)
 class Alert(Base, Timestamp):
     __tablename__ = "alerts"
     id = Column(Integer, primary_key=True); rule = Column(String(64)); message = Column(Text)
     channel = Column(String(16), default="inapp"); project_id = Column(Integer); is_read = Column(Boolean, default=False)
+    severity = Column(String(16), default="info"); delivered = Column(Boolean, default=False)
 class Report(Base, Timestamp):
     __tablename__ = "reports"
     id = Column(Integer, primary_key=True); kind = Column(String(64)); project_id = Column(Integer)
@@ -86,9 +95,11 @@ class Schedule(Base, Timestamp):
     id = Column(Integer, primary_key=True); project_id = Column(Integer); kind = Column(String(32))
     cron = Column(String(128), default=""); status = Column(String(32), default="active")
     next_run = Column(DateTime); last_run = Column(DateTime)
+    every_min = Column(Integer, default=60); url = Column(Text, default=""); data = Column(JSON, default=dict)
 class SystemHealth(Base, Timestamp):
     __tablename__ = "system_health"
     id = Column(Integer, primary_key=True); service = Column(String(64)); status = Column(String(16)); detail = Column(Text, default="")
 class AuditLog(Base, Timestamp):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True); actor = Column(String(255), default=""); action = Column(String(128)); ref = Column(String(255), default="")
+    at_ts = Column(Float, default=0.0)

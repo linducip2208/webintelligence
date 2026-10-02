@@ -32,6 +32,8 @@ class APIKey(Base):
     key_hash = Column(String(128), unique=True, index=True)
     scopes = Column(JSON, default=list)
     revoked = Column(Boolean, default=False)
+    expires_at = Column(Float, default=0.0)
+    last_used = Column(Float, default=0.0)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -59,6 +61,7 @@ class GraphEdge(Base):
     evidence = Column(JSON, default=list)
     valid_from = Column(DateTime, server_default=func.now())
     valid_to = Column(DateTime, nullable=True)
+    data = Column(JSON, default=dict)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -131,6 +134,7 @@ class ResearchRun(Base):
     prompt_version = Column(String(32), default="v1")
     analysis = Column(Text, default="")
     config = Column(JSON, default=dict)
+    data = Column(JSON, default=dict)
     created_at = Column(DateTime, server_default=func.now())
     finished_at = Column(DateTime, nullable=True)
 
@@ -185,6 +189,7 @@ class DatasetVersion(Base):
     row_count = Column(Integer, default=0)
     fingerprint = Column(String(64), index=True)
     lineage = Column(JSON, default=dict)
+    data = Column(JSON, default=dict)
     created_at = Column(DateTime, server_default=func.now())
     __table_args__ = (Index("ix_ds_ver", "dataset_id", "version"),)
 
@@ -214,6 +219,7 @@ class Document(Base):
     text_ref = Column(String(512), default="")
     chunks = Column(JSON, default=list)
     version = Column(Integer, default=1)
+    data = Column(JSON, default=dict)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -238,3 +244,30 @@ class WebhookDelivery(Base):
     last_error = Column(Text, default="")
     response_status = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class Snapshot(Base):
+    """Temporal snapshots: full state history per key (price:1, page:2, ...)."""
+    __tablename__ = "snapshots"
+    id = Column(Integer, primary_key=True)
+    key = Column(String(512), index=True)
+    state = Column(JSON, default=dict)
+    at_ts = Column(Float, default=0.0, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class FeedSub(Base):
+    __tablename__ = "feed_subs"
+    id = Column(Integer, primary_key=True)
+    owner = Column(String(255), index=True)
+    kinds = Column(JSON, default=list)
+    keywords = Column(JSON, default=list)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class KV(Base):
+    """Ephemeral-but-persistent small state: cooldowns, tags, budgets overflow."""
+    __tablename__ = "kv_store"
+    key = Column(String(255), primary_key=True)
+    value = Column(JSON, default=dict)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

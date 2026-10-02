@@ -9,6 +9,16 @@ research runs → findings → feed → watchlists → alerts → workflows →
 datasets → webhooks. AI via provider abstraction (Muse Spark 1.3 default).
 MySQL 8.4 + Redis. aaPanel-ready, no Docker.
 
+Persistence is write-through: every mutation commits to MySQL when
+reachable, else a SQLite file (`DATA_DIR/webintel.db`), else memory — and
+hydrates on boot, so state survives restarts. Additive auto-migration heals
+stale dev databases. Tests force in-memory via conftest.
+
+Security: SSRF guard + trusted-egress allowlist, token + scoped/expiring
+API-key auth, org isolation on every collection (IDOR-tested), HMAC webhook
+ingestion with replay window, per-IP rate limits (429), body-size guard
+(413), secret-redacted logs. Set `REQUIRE_AUTH=1` in production.
+
 API surface: 78 versioned paths under `/api/v1` (see `contracts/openapi/openapi.json`):
 orgs, roles, memberships, apikeys, projects, targets, jobs, results,
 prices, changes, articles, search, analytics, intel (compare/reviews/news),

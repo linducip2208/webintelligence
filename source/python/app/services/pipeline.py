@@ -85,7 +85,7 @@ def run_job(job: dict, target: dict, last_prices: list, policy: dec.Policy,
     prices = extract_prices(body) if ok else []
     q = qual.score({"price": prices[0]["price"] if prices else None,
                     "url": job["url"]}, ["price", "url"]) if prices else qual.score({}, ["price"])
-    prev = last_prices[0] if last_prices else None
+    prev = last_prices[-1] if last_prices else None
     change_kind = "NEW"
     if prev and prices:
         if abs(prices[0]["price"] - prev["price"]) > 1e-9:

@@ -1,7 +1,8 @@
 """FastAPI entrypoint — real routes, no fake metrics.
 
-MySQL/Redis are used when reachable; otherwise in-memory state keeps the
-service and UI functional. All dashboard numbers come from actual stores.
+Persistence is write-through: every mutation commits to the repository
+(MySQL when reachable, else SQLite file, else memory) and hydrates on boot,
+so all state survives restarts. All dashboard numbers come from actual stores.
 """
 import os
 import time
@@ -15,8 +16,8 @@ import os as _os
 from .core.ssrf import validate_url, SSRFError
 from .core.metrics import inc, render
 from .core.pagination import paginate
-from .core.deps import get_redis, redis_status, init_db, data_dir
-from .core import mirror as dbmirror
+from .core.deps import get_redis, redis_status, data_dir
+from .db.repo import Repo
 from .services import decision as dec
 from .services import cost as costeng
 from .services import change as changedet
@@ -40,6 +41,63 @@ app = FastAPI(title="Web Intelligence Platform", version="2.0.0",
                           "(POST /api/v1/auth/login) or X-API-Key header with scopes. "
                           "Mutating routes return 401 without credentials when REQUIRE_AUTH=1, "
                           "403 when role/scopes lack the action. All errors are JSON.")
+
+import time as _tmod
+_BUCKETS: dict = {}
+_NONCES: dict = {}
+
+
+def _rate_ok(ip: str) -> bool:
+    import os as _o
+    limit = int(_o.getenv("RATE_LIMIT_PER_MIN", "240") or 240)
+    now = _tmod.time()
+    b = _BUCKETS.get(ip)
+    if not b or now - b["ts"] > 60:
+        b = {"n": 0, "ts": now}
+        _BUCKETS[ip] = b
+    b["n"] += 1
+    if len(_BUCKETS) > 10000:
+        _BUCKETS.clear()
+    return b["n"] <= limit
+
+
+def _key_lookup(raw: str):
+    import hashlib as _h
+    import time as _t
+    h = _h.sha256(raw.encode()).hexdigest()
+    k = next((x for x in STORE["apikeys"] if x["key_hash"] == h and not x.get("revoked")), None)
+    if not k:
+        return None
+    if k.get("expires_at") and k["expires_at"] < _t.time():
+        return None
+    return k
+
+
+@app.middleware("http")
+async def _guard(request, call_next):
+    import os as _o
+    if request.url.path.startswith("/api/v1"):
+        try:
+            maxb = int(_o.getenv("MAX_BODY_BYTES", "10485760") or 10485760)
+        except ValueError:
+            maxb = 10485760
+        if request.headers.get("content-length") and int(request.headers["content-length"]) > maxb:
+            return JSONResponse({"detail": "payload too large"}, status_code=413)
+        ip = (request.client.host if request.client else "?")
+        if not _rate_ok(ip):
+            return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
+        if _o.getenv("REQUIRE_AUTH", "") == "1" and request.url.path not in (
+                "/api/v1/auth/login", "/api/v1/ingest/webhook"):
+            auth = request.headers.get("authorization", "")
+            key = request.headers.get("x-api-key", "")
+            ok = False
+            if auth.startswith("Bearer ") and tok.verify(auth[7:], _secret()):
+                ok = True
+            if key and _key_lookup(key):
+                ok = True
+            if not ok:
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+    return await call_next(request)
 _STATIC = _os.path.join(_os.path.dirname(__file__), "static")
 if _os.path.isdir(_STATIC):
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
@@ -48,22 +106,59 @@ if _os.path.isdir(_STATIC):
     def _index():
         return FileResponse(_os.path.join(_STATIC, "index.html"))
 
-STORE = {
-    "projects": [], "targets": [], "jobs": [], "alerts": [],
-    "prices": [], "articles": [], "reports": [], "health": [],
-    "schedules": [], "raw": [], "changes": [], "entities": [],
-    "audit": [], "budgets": {}, "orgs": [{"id": 1, "name": "Default", "slug": "default"}],
-    "attempts": [], "entity_history": [], "feed_subs": [], "alert_hist": {},
-    "memberships": [{"org_id": 1, "email": "admin@local", "role": "owner"}],
-    "apikeys": [], "nodes": [], "edges": [], "events": [], "evidence": [],
-    "claims": [], "findings": [], "research": [], "watchlists": [],
-    "workflows": [], "wfruns": [], "datasets": [], "dsversions": [],
-    "connectors": [], "documents": [], "webhooks": [], "deliveries": [],
-    "history": [], "tags": {},
-}
-USERS = {"admin@local": {"password_hash": hash_password("admin123")}}
+repo = Repo()
 
-DB_OK, DB_DETAIL = init_db()
+
+class MirrorList(list):
+    """Write-through list: every append/delete persists to the repository,
+    so all state survives restarts. Failures degrade to memory."""
+
+    def __init__(self, coll):
+        super().__init__()
+        self._coll = coll
+
+    def append(self, item):
+        super().append(item)
+        try:
+            repo.add(self._coll, item)
+        except Exception:
+            pass
+        return item
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if isinstance(key, slice):
+            try:
+                model = repo_model(self._coll)
+                s = repo._session()
+                s.query(model).delete()
+                s.commit()
+                s.close()
+                for item in self:
+                    repo.add(self._coll, item)
+            except Exception:
+                pass
+
+
+def repo_model(coll):
+    from .db.repo import _model_for
+    return _model_for(coll)
+
+
+def _wrap(store):
+    out = {}
+    for k, v in store.items():
+        if isinstance(v, list):
+            ml = MirrorList(k)
+            ml.extend(v)
+            out[k] = ml
+        else:
+            out[k] = v
+    return out
+
+
+STORE = _wrap(repo.load_all())
+USERS = {"admin@local": {"password_hash": hash_password("admin123")}}
 
 own_proxy = OwnProxyProvider(settings.own_proxy_urls)
 bright = BrightDataProvider(settings.brightdata_api_key, settings.brightdata_zone,
@@ -76,7 +171,9 @@ def _secret():
     return settings.secret_key or "dev-secret"
 
 
-def _require_auth(authorization: str = ""):
+def _require_auth(authorization: str = "", x_api_key: str = ""):
+    if x_api_key and _key_lookup(x_api_key):
+        return "apikey"
     if os.getenv("REQUIRE_AUTH", "") != "1":
         return "dev-open"
     if not authorization.startswith("Bearer "):
@@ -90,7 +187,7 @@ def _require_auth(authorization: str = ""):
 def _ctx(authorization: str = "", x_api_key: str = ""):
     """(email, org_id, role). API keys scope to their org; login tokens use membership.
     Dev-open (REQUIRE_AUTH!=1) acts as owner; production enforces real roles."""
-    email = _require_auth(authorization)
+    email = _require_auth(authorization, x_api_key)
     if email == "dev-open":
         return ("dev-open", 1, "owner")
     if x_api_key:
@@ -99,6 +196,13 @@ def _ctx(authorization: str = "", x_api_key: str = ""):
         k = next((x for x in STORE["apikeys"] if x["key_hash"] == h and not x.get("revoked")), None)
         if not k:
             raise HTTPException(401, "bad api key")
+        if k.get("expires_at") and k["expires_at"] < time.time():
+            raise HTTPException(401, "api key expired")
+        k["last_used"] = time.time()
+        try:
+            repo.sync("apikeys", k)
+        except Exception:
+            pass
         return ("apikey:" + k["name"], k["org_id"], "analyst")
     ms = [m for m in STORE["memberships"] if m["email"] == email]
     if ms:
@@ -127,11 +231,19 @@ def _providers():
                            "configured": bright.configured}}
 
 
+def _check_url(url: str):
+    """SSRF validation honoring the live TRUSTED_EGRESS_CIDRS allowlist."""
+    import os as _o
+    trust = [x.strip() for x in _o.getenv("TRUSTED_EGRESS_CIDRS", "").split(",") if x.strip()]
+    try:
+        validate_url(url, trust or None)
+    except SSRFError as e:
+        raise HTTPException(400, f"url rejected: {e}")
+
+
 def _audit(actor, action, ref=""):
     STORE["audit"].append({"actor": actor, "action": action, "ref": ref,
                            "at": time.time()})
-    if DB_OK:
-        dbmirror.mirror_audit(actor, action, ref)
 
 
 def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
@@ -142,6 +254,26 @@ def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
         job["status"] = res.get("status", job["status"])
         job["finished_at"] = time.time()
         job["actual_cost"] = res.get("cost", 0)
+        try:
+            repo.sync("jobs", job)
+        except Exception:
+            pass
+    # persisted target learning: counters + learned preferred strategy
+    try:
+        from .services import targets as _tgt
+        tgt = next((t for t in STORE["targets"] if t.get("id") == target_id), None)
+        if tgt is not None:
+            prof = _tgt.record_attempt(tgt.get("profile", {}), res.get("strategy", "DIRECT_HTTP"),
+                                       res.get("status") == "success",
+                                       res.get("latency_ms", 0), res.get("cost", 0))
+            tgt["profile"] = prof
+            tgt["attempts"] = prof.get("attempts", 0)
+            tgt["successes"] = prof.get("successes", 0)
+            tgt["failures"] = prof.get("failures", 0)
+            tgt["preferred_strategy"] = _tgt.preferred_strategy(prof)
+            repo.sync("targets", tgt)
+    except Exception:
+        pass
     if res.get("content_hash"):
         STORE["raw"].append({"job_id": res.get("job_id"), "url": job_url,
                              "hash": res["content_hash"], "size": res.get("content_size", 0),
@@ -150,16 +282,12 @@ def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
         STORE["prices"].append({"product_id": target_id, "price": p["price"],
                                 "currency": p.get("currency", "USD"), "seller": "",
                                 "observed_at": time.time(), "job_id": res.get("job_id")})
-        if DB_OK:
-            dbmirror.mirror_price(target_id, p["price"], p.get("currency", "USD"))
     if res.get("change") in ("CHANGED", "NEW"):
         STORE["changes"].append({"target_id": target_id, "kind": res["change"],
                                  "diff": res.get("diagnostics", {}), "at": time.time()})
     for a in res.get("alerts", []):
         STORE["alerts"].append({"id": len(STORE["alerts"]) + 1, **a,
                                 "project_id": project_id, "is_read": False})
-        if DB_OK:
-            dbmirror.mirror_alert(a.get("rule", ""), a.get("message", "")[:500], project_id)
     if res.get("status") == "success":
         inc("jobs_success")
     elif res.get("status") in ("failed",):
@@ -201,9 +329,14 @@ def _execute_job(job: dict):
 # ---- auth ----
 @app.post("/api/v1/auth/login")
 def login(creds: dict):
+    hit = repo.verify_user(creds.get("email", ""), creds.get("password", ""))
+    if hit:
+        _audit(hit["email"], "auth.login", "ok")
+        return {"token": tok.issue(hit["email"], _secret()), "email": hit["email"]}
     u = USERS.get(creds.get("email", ""))
     if not u or not verify_password(creds.get("password", ""), u["password_hash"]):
         raise HTTPException(401, "bad credentials")
+    _audit(creds.get("email", ""), "auth.login", "ok")
     return {"token": tok.issue(creds["email"], _secret()), "email": creds["email"]}
 
 
@@ -216,19 +349,16 @@ def healthz():
 def readyz():
     checks = [
         healthsvc.check("api", True),
-        healthsvc.check("redis", redis_status()["ok"], "connected" if redis_status()["ok"] else "in-memory fallback"),
-        healthsvc.check("mysql", DB_OK, DB_DETAIL),
+        healthsvc.check("redis", redis_status()["ok"], "connected" if redis_status()["ok"] else "memory fallback"),
+        healthsvc.check("database", True, f"backend={repo.backend}"),
         healthsvc.check("own_proxy", bool(settings.own_proxy_urls)),
         healthsvc.check("brightdata", bright.configured),
         healthsvc.check("ai", bool(settings.muse_base_url and settings.muse_api_key)),
     ]
-    live = [c for c in checks if c["name"] in ("api", "redis", "mysql")]
+    live = [c for c in checks if c["name"] in ("api", "redis", "database")]
     status = "healthy" if all(c["status"] == "up" for c in live) else "degraded"
     STORE["health"].append({"at": time.time(), "status": status,
                             "checks": {c["name"]: c["status"] for c in checks}})
-    if DB_OK:
-        for c in checks:
-            dbmirror.mirror_health(c["name"], c["status"], c.get("detail", ""))
     return {"status": status, "checks": checks}
 
 
@@ -239,15 +369,40 @@ def metrics():
 
 # ---- projects ----
 @app.post("/api/v1/projects")
-def create_project(p: ProjectIn, authorization: str = Header("")):
-    _require_auth(authorization)
-    item = {"id": len(STORE["projects"]) + 1, "name": p.name, "description": p.description}
+def create_project(p: ProjectIn, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _ctx(authorization, x_api_key)
+    item = {"id": len(STORE["projects"]) + 1, "org": org, "name": p.name, "description": p.description}
     STORE["projects"].append(item)
     inc("projects_total")
-    _audit(authorization[:12] if authorization else "anon", "project.create", item["name"])
-    if DB_OK:
-        dbmirror.mirror_project(p.name, p.description)
+    _audit(email, "project.create", item["name"])
     return item
+
+def _torg(tid):
+    t = next((x for x in STORE["targets"] if x.get("id") == tid), None)
+    return t.get("org", 1) if t else None
+
+
+def _porg(pid):
+    p = next((x for x in STORE["projects"] if x.get("id") == pid), None)
+    return p.get("org", 1) if p else None
+
+
+def _visible_by_org(items, org, kind="direct"):
+    """Tenant isolation: direct org field, or via target/project ownership."""
+    out = []
+    for i in items:
+        if kind == "direct":
+            if i.get("org", 1) == org:
+                out.append(i)
+        elif kind == "target":
+            o = _torg(i.get("product_id", i.get("target_id")))
+            if o is None or o == org:
+                out.append(i)
+        elif kind == "project":
+            o = _porg(i.get("project_id"))
+            if o is None or o == org:
+                out.append(i)
+    return out
 
 
 def _sorted(items, sort="", order="asc"):
@@ -261,56 +416,57 @@ def _sorted(items, sort="", order="asc"):
 
 
 @app.get("/api/v1/projects")
-def list_projects(page: int = 1, size: int = 20, q: str = "", sort: str = "", order: str = "asc"):
-    items = [x for x in STORE["projects"] if q.lower() in x["name"].lower()] if q else STORE["projects"]
+def list_projects(page: int = 1, size: int = 20, q: str = "", sort: str = "", order: str = "asc",
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = [x for x in STORE["projects"] if x.get("org", 1) == org]
+    if q:
+        items = [x for x in items if q.lower() in x["name"].lower()]
     return paginate(_sorted(items, sort, order), page, size)
 
 
 # ---- targets ----
 @app.post("/api/v1/targets")
-def create_target(t: TargetIn, authorization: str = Header("")):
-    _require_auth(authorization)
-    try:
-        validate_url(t.url)
-    except SSRFError as e:
-        raise HTTPException(400, f"url rejected: {e}")
-    item = t.model_dump() | {"id": len(STORE["targets"]) + 1, "attempts": 0,
+def create_target(t: TargetIn, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _ctx(authorization, x_api_key)
+    _check_url(t.url)
+    item = t.model_dump() | {"id": len(STORE["targets"]) + 1, "org": org, "attempts": 0,
                              "successes": 0, "failures": 0}
     STORE["targets"].append(item)
-    _audit(authorization[:12] if authorization else "anon", "target.create", t.url[:120])
-    if DB_OK:
-        dbmirror.mirror_target(t.project_id, t.domain, t.url, t.source_type)
+    _audit(email, "target.create", t.url[:120])
     return item
 
 
 @app.get("/api/v1/targets")
-def list_targets(page: int = 1, size: int = 20, q: str = "", sort: str = "", order: str = "asc"):
-    items = [x for x in STORE["targets"] if q.lower() in (x["domain"] + x["url"]).lower()] if q else STORE["targets"]
+def list_targets(page: int = 1, size: int = 20, q: str = "", sort: str = "", order: str = "asc",
+                 authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = [x for x in STORE["targets"] if x.get("org", 1) == org]
+    if q:
+        items = [x for x in items if q.lower() in (x["domain"] + x["url"]).lower()]
     return paginate(_sorted(items, sort, order), page, size)
 
 
 # ---- collection jobs ----
 @app.post("/api/v1/jobs")
-def create_job(j: JobIn, authorization: str = Header("")):
-    _require_auth(authorization)
-    try:
-        validate_url(j.url)
-    except SSRFError as e:
-        raise HTTPException(400, f"url rejected: {e}")
+def create_job(j: JobIn, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _ctx(authorization, x_api_key)
+    _check_url(j.url)
     engine = dec.Engine()
     policy = dec.Policy(allow_brightdata=bright.configured)
-    target = next((t for t in STORE["targets"] if t["id"] == j.target_id), {"url": j.url})
+    target = next((t for t in STORE["targets"]
+                   if t["id"] == j.target_id and t.get("org", 1) == org), None)
+    if j.target_id and not target:
+        raise HTTPException(404, "target not found in your organization")
+    target = target or {"url": j.url}
     plan = engine.decide(target, policy, _providers())
     job = {"job_id": uuid.uuid4().hex, "trace_id": uuid.uuid4().hex,
            "project_id": j.project_id, "target_id": j.target_id, "url": j.url,
            "strategy": j.strategy, "plan": plan, "status": "queued",
-           "created_at": time.time(),
+           "created_at": time.time(), "org": org,
            "estimated_cost": costeng.estimate(plan["plan"][0] if plan["plan"] else "DIRECT_HTTP")}
     STORE["jobs"].append(job)
-    _audit(authorization[:12] if authorization else "anon", "job.create", job["job_id"])
-    if DB_OK:
-        dbmirror.mirror_job(job["trace_id"], j.project_id, j.target_id,
-                            j.url, j.strategy, "queued")
+    _audit(email, "job.create", job["job_id"])
     r = get_redis()
     if r is not None:
         try:
@@ -326,29 +482,35 @@ def create_job(j: JobIn, authorization: str = Header("")):
 
 
 @app.get("/api/v1/jobs")
-def list_jobs(page: int = 1, size: int = 20, status: str = "", sort: str = "", order: str = "asc"):
-    items = [x for x in STORE["jobs"] if x["status"] == status] if status else STORE["jobs"]
+def list_jobs(page: int = 1, size: int = 20, status: str = "", sort: str = "", order: str = "asc",
+              authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = [x for x in STORE["jobs"] if x.get("org", 1) == org]
+    if status:
+        items = [x for x in items if x["status"] == status]
     return paginate(_sorted(items, sort, order), page, size)
 
 
 @app.post("/api/v1/jobs/{job_id}/run")
-def run_job_now(job_id: str, authorization: str = Header("")):
+def run_job_now(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
     """Execute the full pipeline inline: fetch → validate → normalize →
     change-detect → alerts. BROWSER/proxy legs stay deferred to workers."""
-    _require_auth(authorization)
-    job = next((j for j in STORE["jobs"] if j.get("job_id") == job_id), None)
+    _, org, _ = _ctx(authorization, x_api_key)
+    job = next((j for j in STORE["jobs"]
+                if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:
         raise HTTPException(404, "job not found")
     return _execute_job(job)
 
 
 @app.post("/api/v1/results")
-def ingest_result(res: dict, authorization: str = Header("")):
+def ingest_result(res: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     """Go collector / Python worker result ingestion (contracts/results/result.json)."""
-    _require_auth(authorization)
+    _, org, _ = _ctx(authorization, x_api_key)
     if res.get("schema_version") != "1.0" or not res.get("job_id"):
         raise HTTPException(400, "bad result contract")
-    job = next((j for j in STORE["jobs"] if j.get("job_id") == res["job_id"]), None)
+    job = next((j for j in STORE["jobs"]
+                if j.get("job_id") == res["job_id"] and j.get("org", 1) == org), None)
     if not job:
         raise HTTPException(404, "unknown job_id")
     bundle = {"job_id": res["job_id"], "status": res.get("status", "failed"),
@@ -361,27 +523,35 @@ def ingest_result(res: dict, authorization: str = Header("")):
 
 # ---- data listings ----
 @app.get("/api/v1/prices")
-def list_prices(page: int = 1, size: int = 20, product_id: int = 0, sort: str = "", order: str = "asc"):
-    items = [p for p in STORE["prices"] if p.get("product_id") == product_id] if product_id else STORE["prices"]
+def list_prices(page: int = 1, size: int = 20, product_id: int = 0, sort: str = "", order: str = "asc",
+                authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = _visible_by_org(STORE["prices"], org, "target")
+    if product_id:
+        items = [p for p in items if p.get("product_id") == product_id]
     return paginate(_sorted(items, sort, order), page, size)
 
 
 @app.get("/api/v1/articles")
-def list_articles(page: int = 1, size: int = 20):
-    return paginate(STORE["articles"], page, size)
+def list_articles(page: int = 1, size: int = 20,
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["articles"], org), page, size)
 
 
 @app.post("/api/v1/articles")
-def create_article(a: dict, authorization: str = Header("")):
-    _require_auth(authorization)
-    item = {"id": len(STORE["articles"]) + 1, **a}
+def create_article(a: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    item = {"id": len(STORE["articles"]) + 1, "org": org, **a}
     STORE["articles"].append(item)
     return item
 
 
 @app.get("/api/v1/changes")
-def list_changes(page: int = 1, size: int = 20):
-    return paginate(STORE["changes"], page, size)
+def list_changes(page: int = 1, size: int = 20,
+                 authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["changes"], org, "target"), page, size)
 
 
 @app.get("/api/v1/search")
@@ -396,8 +566,8 @@ def search(q: str = "", scope: str = "all"):
 
 # ---- reports ----
 @app.post("/api/v1/reports")
-def build_report(spec: dict, authorization: str = Header("")):
-    _require_auth(authorization)
+def build_report(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     from .reports.builder import build
     from .intelligence.market import summarize
 
@@ -415,20 +585,23 @@ def build_report(spec: dict, authorization: str = Header("")):
             analysis["ai_error"] = str(e)[:200]
     rep = build(kind, spec.get("project", ""), prices,
                 [p.get("job_id") for p in STORE["prices"]][:50], str(analysis)[:4000])
-    item = {"id": len(STORE["reports"]) + 1, **rep}
+    _, _org2, _ = _ctx(authorization, x_api_key)
+    item = {"id": len(STORE["reports"]) + 1, "org": _org2, **rep}
     STORE["reports"].append(item)
     return item
 
 
 @app.get("/api/v1/reports")
-def list_reports(page: int = 1, size: int = 20):
-    return paginate(STORE["reports"], page, size)
+def list_reports(page: int = 1, size: int = 20,
+                 authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["reports"], org), page, size)
 
 
 # ---- schedules + worker ----
 @app.post("/api/v1/schedules")
-def create_schedule(s: dict, authorization: str = Header("")):
-    _require_auth(authorization)
+def create_schedule(s: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     item = {"id": len(STORE["schedules"]) + 1, "status": "active",
             "next_run": sched.next_run(s.get("kind", "interval"),
                                        s.get("every_min", 60),
@@ -438,15 +611,17 @@ def create_schedule(s: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/schedules")
-def list_schedules(page: int = 1, size: int = 20):
-    return paginate(STORE["schedules"], page, size)
+def list_schedules(page: int = 1, size: int = 20,
+                   authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["schedules"], org, "project"), page, size)
 
 
 @app.post("/api/v1/worker/tick")
-def worker_tick(authorization: str = Header("")):
+def worker_tick(authorization: str = Header(""), x_api_key: str = Header("")):
     """Execute due schedules: creates collection jobs. Called by systemd
     worker or cron; also powers the UI 'Run scheduler' button."""
-    _require_auth(authorization)
+    _require_auth(authorization, x_api_key)
     import datetime
 
     now = datetime.datetime.utcnow()
@@ -473,6 +648,7 @@ def worker_tick(authorization: str = Header("")):
             s["next_run"] = sched.next_run(s.get("kind", "interval"),
                                            s.get("every_min", 60),
                                            cron=s.get("cron", "")).isoformat()
+            repo.sync("schedules", s)
     inc("jobs_total", len(fired))
     return {"fired": fired}
 
@@ -517,8 +693,8 @@ def ai_providers():
 
 
 @app.post("/api/v1/ai/chat")
-def ai_chat(messages: list, model: str = "", authorization: str = Header("")):
-    _require_auth(authorization)
+def ai_chat(messages: list, model: str = "", authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     p = aireg.get("muse-spark")
     if not p:
         raise HTTPException(503, "no ai provider registered")
@@ -533,8 +709,8 @@ def ai_health():
 
 # ---- alerts ----
 @app.post("/api/v1/alerts")
-def create_alert(a: AlertRuleIn, authorization: str = Header("")):
-    _require_auth(authorization)
+def create_alert(a: AlertRuleIn, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     item = build_alert(a.rule, a.message, a.project_id, a.channel) | {
         "id": len(STORE["alerts"]) + 1}
     STORE["alerts"].append(item)
@@ -542,8 +718,10 @@ def create_alert(a: AlertRuleIn, authorization: str = Header("")):
 
 
 @app.get("/api/v1/alerts")
-def list_alerts(page: int = 1, size: int = 20, sort: str = "", order: str = "asc"):
-    return paginate(_sorted(STORE["alerts"], sort, order), page, size)
+def list_alerts(page: int = 1, size: int = 20, sort: str = "", order: str = "asc",
+                authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_sorted(_visible_by_org(STORE["alerts"], org, "project"), sort, order), page, size)
 
 
 # ---- analytics ----
@@ -601,8 +779,8 @@ def intel_news(spec: dict):
 
 # ---- entities ----
 @app.post("/api/v1/entities/resolve")
-def entity_resolve(spec: dict, authorization: str = Header("")):
-    _require_auth(authorization)
+def entity_resolve(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     from .services.entity_resolution import score, decide
     cand = spec.get("candidate", {})
     best, best_s = None, -1.0
@@ -632,9 +810,10 @@ def costs_summary():
 
 
 @app.post("/api/v1/costs/budget")
-def set_budget(spec: dict, authorization: str = Header("")):
-    _require_auth(authorization)
+def set_budget(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     STORE["budgets"][str(spec.get("project_id", 1))] = float(spec.get("limit", 0))
+    repo.set_budget(spec.get("project_id", 1), float(spec.get("limit", 0)))
     return {"ok": True, "budgets": STORE["budgets"]}
 
 
@@ -649,8 +828,8 @@ def budget_check(project_id: int = 1):
 
 # ---- ML registry ----
 @app.post("/api/v1/ml/register")
-def ml_register(spec: dict, authorization: str = Header("")):
-    _require_auth(authorization)
+def ml_register(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     from .analytics.ml import register
     register(spec.get("name", "model"), spec.get("version", "v1"),
              spec.get("metrics", {}))
@@ -665,10 +844,13 @@ def ml_models():
 
 # ---- alert delivery ----
 @app.post("/api/v1/alerts/{alert_id}/send")
-def alert_send(alert_id: int, authorization: str = Header("")):
-    _require_auth(authorization)
+def alert_send(alert_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
     a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
     if not a:
+        raise HTTPException(404, "alert not found")
+    po = _porg(a.get("project_id"))
+    if po is not None and po != org:
         raise HTTPException(404, "alert not found")
     channel = a.get("channel", "inapp")
     if channel == "webhook":
@@ -714,8 +896,11 @@ def alert_send(alert_id: int, authorization: str = Header("")):
 
 # ---- report export ----
 @app.get("/api/v1/reports/{rep_id}/export")
-def report_export(rep_id: int, format: str = "json"):
-    r = next((x for x in STORE["reports"] if x.get("id") == rep_id), None)
+def report_export(rep_id: int, format: str = "json",
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    r = next((x for x in STORE["reports"]
+              if x.get("id") == rep_id and x.get("org", 1) == org), None)
     if not r:
         raise HTTPException(404, "report not found")
     if format == "csv":
@@ -746,10 +931,13 @@ def list_audit(page: int = 1, size: int = 20):
 
 # ---- organizations / RBAC / API keys ----
 @app.post("/api/v1/orgs", tags=["admin"])
-def create_org(spec: dict, authorization: str = Header("")):
-    email, _, _ = _ctx(authorization)
+def create_org(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _ctx(authorization, x_api_key)
+    slug = spec.get("slug", spec.get("name", "").lower().replace(" ", "-"))
+    if any(o.get("slug") == slug for o in STORE["orgs"]):
+        raise HTTPException(409, "organization slug exists")
     item = {"id": len(STORE["orgs"]) + 1, "name": spec.get("name", ""),
-            "slug": spec.get("slug", spec.get("name", "").lower().replace(" ", "-"))}
+            "slug": slug}
     STORE["orgs"].append(item)
     STORE["memberships"].append({"org_id": item["id"], "email": email, "role": "owner"})
     _audit(email, "org.create", item["name"])
@@ -768,7 +956,7 @@ def roles_matrix():
 
 
 @app.post("/api/v1/memberships", tags=["admin"])
-def add_member(spec: dict, authorization: str = Header("")):
+def add_member(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     email, org, _ = _need(authorization, "users")
     item = {"org_id": spec.get("org_id", org), "email": spec.get("email"),
             "role": spec.get("role", "viewer")}
@@ -778,14 +966,15 @@ def add_member(spec: dict, authorization: str = Header("")):
 
 
 @app.post("/api/v1/apikeys", tags=["admin"])
-def create_apikey(spec: dict, authorization: str = Header("")):
+def create_apikey(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     import hashlib as _h
     import secrets as _s
     email, org, _ = _need(authorization, "configure")
     raw = "wi_" + _s.token_urlsafe(32)
     item = {"id": len(STORE["apikeys"]) + 1, "org_id": spec.get("org_id", org),
             "name": spec.get("name", ""), "key_hash": _h.sha256(raw.encode()).hexdigest(),
-            "scopes": spec.get("scopes", ["read"]), "revoked": False}
+            "scopes": spec.get("scopes", ["read"]), "revoked": False,
+            "expires_at": spec.get("expires_at", 0) or 0, "last_used": 0}
     STORE["apikeys"].append(item)
     _audit(email, "apikey.create", item["name"])
     return {**item, "key": raw}  # shown once
@@ -797,12 +986,13 @@ def list_apikeys():
 
 
 @app.post("/api/v1/apikeys/{kid}/revoke", tags=["admin"])
-def revoke_apikey(kid: int, authorization: str = Header("")):
+def revoke_apikey(kid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     email, _, _ = _need(authorization, "configure")
     k = next((x for x in STORE["apikeys"] if x["id"] == kid), None)
     if not k:
         raise HTTPException(404, "not found")
     k["revoked"] = True
+    repo.sync("apikeys", k)
     _audit(email, "apikey.revoke", k["name"])
     return {"ok": True}
 
@@ -820,22 +1010,33 @@ def graph_node(spec: dict, authorization: str = Header(""), x_api_key: str = Hea
 def graph_edge(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import graph as _g
     _, org, _ = _ctx(authorization, x_api_key)
-    return _g.add_edge(STORE["edges"], spec.get("src"), spec.get("dst"),
+    edge = _g.add_edge(STORE["edges"], spec.get("src"), spec.get("dst"),
                        spec.get("rel", "RELATED"), spec.get("confidence", 1.0),
                        spec.get("evidence", []), spec.get("at"), org)
+    for e in STORE["edges"]:
+        if e.get("valid_to"):
+            repo.sync("edges", e)
+    return edge
 
 
 @app.get("/api/v1/graph/traverse", tags=["knowledge"])
-def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = ""):
+def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "",
+                   authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import graph as _g
-    return {"items": _g.traverse(STORE["nodes"], STORE["edges"], node, depth,
-                                rel.split(",") if rel else None,
-                                kind.split(",") if kind else None)}
+    _, org, _ = _ctx(authorization, x_api_key)
+    start = next((n for n in STORE["nodes"] if n.get("id") == node), None)
+    if node and (not start or start.get("org", 1) != org):
+        raise HTTPException(404, "node not found")
+    items = _g.traverse(STORE["nodes"], [e for e in STORE["edges"] if e.get("org", 1) == org],
+                        node, depth,
+                        rel.split(",") if rel else None,
+                        kind.split(",") if kind else None)
+    return {"items": items}
 
 
 # ---- events / evidence / claims / findings ----
 @app.post("/api/v1/events", tags=["knowledge"])
-def create_event(spec: dict, authorization: str = Header("")):
+def create_event(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["events"]) + 1, "org": org, **spec}
     STORE["events"].append(item)
@@ -844,14 +1045,17 @@ def create_event(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/events", tags=["knowledge"])
-def list_events(page: int = 1, size: int = 20, type: str = "", severity: str = ""):
-    items = [e for e in STORE["events"]
+def list_events(page: int = 1, size: int = 20, type: str = "", severity: str = "",
+                authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = _visible_by_org(STORE["events"], org)
+    items = [e for e in items
              if (not type or e.get("type") == type) and (not severity or e.get("severity") == severity)]
     return paginate(items, page, size)
 
 
 @app.post("/api/v1/evidence", tags=["knowledge"])
-def create_evidence(spec: dict, authorization: str = Header("")):
+def create_evidence(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import evidence as _e
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["evidence"]) + 1, "org": org,
@@ -864,12 +1068,14 @@ def create_evidence(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/evidence", tags=["knowledge"])
-def list_evidence(page: int = 1, size: int = 20):
-    return paginate(STORE["evidence"], page, size)
+def list_evidence(page: int = 1, size: int = 20,
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["evidence"], org), page, size)
 
 
 @app.post("/api/v1/claims", tags=["knowledge"])
-def create_claim(spec: dict, authorization: str = Header("")):
+def create_claim(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["claims"]) + 1, "org": org, "status": "UNVERIFIED",
             "confidence": 0.0, **spec}
@@ -886,6 +1092,7 @@ def verify_claim(spec: dict):
         if c:
             c["status"] = out["status"]
             c["confidence"] = out["confidence"]
+            repo.sync("claims", c)
     return out
 
 
@@ -896,7 +1103,7 @@ def check_contradictions(spec: dict):
 
 
 @app.post("/api/v1/findings", tags=["intelligence"])
-def create_finding(spec: dict, authorization: str = Header("")):
+def create_finding(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["findings"]) + 1, "org": org, **spec}
     STORE["findings"].append(item)
@@ -904,8 +1111,10 @@ def create_finding(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/findings", tags=["intelligence"])
-def list_findings(page: int = 1, size: int = 20):
-    return paginate(STORE["findings"], page, size)
+def list_findings(page: int = 1, size: int = 20,
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["findings"], org), page, size)
 
 
 @app.get("/api/v1/feed", tags=["intelligence"])
@@ -946,7 +1155,7 @@ def research_plan(spec: dict):
 
 
 @app.post("/api/v1/research/runs", tags=["research"])
-def research_run(spec: dict, authorization: str = Header("")):
+def research_run(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import research as _r
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["research"]) + 1, "org": org, "status": "planned",
@@ -960,27 +1169,31 @@ def research_run(spec: dict, authorization: str = Header("")):
 
 
 @app.post("/api/v1/research/runs/{rid}/finish", tags=["research"])
-def research_finish(rid: int, spec: dict, authorization: str = Header("")):
+def research_finish(rid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import research as _r
-    _require_auth(authorization)
-    run = next((x for x in STORE["research"] if x["id"] == rid), None)
+    _, org, _ = _ctx(authorization, x_api_key)
+    run = next((x for x in STORE["research"]
+                if x["id"] == rid and x.get("org", 1) == org), None)
     if not run:
         raise HTTPException(404, "not found")
     run.update({"status": "done", "analysis": spec.get("analysis", "")[:8000],
                 "evidence_ids": spec.get("evidence_ids", run.get("evidence_ids", [])),
                 "ai_provider": spec.get("ai_provider", ""), "ai_model": spec.get("ai_model", ""),
                 "finished_at": time.time()})
+    repo.sync("research", run)
     return {"ok": True, "reproducibility": _r.bundle(run)}
 
 
 @app.get("/api/v1/research/runs", tags=["research"])
-def research_runs(page: int = 1, size: int = 20):
-    return paginate(STORE["research"], page, size)
+def research_runs(page: int = 1, size: int = 20,
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["research"], org), page, size)
 
 
 # ---- watchlists ----
 @app.post("/api/v1/watchlists", tags=["monitoring"])
-def create_watchlist(spec: dict, authorization: str = Header("")):
+def create_watchlist(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["watchlists"]) + 1, "org": org, **spec}
     STORE["watchlists"].append(item)
@@ -988,13 +1201,14 @@ def create_watchlist(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/watchlists", tags=["monitoring"])
-def list_watchlists():
-    return {"items": STORE["watchlists"]}
+def list_watchlists(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return {"items": _visible_by_org(STORE["watchlists"], org)}
 
 
 @app.delete("/api/v1/watchlists/{wid}", tags=["monitoring"])
-def delete_watchlist(wid: int, authorization: str = Header("")):
-    _require_auth(authorization)
+def delete_watchlist(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     STORE["watchlists"][:] = [w for w in STORE["watchlists"] if w["id"] != wid]
     return {"ok": True}
 
@@ -1017,7 +1231,7 @@ def watchlist_check(spec: dict):
 
 # ---- workflows ----
 @app.post("/api/v1/workflows", tags=["monitoring"])
-def create_workflow(spec: dict, authorization: str = Header("")):
+def create_workflow(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["workflows"]) + 1, "org": org, "enabled": True, **spec}
     STORE["workflows"].append(item)
@@ -1025,15 +1239,17 @@ def create_workflow(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/workflows", tags=["monitoring"])
-def list_workflows():
-    return {"items": STORE["workflows"]}
+def list_workflows(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return {"items": _visible_by_org(STORE["workflows"], org)}
 
 
 @app.post("/api/v1/workflows/{wid}/run", tags=["monitoring"])
-def workflow_run(wid: int, spec: dict, authorization: str = Header("")):
+def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import workflows as _w
-    _require_auth(authorization)
-    wf = next((x for x in STORE["workflows"] if x["id"] == wid and x.get("enabled")), None)
+    _, org, _ = _ctx(authorization, x_api_key)
+    wf = next((x for x in STORE["workflows"]
+               if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not wf:
         raise HTTPException(404, "workflow not found/disabled")
     event = spec.get("event", {})
@@ -1057,7 +1273,7 @@ def workflow_run(wid: int, spec: dict, authorization: str = Header("")):
 
 # ---- datasets ----
 @app.post("/api/v1/datasets", tags=["datasets"])
-def create_dataset(spec: dict, authorization: str = Header("")):
+def create_dataset(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["datasets"]) + 1, "org": org, "status": "draft", **spec}
     STORE["datasets"].append(item)
@@ -1065,14 +1281,15 @@ def create_dataset(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/datasets", tags=["datasets"])
-def list_datasets():
-    return {"items": STORE["datasets"]}
+def list_datasets(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return {"items": _visible_by_org(STORE["datasets"], org)}
 
 
 @app.post("/api/v1/datasets/{did}/publish", tags=["datasets"])
-def dataset_publish(did: int, spec: dict, authorization: str = Header("")):
+def dataset_publish(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import datasets as _d
-    _require_auth(authorization)
+    _require_auth(authorization, x_api_key)
     rows = spec.get("rows", [])
     v = _d.publish(STORE["dsversions"], did, rows, spec.get("lineage", {}))
     return v
@@ -1097,7 +1314,7 @@ def spec_rows(did: int):
 
 # ---- connectors ----
 @app.post("/api/v1/connectors", tags=["sources"])
-def register_connector(spec: dict, authorization: str = Header("")):
+def register_connector(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import connectors as _c
     _, org, _ = _ctx(authorization)
     errs = _c.validate_manifest(spec.get("manifest", {}))
@@ -1109,8 +1326,9 @@ def register_connector(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/connectors", tags=["sources"])
-def list_connectors():
-    return {"items": STORE["connectors"]}
+def list_connectors(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return {"items": _visible_by_org(STORE["connectors"], org)}
 
 
 @app.get("/api/v1/connectors/match", tags=["sources"])
@@ -1121,7 +1339,7 @@ def match_connector(capability: str = "", category: str = ""):
 
 # ---- documents ----
 @app.post("/api/v1/documents", tags=["knowledge"])
-def ingest_document(spec: dict, authorization: str = Header("")):
+def ingest_document(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import documents as _d
     _, org, _ = _ctx(authorization)
     content = (spec.get("text", "") or "").encode()
@@ -1129,7 +1347,9 @@ def ingest_document(spec: dict, authorization: str = Header("")):
     same = [x for x in STORE["documents"] if x.get("fingerprint") == fp]
     if same:
         return {"duplicate_of": same[0]["id"], "fingerprint": fp}
-    ext = _d.extract(spec.get("kind", "txt"), content, spec.get("filename", ""))
+    import os as _o
+    filename = _o.path.basename(spec.get("filename", "") or "")[:255]
+    ext = _d.extract(spec.get("kind", "txt"), content, filename)
     item = {"id": len(STORE["documents"]) + 1, "org": org, "version": 1,
             "fingerprint": fp, "chunks": _d.chunk(ext.get("text", "")) if ext.get("extracted") else [],
             "title": spec.get("title", ""), "kind": spec.get("kind", "txt"),
@@ -1140,13 +1360,15 @@ def ingest_document(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/documents", tags=["knowledge"])
-def list_documents(page: int = 1, size: int = 20):
-    return paginate(STORE["documents"], page, size)
+def list_documents(page: int = 1, size: int = 20,
+                   authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return paginate(_visible_by_org(STORE["documents"], org), page, size)
 
 
 # ---- webhooks (outgoing) ----
 @app.post("/api/v1/webhooks", tags=["monitoring"])
-def create_webhook(spec: dict, authorization: str = Header("")):
+def create_webhook(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization)
     item = {"id": len(STORE["webhooks"]) + 1, "org": org, "enabled": True, **spec}
     STORE["webhooks"].append(item)
@@ -1154,15 +1376,18 @@ def create_webhook(spec: dict, authorization: str = Header("")):
 
 
 @app.get("/api/v1/webhooks", tags=["monitoring"])
-def list_webhooks():
-    return {"items": [{k: v for k, v in w.items() if k != "secret"} for w in STORE["webhooks"]]}
+def list_webhooks(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return {"items": [{k: v for k, v in w.items() if k != "secret"}
+                      for w in _visible_by_org(STORE["webhooks"], org)]}
 
 
 @app.post("/api/v1/webhooks/{wid}/test", tags=["monitoring"])
-def webhook_test(wid: int, authorization: str = Header("")):
+def webhook_test(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import webhooks as _wh
-    _require_auth(authorization)
-    w = next((x for x in STORE["webhooks"] if x["id"] == wid and x.get("enabled")), None)
+    _, org, _ = _ctx(authorization, x_api_key)
+    w = next((x for x in STORE["webhooks"]
+              if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not w:
         raise HTTPException(404, "not found/disabled")
     out = _wh.deliver(w["url"], "ping", {"webhook_id": wid}, w.get("secret", ""))
@@ -1180,9 +1405,9 @@ def webhook_deliveries(page: int = 1, size: int = 20):
 
 
 @app.post("/api/v1/webhooks/deliveries/{did}/replay", tags=["monitoring"])
-def webhook_replay(did: int, authorization: str = Header("")):
+def webhook_replay(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import webhooks as _wh
-    _require_auth(authorization)
+    _require_auth(authorization, x_api_key)
     d = next((x for x in STORE["deliveries"] if x["id"] == did), None)
     if not d:
         raise HTTPException(404, "not found")
@@ -1192,7 +1417,48 @@ def webhook_replay(did: int, authorization: str = Header("")):
     out = _wh.deliver(w["url"], d["event"], {"replay_of": did}, w.get("secret", ""))
     d.update({"status": "ok" if out["ok"] else "failed",
               "attempts": d.get("attempts", 0) + out.get("attempts", 0)})
+    repo.sync("deliveries", d)
     return out
+
+
+# ---- webhook ingestion source (HMAC + timestamp window + nonce dedupe) ----
+@app.post("/api/v1/ingest/webhook", tags=["sources"])
+def ingest_webhook(spec: dict):
+    import hashlib as _h
+    import hmac as _hm
+    secret = os.getenv("WEBHOOK_INGEST_SECRET", "")
+    if not secret:
+        raise HTTPException(503, "ingest not configured (WEBHOOK_INGEST_SECRET)")
+    body = (spec.get("event", "") + str(spec.get("ts", "")) + spec.get("nonce", "") +
+            json_dumps(spec.get("payload", {}))).encode()
+    expect = _hm.new(secret.encode(), body, _h.sha256).hexdigest()
+    if not _hm.compare_digest(expect, spec.get("signature", "")):
+        raise HTTPException(401, "bad signature")
+    now = time.time()
+    try:
+        ts = float(spec.get("ts", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "bad ts")
+    if abs(now - ts) > 300:
+        raise HTTPException(401, "stale timestamp (replay window 300s)")
+    nonce = spec.get("nonce", "")
+    if not nonce or nonce in _NONCES:
+        raise HTTPException(409, "duplicate/replayed nonce")
+    _NONCES[nonce] = now
+    if len(_NONCES) > 10000:
+        old = sorted(_NONCES, key=_NONCES.get)[:5000]
+        for k in old:
+            _NONCES.pop(k, None)
+    item = {"id": len(STORE["events"]) + 1, "org": 1, "type": spec.get("event", "webhook"),
+            "entity_key": str(spec.get("payload", {}))[:200], "severity": "info",
+            "confidence": 0.8, "evidence": [], "observed_at": now}
+    STORE["events"].append(item)
+    return {"ok": True, "event_id": item["id"]}
+
+
+def json_dumps(obj):
+    import json as _j
+    return _j.dumps(obj, sort_keys=True, default=str)
 
 
 # ---- i18n ----
@@ -1204,29 +1470,33 @@ def get_strings(lang: str = "en"):
 
 # ---- job lifecycle: cancel / retry / dead-letter ----
 @app.post("/api/v1/jobs/{job_id}/cancel", tags=["jobs"])
-def cancel_job(job_id: str, authorization: str = Header("")):
-    _require_auth(authorization)
-    job = next((j for j in STORE["jobs"] if j.get("job_id") == job_id), None)
+def cancel_job(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _ctx(authorization, x_api_key)
+    job = next((j for j in STORE["jobs"]
+                if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:
         raise HTTPException(404, "job not found")
     if job["status"] not in ("queued",):
         raise HTTPException(409, f"cannot cancel job in status {job['status']}")
     job["status"] = "cancelled"
-    _audit(authorization[:12] if authorization else "anon", "job.cancel", job_id)
+    repo.sync("jobs", job)
+    _audit(email, "job.cancel", job_id)
     return job
 
 
 @app.post("/api/v1/jobs/{job_id}/retry", tags=["jobs"])
-def retry_job(job_id: str, authorization: str = Header("")):
-    _require_auth(authorization)
-    job = next((j for j in STORE["jobs"] if j.get("job_id") == job_id), None)
+def retry_job(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _ctx(authorization, x_api_key)
+    job = next((j for j in STORE["jobs"]
+                if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:
         raise HTTPException(404, "job not found")
     if job["status"] not in ("failed", "cancelled"):
         raise HTTPException(409, f"cannot retry job in status {job['status']}")
     job["status"] = "queued"
     job["retries"] = job.get("retries", 0) + 1
-    _audit(authorization[:12] if authorization else "anon", "job.retry", job_id)
+    repo.sync("jobs", job)
+    _audit(email, "job.retry", job_id)
     return job
 
 
@@ -1246,31 +1516,34 @@ def dead_letters():
 
 # ---- entity operations + explorer ----
 @app.post("/api/v1/entities/merge", tags=["entities"])
-def entity_merge(spec: dict, authorization: str = Header("")):
+def entity_merge(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import entityops as _o
     email, _, _ = _need(authorization, "configure")
     out = _o.merge(STORE["entities"], STORE["entity_history"],
                    spec.get("keep_id"), spec.get("drop_id"), email)
     if not out["ok"]:
         raise HTTPException(404, out["error"])
+    repo.sync("entities", out["entity"])
     _audit(email, "entity.merge", f"{spec.get('keep_id')}<-{spec.get('drop_id')}")
     return out
 
 
 @app.post("/api/v1/entities/split", tags=["entities"])
-def entity_split(spec: dict, authorization: str = Header("")):
+def entity_split(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import entityops as _o
     email, _, _ = _need(authorization, "configure")
     out = _o.split(STORE["entities"], STORE["entity_history"],
                    spec.get("entity_id"), spec.get("parts", []), email)
     if not out["ok"]:
         raise HTTPException(404, out["error"])
+    for ent in out["entities"]:
+        repo.sync("entities", ent)
     _audit(email, "entity.split", str(spec.get("entity_id")))
     return out
 
 
 @app.post("/api/v1/entities/reject", tags=["entities"])
-def entity_reject(spec: dict, authorization: str = Header("")):
+def entity_reject(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import entityops as _o
     email, _, _ = _need(authorization, "configure")
     _audit(email, "entity.reject", str(spec.get("entity_id")))
@@ -1304,8 +1577,10 @@ def entity_detail(eid: int):
 
 # ---- finding explorer ----
 @app.get("/api/v1/findings/{fid}", tags=["intelligence"])
-def finding_detail(fid: int):
-    f = next((x for x in STORE["findings"] if x.get("id") == fid), None)
+def finding_detail(fid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    f = next((x for x in STORE["findings"]
+              if x.get("id") == fid and x.get("org", 1) == org), None)
     if not f:
         raise HTTPException(404, "not found")
     ev = [x for x in STORE["evidence"] if x.get("id") in (f.get("evidence_ids") or [])]
@@ -1350,9 +1625,9 @@ def target_reliability(target_id: int = 0):
 
 
 @app.post("/api/v1/correlate/prices", tags=["intelligence"])
-def correlate_prices(spec: dict, authorization: str = Header("")):
+def correlate_prices(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import correlate as _c
-    _require_auth(authorization)
+    _require_auth(authorization, x_api_key)
     out = _c.correlate_price_sources(spec.get("series_by_source", {}))
     saved = []
     if spec.get("save"):
@@ -1373,7 +1648,7 @@ def ml_predict(spec: dict):
 
 # ---- feed subscriptions ----
 @app.post("/api/v1/feed/subscriptions", tags=["intelligence"])
-def feed_subscribe(spec: dict, authorization: str = Header("")):
+def feed_subscribe(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     email, _, _ = _ctx(authorization)
     sub = {"id": len(STORE["feed_subs"]) + 1, "owner": email, **spec}
     STORE["feed_subs"].append(sub)
@@ -1391,12 +1666,13 @@ def feed_personal(authorization: str = Header("")):
 
 # ---- alert threshold check ----
 @app.post("/api/v1/alerts/check", tags=["alerts"])
-def alert_check(spec: dict, authorization: str = Header("")):
+def alert_check(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from .services import alertguard as _ag
-    _require_auth(authorization)
+    _require_auth(authorization, x_api_key)
     out = _ag.check_threshold(spec.get("value", 0), spec.get("op", "gt"), spec.get("threshold", 0))
     if out.get("fired") and _ag.should_fire(spec.get("rule", "threshold"), STORE["alert_hist"],
                                             spec.get("cooldown_s", 3600)):
+        repo.kv_set("alert_hist", STORE["alert_hist"])
         item = {"id": len(STORE["alerts"]) + 1, "rule": spec.get("rule", "threshold"),
                 "channel": "inapp", "message": out["message"], "project_id": spec.get("project_id", 0),
                 "severity": spec.get("severity", "info"), "is_read": False}
@@ -1407,12 +1683,13 @@ def alert_check(spec: dict, authorization: str = Header("")):
 
 # ---- dataset archive ----
 @app.post("/api/v1/datasets/{did}/archive", tags=["datasets"])
-def dataset_archive(did: int, authorization: str = Header("")):
-    _require_auth(authorization)
+def dataset_archive(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _require_auth(authorization, x_api_key)
     d = next((x for x in STORE["datasets"] if x.get("id") == did), None)
     if not d:
         raise HTTPException(404, "not found")
     d["status"] = "archived"
+    repo.sync("datasets", d)
     return {"ok": True}
 
 
