@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"encoding/base64"
 	"os"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"webintel-collector/internal/proxy"
 	"webintel-collector/internal/ratelimit"
 	"webintel-collector/internal/robots"
+	"webintel-collector/internal/ssrf"
 	"webintel-collector/pkg/protocol"
 )
 
@@ -33,6 +35,21 @@ func Classify(err error) string {
 	}
 }
 
+// trustedCIDRs reads the TRUSTED_EGRESS_CIDRS allowlist (comma-separated).
+func trustedCIDRs() []string {
+	raw := os.Getenv("TRUSTED_EGRESS_CIDRS")
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	for _, c := range strings.Split(raw, ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // Collect executes one job: robots policy, rate-limit, conditional fetch
 // (ETag via cond map), validate. Proxy hook ready.
 func Collect(client *httpclient.Client, lim *ratelimit.Limiter, px proxy.Provider, job protocol.Job) protocol.Result {
@@ -53,6 +70,11 @@ func CollectWith(client *httpclient.Client, lim *ratelimit.Limiter, px proxy.Pro
 		res.Strategy = job.Strategy
 		defer px.ReleaseProxy(proxyURL, true)
 	}
+	if err := ssrf.ValidateURL(job.URL, trustedCIDRs()); err != nil {
+		res.Status = "failed"
+		res.Diagnostics = map[string]string{"error": "ssrf-blocked: " + err.Error()}
+		return res
+	}
 	if os.Getenv("ROBOTS_ENFORCE") == "1" && !robots.Allowed(job.URL, client.Plain()) {
 		res.Status = "failed"
 		res.Diagnostics = map[string]string{"error": "robots-disallowed"}
@@ -70,12 +92,23 @@ func CollectWith(client *httpclient.Client, lim *ratelimit.Limiter, px proxy.Pro
 		res.Diagnostics = map[string]string{"note": "not-modified"}
 		return res
 	}
+	if r.FinalURL != "" && r.FinalURL != job.URL {
+		if err := ssrf.ValidateURL(r.FinalURL, trustedCIDRs()); err != nil {
+			res.Status = "failed"
+			res.Diagnostics = map[string]string{"error": "ssrf-blocked-redirect: " + err.Error()}
+			return res
+		}
+	}
 	ok, _ := parser.Check(r.Header.Get("Content-Type"), r.Body, nil)
 	res.HTTPStatus = r.Status
 	res.ContentHash = r.Hash
 	res.ContentSize = r.Size
 	res.ETag = r.ETag
 	res.LastModified = r.LastMod
+	res.ContentType = r.Header.Get("Content-Type")
+	if len(r.Body) > 0 && len(r.Body) <= 256<<10 {
+		res.ContentB64 = base64.StdEncoding.EncodeToString(r.Body)
+	}
 	if r.Status == 200 && ok {
 		res.Status = "success"
 	} else {

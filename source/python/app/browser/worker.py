@@ -42,11 +42,22 @@ def pool_status():
             "reused": True}
 
 
-def fetch(url, timeout_ms=30000):
+def fetch(url, timeout_ms=30000, trusted_cidrs=None):
     try:
         import playwright  # noqa: F401
     except ImportError:
         return {"ok": False, "error": "playwright-not-installed"}
+    try:
+        from ..core.ssrf import validate_url
+        import os as _o
+        trust = trusted_cidrs if trusted_cidrs is not None else [
+            x.strip() for x in _o.getenv("TRUSTED_EGRESS_CIDRS", "").split(",") if x.strip()]
+        validate_url(url, trust or None)
+    except Exception as e:
+        from ..core.ssrf import SSRFError
+        if isinstance(e, SSRFError):
+            return {"ok": False, "error": f"ssrf-blocked: {e}"}
+        raise
     try:
         b = _browser()
     except Exception as e:

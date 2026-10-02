@@ -233,6 +233,25 @@ def list_datasets(authorization: str = Header(""), x_api_key: str = Header("")):
     return {"items": _visible_by_org(STORE["datasets"], org)}
 
 
+@router.post("/api/v1/datasets/{did}/import", tags=["datasets"])
+def dataset_import(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import datasets as _d
+    email, _, _ = _ctx(authorization, x_api_key)
+    d = next((x for x in STORE["datasets"] if x.get("id") == did), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    rows = spec.get("rows", [])
+    if spec.get("csv") and not rows:
+        import csv as _csv
+        import io as _io
+        rows = list(_csv.DictReader(_io.StringIO(spec["csv"])))
+    if len(rows) > 10000:
+        raise HTTPException(413, "too many rows (max 10000)")
+    v = _d.publish(STORE["dsversions"], did, rows,
+                   {"source": "import", "by": email, **spec.get("lineage", {})})
+    return v
+
+
 @router.post("/api/v1/datasets/{did}/publish", tags=["datasets"])
 def dataset_publish(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import datasets as _d

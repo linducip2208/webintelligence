@@ -74,6 +74,8 @@ class Alert(Base, Timestamp):
     id = Column(Integer, primary_key=True); rule = Column(String(64)); message = Column(Text)
     channel = Column(String(16), default="inapp"); project_id = Column(Integer); is_read = Column(Boolean, default=False)
     severity = Column(String(16), default="info"); delivered = Column(Boolean, default=False)
+    acked = Column(Boolean, default=False); resolved = Column(Boolean, default=False)
+    resolution = Column(Text, default="")
 class Report(Base, Timestamp):
     __tablename__ = "reports"
     id = Column(Integer, primary_key=True); kind = Column(String(64)); project_id = Column(Integer)

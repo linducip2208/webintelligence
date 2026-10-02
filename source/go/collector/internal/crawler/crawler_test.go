@@ -16,6 +16,7 @@ import (
 )
 
 func TestFullChain(t *testing.T) {
+	t.Setenv("TRUSTED_EGRESS_CIDRS", "127.0.0.0/8")
 	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/p" {
 			w.Header().Set("Content-Type", "text/html")

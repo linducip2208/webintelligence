@@ -111,3 +111,22 @@ def run_job(job: dict, target: dict, last_prices: list, policy: dec.Policy,
         "change": change_kind, "alerts": alerts, "cost": cost,
         "target_profile": prof,
     }
+
+
+def ingest_body(job: dict, body: bytes, last_prices: list):
+    """Extraction leg for collector-delivered bodies: parse → prices →
+    change vs last → alerts. Returns (prices, change_kind, alerts)."""
+    prices = extract_prices(body or b"")
+    prev = last_prices[-1] if last_prices else None
+    change_kind = "NEW"
+    if prev and prices:
+        change_kind = ("CHANGED" if abs(prices[0]["price"] - prev["price"]) > 1e-9
+                       else "UNCHANGED")
+    alerts = []
+    if change_kind == "CHANGED":
+        pct = (abs(prices[0]["price"] - prev["price"]) / abs(prev["price"]) * 100
+               if prev["price"] else 0)
+        alerts.append({"rule": "price_changed", "channel": "inapp",
+                       "message": f"Price {prev['price']} -> {prices[0]['price']} "
+                                  f"({pct:.1f}%) at {job.get('url', '')}"})
+    return prices, change_kind, alerts

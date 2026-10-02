@@ -455,14 +455,18 @@ def _m_alerts(item):
                    "project_id": item.get("project_id", 0) or 0,
                    "is_read": bool(item.get("is_read", False)),
                    "severity": item.get("severity", "info"),
-                   "delivered": bool(item.get("delivered", False))}
+                   "delivered": bool(item.get("delivered", False)),
+                   "acked": bool(item.get("acked", False)),
+                   "resolved": bool(item.get("resolved", False)),
+                   "resolution": item.get("resolution", "") or ""}
 
 
 def _h_alerts(row):
     return {"id": row.id, "rule": row.rule, "message": row.message,
             "channel": row.channel, "project_id": row.project_id,
             "is_read": bool(row.is_read), "severity": row.severity or "info",
-            "delivered": bool(row.delivered)}
+            "delivered": bool(row.delivered), "acked": bool(row.acked),
+            "resolved": bool(row.resolved), "resolution": row.resolution or ""}
 
 
 def _m_entities(item):

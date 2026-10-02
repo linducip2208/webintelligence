@@ -57,7 +57,7 @@ func (q *Queue) Pop(timeoutSec int) (Job, bool) {
 		return j, true
 	}
 	_ = q.conn.SetDeadline(time.Now().Add(time.Duration(timeoutSec+2) * time.Second))
-	_ = q.cmdRaw("BLPOP", q.key, strconv.Itoa(timeoutSec))
+	_ = q.send("BLPOP", q.key, strconv.Itoa(timeoutSec))
 	arr, err := q.readArray()
 	if err != nil || len(arr) < 2 {
 		return nil, false
@@ -70,11 +70,33 @@ func (q *Queue) Pop(timeoutSec int) (Job, bool) {
 }
 
 func (q *Queue) cmd(name string, args ...string) error {
-	parts := append([]string{name}, args...)
-	fmt.Fprintf(q.conn, "*%d\r\n", len(parts))
-	for _, p := range parts {
-		fmt.Fprintf(q.conn, "$%d\r\n%s\r\n", len(p), p)
+	if err := q.send(name, args...); err != nil {
+		return err
 	}
+	return q.readStatus()
+}
+
+func (q *Queue) send(name string, args ...string) error {
+	parts := append([]string{name}, args...)
+	if _, err := fmt.Fprintf(q.conn, "*%d\r\n", len(parts)); err != nil {
+		return err
+	}
+	for _, p := range parts {
+		if _, err := fmt.Fprintf(q.conn, "$%d\r\n%s\r\n", len(p), p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (q *Queue) cmdRaw(name string, args ...string) error {
+	if err := q.send(name, args...); err != nil {
+		return err
+	}
+	return q.readStatus()
+}
+
+func (q *Queue) readStatus() error {
 	line, err := q.r.ReadString('\n')
 	if err != nil {
 		return err
@@ -84,8 +106,6 @@ func (q *Queue) cmd(name string, args ...string) error {
 	}
 	return nil
 }
-
-func (q *Queue) cmdRaw(name string, args ...string) error { return q.cmd(name, args...) }
 
 func (q *Queue) readArray() ([]string, error) {
 	line, err := q.r.ReadString('\n')

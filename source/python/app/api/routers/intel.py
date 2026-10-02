@@ -196,6 +196,33 @@ def list_entities(page: int = 1, size: int = 20):
 
 
 
+@router.post("/api/v1/alerts/{alert_id}/ack", tags=["alerts"])
+def alert_ack(alert_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _ctx(authorization, x_api_key)
+    a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
+    if not a:
+        raise HTTPException(404, "alert not found")
+    a["acked"] = True
+    a["is_read"] = True
+    repo.sync("alerts", a)
+    _audit(email, "alert.ack", str(alert_id))
+    return {"ok": True}
+
+
+@router.post("/api/v1/alerts/{alert_id}/resolve", tags=["alerts"])
+def alert_resolve(alert_id: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _ctx(authorization, x_api_key)
+    a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
+    if not a:
+        raise HTTPException(404, "alert not found")
+    a["resolved"] = True
+    a["is_read"] = True
+    a["resolution"] = (spec.get("note", "") or "")[:500]
+    repo.sync("alerts", a)
+    _audit(email, "alert.resolve", str(alert_id))
+    return {"ok": True}
+
+
 # ---- costs & budgets ----
 @router.get("/api/v1/costs/summary")
 def costs_summary():

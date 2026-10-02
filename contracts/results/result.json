@@ -14,6 +14,8 @@
     "retrieved_at": {"type": "string", "format": "date-time"},
     "parse_status": {"enum": ["pending", "ok", "failed"]},
     "etag": {"type": "string"},
-    "last_modified": {"type": "string"}
+    "last_modified": {"type": "string"},
+    "content_type": {"type": "string"},
+    "content_b64": {"type": "string", "description": "base64 body, present when <=256KB"}
   }
 }

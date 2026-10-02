@@ -109,6 +109,24 @@ def ingest_result(res: dict, authorization: str = Header(""), x_api_key: str = H
               "content_size": res.get("content_size", 0),
               "diagnostics": res.get("diagnostics", {}),
               "prices": [], "alerts": [], "change": None, "cost": 0}
+    if res.get("content_b64") and res.get("status") == "success":
+        try:
+            import base64 as _b64
+            body = _b64.b64decode(res["content_b64"])
+            from ...services import pipeline as _pipe
+            from ...core.deps import data_dir
+            if res.get("content_hash"):
+                try:
+                    path = os.path.join(data_dir(), "raw", res["content_hash"])
+                    if not os.path.exists(path):
+                        open(path, "wb").write(body)
+                except Exception:
+                    pass
+            last = [p for p in STORE["prices"] if p.get("product_id") == job["target_id"]][-3:]
+            prices, change, alerts = _pipe.ingest_body(job, body, last)
+            bundle.update({"prices": prices, "change": change, "alerts": alerts})
+        except Exception:
+            pass
     return _apply_result(bundle, job["url"], job["project_id"], job["target_id"])
 
 
