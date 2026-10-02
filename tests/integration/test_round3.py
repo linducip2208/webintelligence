@@ -37,8 +37,8 @@ def test_semantic_endpoint_and_doc_index():
 def test_reviews_import_summary():
     c = TestClient(app)
     p = c.post("/api/v1/projects", json={"name": "RP", "description": ""}).json()
-    t = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "r.io",
-                                        "url": "https://r.io/p"}).json()
+    t = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "example.com",
+                                        "url": "https://example.com/rp"}).json()
     out = c.post("/api/v1/reviews/import", json={"reviews": [
         {"product_id": t["id"], "rating": 5, "text": "love it excellent"},
         {"product_id": t["id"], "rating": 1, "text": "terrible broken refund"}]}).json()
@@ -51,10 +51,10 @@ def test_reviews_import_summary():
 def test_running_state_guards():
     c = TestClient(app)
     p = c.post("/api/v1/projects", json={"name": "RS", "description": ""}).json()
-    t = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "r2.io",
-                                        "url": "https://r2.io"}).json()
+    t = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "example.com",
+                                        "url": "https://example.com/r2"}).json()
     j = c.post("/api/v1/jobs", json={"project_id": p["id"], "target_id": t["id"],
-                                     "url": "https://r2.io"}).json()
+                                     "url": "https://example.com/r2"}).json()
     assert c.post(f"/api/v1/jobs/{j['job_id']}/cancel", json={}).json()["status"] == "cancelled"
     assert c.post(f"/api/v1/jobs/{j['job_id']}/cancel", json={}).status_code == 409
     assert c.post(f"/api/v1/jobs/{j['job_id']}/retry", json={}).json()["status"] == "queued"

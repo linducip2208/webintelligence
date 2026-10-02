@@ -11,6 +11,7 @@ class Organization(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), unique=True, index=True)
     slug = Column(String(128), unique=True, index=True)
+    plan = Column(String(32), default="starter")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

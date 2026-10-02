@@ -20,12 +20,23 @@ def _sig(secret, event, ts, nonce, payload):
 
 
 def test_rate_limit_and_body_guard(monkeypatch):
-    monkeypatch.setenv("RATE_LIMIT_PER_MIN", "3")
+    monkeypatch.setenv("RATE_LIMIT_STANDARD", "3")
     from app.main import _BUCKETS
     _BUCKETS.clear()
+    try:
+        import redis as _r
+        _r.Redis.from_url("redis://127.0.0.1:6379/15", socket_timeout=2).flushdb()
+    except Exception:
+        pass
     c = TestClient(app)
     codes = [c.get("/api/v1/projects").status_code for _ in range(5)]
     assert codes[:3] == [200, 200, 200] and 429 in codes[3:]
+    r429 = c.get("/api/v1/projects")
+    assert r429.status_code == 429 and "retry-after" in r429.headers
+    assert r429.json()["error"]["code"] == "rate_limited"
+    # expensive class has its own bucket: AI still allowed
+    monkeypatch.setenv("RATE_LIMIT_AI", "100000")
+    assert c.post("/api/v1/ai/chat", json={"messages": []}).status_code != 429
     big = "x" * 100
     r = c.post("/api/v1/projects", json={"name": "x" * 10},
                headers={"content-length": str(999999999)})

@@ -14,7 +14,8 @@ from app.main import app  # noqa: E402
 
 
 def _unlimit(monkeypatch):
-    monkeypatch.setenv("RATE_LIMIT_PER_MIN", "100000")
+    monkeypatch.setenv("RATE_LIMIT_STANDARD", "100000")
+    monkeypatch.setenv("RATE_LIMIT_SEARCH", "100000")
     from app.main import _BUCKETS
     _BUCKETS.clear()
 

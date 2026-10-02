@@ -5,21 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Universal Intelligence Platform</title>
 <style>
-:root{color-scheme:light dark}*{box-sizing:border-box}body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:#0b1220;color:#e6edf3}
-.layout{display:flex;min-height:100vh}aside{width:250px;background:#0d1526;padding:14px;position:sticky;top:0;height:100vh;overflow:auto}
-aside h1{font-size:15px;margin:0}aside .ver{font-size:11px;color:#9fb0c9;margin:2px 0 8px}
-aside h4{font-size:11px;text-transform:uppercase;color:#7d8ea8;margin:12px 0 4px;letter-spacing:.06em}
-aside a{display:block;color:#c9d4e3;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:13.5px}
-aside a:hover,aside a.active{background:#1b2942}main{flex:1;padding:20px;max-width:1300px;min-width:0}
+:root{color-scheme:light dark;--bg:#0b1220;--panel:#0d1526;--card:#111c33;--line:#22314f;--txt:#e6edf3;--mut:#9fb0c9;--acc:#2563eb}
+[data-theme=light]{color-scheme:light;--bg:#f3f5f9;--panel:#ffffff;--card:#ffffff;--line:#dbe2ec;--txt:#16202e;--mut:#5b6b82;--acc:#1d4ed8}
+*{box-sizing:border-box}body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--txt)}
+.layout{display:flex;min-height:100vh}aside{width:250px;background:var(--panel);padding:14px;position:sticky;top:0;height:100vh;overflow:auto}
+aside h1{font-size:15px;margin:0}aside .ver{font-size:11px;color:var(--mut);margin:2px 0 8px}
+aside h4{font-size:11px;text-transform:uppercase;color:var(--mut);margin:12px 0 4px;letter-spacing:.06em}
+aside a{display:block;color:var(--txt);text-decoration:none;padding:6px 10px;border-radius:8px;font-size:13.5px;opacity:.85}
+aside a:hover,aside a.active{background:var(--line);opacity:1}main{flex:1;padding:20px;max-width:1300px;min-width:0}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.card{background:#111c33;border:1px solid #22314f;border-radius:12px;padding:14px;margin-bottom:12px}
-.card h3{margin:0 0 6px;font-size:13px;color:#9fb0c9}.card .v{font-size:24px;font-weight:700}
-table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:7px;border-bottom:1px solid #22314f;font-size:13px;vertical-align:top;word-break:break-word}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}input,select,button,textarea{background:#0d1526;border:1px solid #2a3c5e;color:#e6edf3;border-radius:8px;padding:8px 10px;font-size:13px}
-button{cursor:pointer}button.primary{background:#2563eb;border-color:#2563eb}
-.empty{padding:24px;text-align:center;color:#9fb0c9}.status{font-size:12px;padding:2px 8px;border-radius:99px;background:#1b2942;white-space:nowrap}
-.ok{background:#0f3d26}.err{background:#4a1620}pre{background:#0d1526;padding:10px;border-radius:8px;overflow:auto;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 6px;font-size:13px;color:var(--mut)}.card .v{font-size:24px;font-weight:700}
+table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:7px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top;word-break:break-word}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}input,select,button,textarea{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:13px}
+button{cursor:pointer}button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.empty{padding:24px;text-align:center;color:var(--mut)}.status{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--line);white-space:nowrap}
+.ok{background:#0f3d26;color:#e6edf3}.err{background:#4a1620;color:#fff}.warn{background:#4a3416;color:#fff}pre{background:var(--panel);padding:10px;border-radius:8px;overflow:auto;font-size:12px}
 form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:100%;margin-top:6px}
+#toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:99}
+.toast{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;max-width:340px}
 @media(max-width:900px){aside{display:none}}
 </style>
 </head>
@@ -27,7 +31,8 @@ form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:100%;ma
 <div class="layout">
 <aside>
 <h1>Universal Intel</h1><div class="ver">v2.0.0 · live data only</div>
-<div><select id="lang" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option></select></div>
+<div><select id="lang" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option></select>
+<button onclick="toggleTheme()" title="dark/light">◐</button></div>
 <div id="nav"></div>
 <div style="margin-top:10px"><input id="tok" placeholder="API token / key"></div>
 </aside>
@@ -37,9 +42,13 @@ form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#tok{width:100%;ma
 <div id="content"><div class="empty">Loading…</div></div>
 </main>
 </div>
+<div id="toasts"></div>
 <script>
 const $=s=>document.querySelector(s);
 let view='dashboard', LANG=localStorage.getItem('wi-lang')||'en', I18N={};
+document.documentElement.dataset.theme=localStorage.getItem('wi-theme')||'dark';
+function toggleTheme(){const t=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=t;localStorage.setItem('wi-theme',t);}
+function toast(m){const d=document.createElement('div');d.className='toast';d.textContent=m;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),4000);}
 const NAV=[
  ['Dashboard',[['dashboard','dashboard']]],
  ['Intelligence',[['feed','feed'],['findings','findings'],['trends','analytics'],['anomalies','analytics'],['opportunities','opps']]],
@@ -68,13 +77,23 @@ function form(fields,fn){return `<form class="inline" onsubmit="${fn}(event)">${
 const val=n=>{const e=document.querySelector(`[name="${n}"]`);return e?e.value:''};
 async function load(){nav();$('#title').textContent=T(view);$('#actions').innerHTML='';const C=$('#content');
 try{
-if(view==='dashboard'){const d=await api('/api/v1/dashboard');const f=await api('/api/v1/feed?limit=5');
+if(view==='dashboard'){const [d,f,h,op,runs,ai,q]=await Promise.all([
+api('/api/v1/dashboard'),api('/api/v1/feed?limit=5'),api('/readyz'),
+api('/api/v1/opportunities'),api('/api/v1/research/runs?size=5'),
+api('/api/v1/ai/usage'),api('/api/v1/analytics/quality')]);
+const down=h.checks.filter(c=>c.status!=='up');
 C.innerHTML=`<div class="grid">
 <div class="card"><h3>Jobs</h3><div class="v">${d.jobs_total}</div><div>${d.jobs_success} ok / ${d.jobs_failed} failed</div></div>
 <div class="card"><h3>Open alerts</h3><div class="v">${d.alerts_open}</div></div>
 <div class="card"><h3>Price points</h3><div class="v">${d.price_points}</div></div>
-<div class="card"><h3>Est. cost</h3><div class="v">$${(d.costs.estimated||0).toFixed(4)}</div></div></div>
-<div class="card"><h3>${T('feed')}</h3>${f.items.map(i=>`<div>• [${esc(i.kind)}] ${esc(i.title)}</div>`).join('')||'<div class="empty">Feed empty — run collections to generate intelligence.</div>'}</div>`;}
+<div class="card"><h3>Est. cost</h3><div class="v">$${(d.costs.estimated||0).toFixed(4)}</div></div>
+<div class="card"><h3>Opportunities</h3><div class="v">${(op.items||[]).length}</div></div>
+<div class="card"><h3>Data quality</h3><div class="v">${q.avg_overall??'—'}</div><div>${q.records} records</div></div>
+<div class="card"><h3>AI calls</h3><div class="v">${ai.calls}</div><div>$${(ai.cost||0).toFixed(4)}</div></div>
+<div class="card"><h3>System</h3><div class="v"><span class="status ${h.status==='healthy'?'ok':'warn'}">${h.status}</span></div><div>${down.length?('down: '+down.map(c=>c.name).join(', ')):'all dependencies up'}</div></div></div>
+<div class="grid"><div class="card"><h3>${T('feed')}</h3>${f.items.map(i=>`<div>• [${esc(i.kind)}] ${esc(i.title)}</div>`).join('')||'<div class="empty">Feed empty — run collections to generate intelligence.</div>'}</div>
+<div class="card"><h3>${T('runs')}</h3>${(runs.items||[]).map(r=>`<div>• #${r.id} ${esc((r.question||'').slice(0,60))} [${r.status}]</div>`).join('')||'<div class="empty">No research yet.</div>'}</div></div>
+${d.jobs_total===0?'<div class="empty">Create a project → target → job, then press “Run now” on the job. Numbers appear only from real runs.</div>':''}`;}
 else if(view==='feed'){const d=await api('/api/v1/feed?limit=50');C.innerHTML=d.items.map(i=>`<div class="card"><h3>[${esc(i.kind)}] ${esc(i.title)}</h3><div>${esc(JSON.stringify(i.ref))}</div></div>`).join('')||'<div class="empty">No feed items.</div>';}
 else if(view==='opps'){const d=await api('/api/v1/opportunities');C.innerHTML=table(d.items||[],['type','product_id','price','z']);}
 else if(view==='research'){C.innerHTML=`<div class="card"><h3>New research</h3><form class="inline" onsubmit="mkResearch(event)"><input name="q" style="width:340px" placeholder="Research question…"><button class="primary">Plan</button></form><pre id="rp"></pre><pre id="rr"></pre></div>`;}

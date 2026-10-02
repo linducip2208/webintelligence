@@ -1,8 +1,8 @@
 """RBAC matrix + org isolation — stdlib."""
 MATRIX = {
     "owner": {"*"},
-    "admin": {"read", "collect", "research", "configure", "users", "alert"},
-    "analyst": {"read", "collect", "research", "alert"},
+    "admin": {"read", "collect", "research", "alert", "ai", "configure", "users"},
+    "analyst": {"read", "collect", "research", "alert", "ai"},
     "viewer": {"read"},
 }
 def can(role: str, action: str) -> bool:

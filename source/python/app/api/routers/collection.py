@@ -25,6 +25,7 @@ from ..shared import (
     sched,
     time,
     uuid,
+    _need,
 )
 
 router = APIRouter()
@@ -32,10 +33,15 @@ router = APIRouter()
 # ---- collection jobs ----
 @router.post("/api/v1/jobs")
 def create_job(j: JobIn, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, org, _ = _ctx(authorization, x_api_key)
+    from ...services import entitlements as _e
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    ok, why = _e.check(STORE, org, "jobs")
+    if not ok:
+        raise HTTPException(402, why)
     _check_url(j.url)
     engine = dec.Engine()
-    policy = dec.Policy(allow_brightdata=bright.configured)
+    brow_ok, _ = _e.check(STORE, org, "browser")
+    policy = dec.Policy(allow_browser=brow_ok, allow_brightdata=bright.configured)
     target = next((t for t in STORE["targets"]
                    if t["id"] == j.target_id and t.get("org", 1) == org), None)
     if j.target_id and not target:
@@ -77,7 +83,7 @@ def list_jobs(page: int = 1, size: int = 20, status: str = "", sort: str = "", o
 def run_job_now(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
     """Execute the full pipeline inline: fetch → validate → normalize →
     change-detect → alerts. BROWSER/proxy legs stay deferred to workers."""
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     job = next((j for j in STORE["jobs"]
                 if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:
@@ -97,7 +103,7 @@ def run_job_now(job_id: str, authorization: str = Header(""), x_api_key: str = H
 @router.post("/api/v1/results")
 def ingest_result(res: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     """Go collector / Python worker result ingestion (contracts/results/result.json)."""
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     if res.get("schema_version") != "1.0" or not res.get("job_id"):
         raise HTTPException(400, "bad result contract")
     job = next((j for j in STORE["jobs"]
@@ -166,7 +172,7 @@ def list_articles(page: int = 1, size: int = 20,
 
 @router.post("/api/v1/articles")
 def create_article(a: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["articles"]) + 1, "org": org, **a}
     STORE["articles"].append(item)
     return item
@@ -199,7 +205,7 @@ def search(q: str = "", scope: str = "all"):
 @router.post("/api/v1/reviews/import", tags=["intelligence"])
 def reviews_import(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...analytics.ml import sentiment
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     n = 0
     for r in spec.get("reviews", [])[:1000]:
         t = next((x for x in STORE["targets"] if x.get("id") == r.get("product_id")), None)
@@ -229,7 +235,7 @@ def reviews_summary(product_id: int = 0,
 # ---- schedules + worker ----
 @router.post("/api/v1/schedules")
 def create_schedule(s: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _require_auth(authorization, x_api_key)
+    _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["schedules"]) + 1, "status": "active",
             "next_run": sched.next_run(s.get("kind", "interval"),
                                        s.get("every_min", 60),
@@ -249,7 +255,7 @@ def list_schedules(page: int = 1, size: int = 20,
 def worker_tick(authorization: str = Header(""), x_api_key: str = Header("")):
     """Execute due schedules: creates collection jobs. Called by systemd
     worker or cron; also powers the UI 'Run scheduler' button."""
-    _require_auth(authorization, x_api_key)
+    _need(authorization, "collect", x_api_key)
     import datetime
 
     now = datetime.datetime.utcnow()
@@ -285,7 +291,7 @@ def worker_tick(authorization: str = Header(""), x_api_key: str = Header("")):
 # ---- job lifecycle: cancel / retry / dead-letter ----
 @router.post("/api/v1/jobs/{job_id}/cancel", tags=["jobs"])
 def cancel_job(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, org, _ = _ctx(authorization, x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     job = next((j for j in STORE["jobs"]
                 if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:
@@ -300,7 +306,7 @@ def cancel_job(job_id: str, authorization: str = Header(""), x_api_key: str = He
 
 @router.post("/api/v1/jobs/{job_id}/retry", tags=["jobs"])
 def retry_job(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, org, _ = _ctx(authorization, x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     job = next((j for j in STORE["jobs"]
                 if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:

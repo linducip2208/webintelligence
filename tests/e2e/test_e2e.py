@@ -40,6 +40,12 @@ def test_e2e_flow():
     assert c.get("/api/v1/audit").status_code == 200
     d = c.get("/api/v1/dashboard").json()
     assert d["jobs_total"] >= 1 and d["jobs_success"] >= 1
+    # consistent error envelope + request id
+    r404 = c.get("/api/v1/findings/999999")
+    assert r404.status_code == 404
+    body = r404.json()
+    assert body["error"]["code"] == "not_found" and body["error"]["request_id"]
+    assert r404.headers["x-request-id"] == body["error"]["request_id"]
     # universal flow: research -> graph/evidence -> finding -> feed -> watchlist alert
     plan = c.post("/api/v1/research/plan", json={"question": "Which companies entered this market?"}).json()
     assert plan["steps"]

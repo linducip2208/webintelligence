@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.8.0
+- APP_ENV modes + production fail-closed DB (proven by tests)
+- Consistent error envelope `{error:{code,message,request_id}}`
+- Layered rate limits (cost classes × identity, Redis-backed, Retry-After)
+- Adversarial SSRF hardening (both languages, DNS-safe)
+- Resource-aware RBAC on all mutating endpoints + negative tests
+- Commercial entitlements enforced server-side (402 quotas)
+- Executive dashboard, light mode, toasts
+- Backup/restore round-trip test
+
 ## v2.6.0
 - Real connector execution (RSS/REST paginated/CSV) + test/execute endpoints
 - Review queue, lineage explorer, graph shortest-path

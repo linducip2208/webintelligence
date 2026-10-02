@@ -26,7 +26,34 @@ def test_ssrf_blocks_private():
             assert False, bad
         except SSRFError:
             pass
-    assert validate_url("https://example.com/p?q=1") is True
+    assert validate_url("https://127.0.0.1/p", ["127.0.0.0/8"]) is True
+
+
+def test_ssrf_adversarial():
+    tricky = [
+        "http://2130706433/",          # decimal 127.0.0.1
+        "http://0x7f000001/",          # hex
+        "http://017700000001/",        # octal
+        "http://0x7f.0.0.1/",          # dotted hex
+        "http://0177.0.0.1/",          # dotted octal
+        "http://[::ffff:127.0.0.1]/",  # mapped v6
+        "http://[::1]/",
+        "http://0.0.0.0/",
+        "http://100.100.100.200/",     # alibaba metadata
+        "http://example.com@127.0.0.1/",  # userinfo trick
+        "http://127.1/",               # short form
+    ]
+    for bad in tricky:
+        try:
+            validate_url(bad)
+            assert False, bad
+        except SSRFError:
+            pass
+    try:
+        validate_url("http://nonexistent.invalid.xyz/")
+        assert False
+    except SSRFError:
+        pass
 
 
 def test_decision_escalation():

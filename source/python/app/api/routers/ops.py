@@ -19,6 +19,39 @@ from ..shared import (
 
 router = APIRouter()
 
+@router.get("/api/v1/billing/plans", tags=["admin"])
+def billing_plans():
+    from ...services import entitlements as _e
+    return {"plans": _e.PLANS}
+
+
+@router.get("/api/v1/billing/usage", tags=["admin"])
+def billing_usage(authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import entitlements as _e
+    _, org, _ = _ctx(authorization, x_api_key)
+    return _e.usage(STORE, org)
+
+
+@router.post("/api/v1/billing/plan", tags=["admin"])
+def billing_set_plan(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import entitlements as _e
+    email, org, role = _need(authorization, "configure", x_api_key)
+    if role != "owner":
+        raise HTTPException(403, "owners only")
+    if spec.get("plan") not in _e.PLANS:
+        raise HTTPException(400, "unknown plan")
+    target_org = spec.get("org_id", org)
+    o = next((x for x in STORE["orgs"] if x.get("id") == target_org), None)
+    if not o:
+        raise HTTPException(404, "organization not found")
+    if o["id"] != org and role != "owner":
+        raise HTTPException(403, "cross-org denied")
+    o["plan"] = spec["plan"]
+    repo.sync("orgs", o)
+    _audit(email, "billing.plan", f"{target_org}->{spec['plan']}")
+    return {"ok": True, "plan": o["plan"]}
+
+
 # ---- audit ----
 @router.get("/api/v1/audit")
 def list_audit(page: int = 1, size: int = 20):
@@ -98,7 +131,7 @@ def revoke_apikey(kid: int, authorization: str = Header(""), x_api_key: str = He
 # ---- watchlists ----
 @router.post("/api/v1/watchlists", tags=["monitoring"])
 def create_watchlist(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["watchlists"]) + 1, "org": org, **spec}
     STORE["watchlists"].append(item)
     return item
@@ -112,7 +145,7 @@ def list_watchlists(authorization: str = Header(""), x_api_key: str = Header("")
 
 @router.delete("/api/v1/watchlists/{wid}", tags=["monitoring"])
 def delete_watchlist(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
-    _require_auth(authorization, x_api_key)
+    _need(authorization, "collect", x_api_key)
     STORE["watchlists"][:] = [w for w in STORE["watchlists"] if w["id"] != wid]
     return {"ok": True}
 
@@ -129,7 +162,7 @@ def watchlist_evaluate(wid: int, authorization: str = Header(""), x_api_key: str
     Matches create alerts (cooldown-guarded)."""
     from ...services import watchlists as _w
     from ...services import alertguard as _ag
-    email, org, _ = _ctx(authorization, x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     w = next((x for x in STORE["watchlists"]
               if x.get("id") == wid and x.get("org", 1) == org), None)
     if not w:
@@ -160,7 +193,7 @@ def watchlist_evaluate(wid: int, authorization: str = Header(""), x_api_key: str
 # ---- workflows ----
 @router.post("/api/v1/workflows", tags=["monitoring"])
 def create_workflow(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["workflows"]) + 1, "org": org, "enabled": True, **spec}
     STORE["workflows"].append(item)
     return item
@@ -175,7 +208,7 @@ def list_workflows(authorization: str = Header(""), x_api_key: str = Header(""))
 @router.post("/api/v1/workflows/{wid}/run", tags=["monitoring"])
 def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import workflows as _w
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     wf = next((x for x in STORE["workflows"]
                if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not wf:
@@ -204,7 +237,7 @@ def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_ke
 @router.post("/api/v1/webhooks", tags=["monitoring"])
 def create_webhook(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...core.crypto import encrypt
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "configure", x_api_key)
     item = {"id": len(STORE["webhooks"]) + 1, "org": org, "enabled": True, **spec}
     if item.get("secret"):
         item["secret"] = encrypt(item["secret"])
@@ -223,7 +256,7 @@ def list_webhooks(authorization: str = Header(""), x_api_key: str = Header("")):
 def webhook_test(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import webhooks as _wh
     from ...core.crypto import decrypt
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "configure", x_api_key)
     w = next((x for x in STORE["webhooks"]
               if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not w:
@@ -246,7 +279,7 @@ def webhook_deliveries(page: int = 1, size: int = 20):
 def webhook_replay(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import webhooks as _wh
     from ...core.crypto import decrypt
-    _require_auth(authorization, x_api_key)
+    _need(authorization, "configure", x_api_key)
     d = next((x for x in STORE["deliveries"] if x["id"] == did), None)
     if not d:
         raise HTTPException(404, "not found")

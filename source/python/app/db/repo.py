@@ -23,8 +23,29 @@ def _parse_dt(v):
         return None
 
 
-def resolve_engine(url=""):
+def resolve_engine(url="", env="development"):
+    """Backend policy by environment.
+
+    production/staging: MySQL REQUIRED. Raises clearly on any failure or on
+    non-MySQL URLs — never silently falls back to SQLite/memory.
+    development/test: MySQL when reachable, else SQLite file, else memory.
+    """
     from sqlalchemy import create_engine
+    strict = (env or "").lower() in ("production", "staging", "prod")
+    if strict:
+        if not (url or "").startswith("mysql"):
+            raise RuntimeError(
+                f"db-unavailable: APP_ENV={env} requires a MySQL DATABASE_URL, got "
+                f"{(url or '')[:12]!r}. Refusing silent SQLite fallback.")
+        try:
+            __import__("pymysql")
+            eng = create_engine(url, pool_pre_ping=True, future=True,
+                                connect_args={"connect_timeout": 5})
+            with eng.connect() as c:
+                c.exec_driver_sql("SELECT 1")
+            return eng, "mysql"
+        except Exception as e:
+            raise RuntimeError(f"db-unavailable: MySQL unreachable in APP_ENV={env}: {e}"[:300])
     if url and url.startswith("mysql"):
         try:
             __import__("pymysql")
@@ -81,11 +102,27 @@ def _ensure_columns(engine):
 
 
 class Repo:
-    def __init__(self, engine=None, url=""):
+    def __init__(self, engine=None, url="", env=""):
         from sqlalchemy.orm import sessionmaker
+        from ..core.config import settings
+        env = env or settings.app_env
+        self.env = env
+        self.boot_error = ""
+        self.available = True
         if engine is None:
-            from ..core.config import settings
-            engine, self.backend = resolve_engine(url or settings.database_url)
+            try:
+                engine, self.backend = resolve_engine(url or settings.database_url, env)
+            except RuntimeError as e:
+                # production fail-closed: boot continues so /readyz can explain,
+                # but every write/query raises instead of silently degrading.
+                self.backend = "unavailable"
+                self.available = False
+                self.boot_error = str(e)[:300]
+                from ..core.logging import log
+                log("repo-unavailable", error=self.boot_error)
+                self.engine = None
+                self.Session = None
+                return
         else:
             self.backend = "given"
         self.engine = engine
@@ -94,6 +131,14 @@ class Repo:
         _ensure_columns(engine)
         self._seed()
 
+    @property
+    def should_raise(self):
+        return not self.available
+
+    def _guard(self):
+        if not self.available:
+            raise RuntimeError(f"db-unavailable: {self.boot_error or self.backend}")
+
     # ---------- seed / users ----------
     def _seed(self):
         try:
@@ -101,7 +146,9 @@ class Repo:
             from ..models.entities import User
             s = self.Session()
             if s.query(Organization).count() == 0:
-                s.add(Organization(id=1, name="Default", slug="default"))
+                import os as _o
+                s.add(Organization(id=1, name="Default", slug="default",
+                                   plan=_o.getenv("DEFAULT_PLAN", "starter")))
             from ..models.universal import Membership
             if s.query(Membership).count() == 0:
                 s.add(Membership(org_id=1, email="admin@local", role="owner"))
@@ -144,6 +191,7 @@ class Repo:
         return self.Session()
 
     def add(self, coll, item):
+        self._guard()
         fn = _MIRRORS.get(coll)
         if not fn:
             return item
@@ -164,6 +212,7 @@ class Repo:
         return item
 
     def sync(self, coll, item):
+        self._guard()
         """Update the mirrored row after in-place mutation."""
         fn = _MIRRORS.get(coll)
         if not fn:
@@ -195,6 +244,7 @@ class Repo:
             log("repo-sync-failed", coll=coll, error=str(e)[:200])
 
     def delete(self, coll, item_id, key="id"):
+        self._guard()
         fn = _MIRRORS.get(coll)
         if not fn:
             return
@@ -208,6 +258,7 @@ class Repo:
             pass
 
     def load_all(self):
+        self._guard()
         out = {c: [] for c in _MIRRORS}
         out.update({"budgets": {}, "alert_hist": {}, "tags": {}, "health": []})
         try:
@@ -255,6 +306,7 @@ class Repo:
              filters=None, in_filters=None, colmap=None):
         """DB-level pagination (LIMIT/OFFSET + COUNT) so large collections
         never load fully into memory. colmap: STORE key -> column name."""
+        self._guard()
         model = _model_for(coll)
         hyd = _HYDRATE[coll][1]
         page = max(1, page)
@@ -295,6 +347,7 @@ class Repo:
             return {"items": [], "total": 0, "page": page, "size": size}
 
     def kv_set(self, key, value):
+        self._guard()
         try:
             from ..models.universal import KV
             s = self._session()
@@ -309,6 +362,7 @@ class Repo:
             pass
 
     def kv_get(self, key, default=None):
+        self._guard()
         try:
             from ..models.universal import KV
             s = self._session()
@@ -319,6 +373,7 @@ class Repo:
             return default
 
     def set_budget(self, project_id, limit):
+        self._guard()
         try:
             from ..models.entities import Project
             s = self._session()
@@ -531,11 +586,13 @@ def _m_aiusage(item):
                      "input_tokens": item.get("input_tokens", 0) or 0,
                      "output_tokens": item.get("output_tokens", 0) or 0,
                      "cost": item.get("cost", 0.0) or 0.0,
-                     "latency_ms": item.get("latency_ms", 0) or 0}
+                     "latency_ms": item.get("latency_ms", 0) or 0,
+                     "org_id": item.get("org", 1) or 1}
 
 
 def _h_aiusage(row):
     return {"id": row.id, "provider": row.provider, "model": row.model,
+            "org": row.org_id or 1,
             "input_tokens": row.input_tokens, "output_tokens": row.output_tokens,
             "cost": row.cost, "at": str(getattr(row, "created_at", "") or "")}
 
@@ -547,11 +604,13 @@ def _h_reviews(row):
 
 def _m_orgs(item):
     from ..models.universal import Organization
-    return Organization, {"name": item.get("name", ""), "slug": item.get("slug", "")}
+    return Organization, {"name": item.get("name", ""), "slug": item.get("slug", ""),
+                          "plan": item.get("plan", "starter")}
 
 
 def _h_orgs(row):
-    return {"id": row.id, "name": row.name, "slug": row.slug}
+    return {"id": row.id, "name": row.name, "slug": row.slug,
+            "plan": getattr(row, "plan", "starter") or "starter"}
 
 
 def _m_memberships(item):

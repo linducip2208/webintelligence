@@ -15,7 +15,13 @@ def test_ssrf_localhost_blocked():
 
 
 def test_ssrf_public_ok():
-    assert validate_url("https://example.com/a") is True
+    # allowlisted loopback passes; unresolvable names fail closed (no network needed)
+    assert validate_url("https://127.0.0.1/a", ["127.0.0.0/8"]) is True
+    try:
+        validate_url("http://nonexistent.invalid/")
+        assert False
+    except SSRFError:
+        pass
 
 
 def test_ssrf_metadata_blocked():

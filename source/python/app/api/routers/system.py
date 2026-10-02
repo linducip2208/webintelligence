@@ -50,18 +50,23 @@ def healthz():
 
 @router.get("/readyz")
 def readyz():
+    db_ok = repo.available
     checks = [
         healthsvc.check("api", True),
         healthsvc.check("redis", redis_status()["ok"], "connected" if redis_status()["ok"] else "memory fallback"),
-        healthsvc.check("database", True, f"backend={repo.backend}"),
+        healthsvc.check("database", db_ok,
+                        f"backend={repo.backend}" + (f": {repo.boot_error}" if not db_ok else "")),
         healthsvc.check("own_proxy", bool(settings.own_proxy_urls)),
         healthsvc.check("brightdata", bright.configured),
         healthsvc.check("ai", bool(settings.muse_base_url and settings.muse_api_key)),
     ]
     live = [c for c in checks if c["name"] in ("api", "redis", "database")]
     status = "healthy" if all(c["status"] == "up" for c in live) else "degraded"
-    STORE["health"].append({"at": time.time(), "status": status,
-                            "checks": {c["name"]: c["status"] for c in checks}})
+    try:
+        STORE["health"].append({"at": time.time(), "status": status,
+                                "checks": {c["name"]: c["status"] for c in checks}})
+    except Exception:
+        pass
     return {"status": status, "checks": checks}
 
 
@@ -96,6 +101,7 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     from ...ai import safety as _safe
     from ...ai.factory import fallback_order
     from ...services import flags as _fl
+    from ...ai.http import estimate_tokens, messages_text
     email0, org0, _ = _ctx(authorization, x_api_key)
     if not _fl.is_enabled(repo, "ai", org0, email0):
         raise HTTPException(403, "ai disabled by feature flag")
@@ -106,6 +112,12 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     if spec.get("evidence"):
         messages = messages + [{"role": "user",
                                 "content": _safe.wrap_evidence(spec["evidence"])}]
+    from ...services import entitlements as _e
+    _, _, _ = _need(authorization, "ai", x_api_key)
+    okq, why = _e.check(STORE, org0, "ai_tokens",
+                        estimate_tokens(messages_text(messages)) + 2000)
+    if not okq:
+        raise HTTPException(402, why)
     use_model = model or settings.muse_model
     chain = []
     db_name = provider[3:] if provider.startswith("db:") else provider
@@ -127,6 +139,7 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
         names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
         chain = [(n, aireg.get(n)) for n in names]
     out = _fb.chat_fallback(chain, messages, use_model)
+    out["org"] = org0
     _record_usage(out, spec.get("prompt_version", ""))
     inc("AI_requests")
     return out
@@ -138,6 +151,7 @@ def _record_usage(out: dict, prompt_version: str = ""):
         p = aireg.get(name)
         cost = p.estimate_cost(out.get("input_tokens", 0), out.get("output_tokens", 0)) if p else 0.0
         STORE["ai_usage"].append({"provider": name, "model": out.get("model", ""),
+                                  "org": out.get("org", 1),
                                   "prompt_version": prompt_version,
                                   "input_tokens": out.get("input_tokens", 0),
                                   "output_tokens": out.get("output_tokens", 0),

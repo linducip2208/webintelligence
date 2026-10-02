@@ -53,7 +53,9 @@ class MirrorList(list):
         try:
             repo.add(self._coll, item)
         except Exception:
-            pass
+            if repo.should_raise:
+                super().pop()
+                raise
         return item
 
     def __setitem__(self, key, value):

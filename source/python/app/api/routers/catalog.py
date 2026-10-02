@@ -17,6 +17,7 @@ from ..shared import (
     inc,
     paginate,
     repo,
+    _need,
 )
 
 router = APIRouter()
@@ -24,7 +25,11 @@ router = APIRouter()
 # ---- projects ----
 @router.post("/api/v1/projects")
 def create_project(p: ProjectIn, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, org, _ = _ctx(authorization, x_api_key)
+    from ...services import entitlements as _e
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    ok, why = _e.check(STORE, org, "projects")
+    if not ok:
+        raise HTTPException(402, why)
     item = {"id": len(STORE["projects"]) + 1, "org": org, "name": p.name, "description": p.description}
     STORE["projects"].append(item)
     inc("projects_total")
@@ -45,7 +50,11 @@ def list_projects(page: int = 1, size: int = 20, q: str = "", sort: str = "", or
 # ---- targets ----
 @router.post("/api/v1/targets")
 def create_target(t: TargetIn, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, org, _ = _ctx(authorization, x_api_key)
+    from ...services import entitlements as _e
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    ok, why = _e.check(STORE, org, "targets")
+    if not ok:
+        raise HTTPException(402, why)
     _check_url(t.url)
     item = t.model_dump() | {"id": len(STORE["targets"]) + 1, "org": org, "attempts": 0,
                              "successes": 0, "failures": 0}
@@ -69,7 +78,11 @@ def list_targets(page: int = 1, size: int = 20, q: str = "", sort: str = "", ord
 @router.post("/api/v1/connectors", tags=["sources"])
 def register_connector(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import connectors as _c
-    _, org, _ = _ctx(authorization, x_api_key)
+    from ...services import entitlements as _e
+    _, org, _ = _need(authorization, "collect", x_api_key)
+    ok, why = _e.check(STORE, org, "connectors")
+    if not ok:
+        raise HTTPException(402, why)
     errs = _c.validate_manifest(spec.get("manifest", {}))
     if errs:
         raise HTTPException(400, "; ".join(errs))
@@ -97,7 +110,7 @@ def target_test(tid: int, authorization: str = Header(""), x_api_key: str = Head
     from ...services import pipeline as _pipe
     from ...services import targets as _tgt
     from ...services import decision as _dec
-    email, org, _ = _ctx(authorization, x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     t = next((x for x in STORE["targets"]
               if x.get("id") == tid and x.get("org", 1) == org), None)
     if not t:
@@ -127,7 +140,7 @@ def target_test(tid: int, authorization: str = Header(""), x_api_key: str = Head
 @router.post("/api/v1/connectors/{cid}/test", tags=["sources"])
 def connector_test(cid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...connectors.runners import execute
-    _, org, _ = _ctx(authorization, x_api_key)
+    _, org, _ = _need(authorization, "collect", x_api_key)
     c = next((x for x in STORE["connectors"]
               if x.get("id") == cid and x.get("org", 1) == org), None)
     if not c:
@@ -142,7 +155,7 @@ def connector_execute(cid: int, spec: dict, authorization: str = Header(""),
                       x_api_key: str = Header("")):
     from ...connectors.runners import execute
     from ...services import datasets as _d
-    email, org, _ = _ctx(authorization, x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     c = next((x for x in STORE["connectors"]
               if x.get("id") == cid and x.get("org", 1) == org), None)
     if not c:

@@ -6,6 +6,7 @@ def _csv(name):
 @dataclass
 class Settings:
     env: str = os.getenv("ENV", "dev")
+    app_env: str = os.getenv("APP_ENV", os.getenv("ENV", "development"))
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./webintel.db")
     redis_url: str = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-key-change-me-0123456789")
