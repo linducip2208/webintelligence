@@ -262,13 +262,16 @@ def dataset_publish(did: int, spec: dict, authorization: str = Header(""), x_api
 
 
 @router.get("/api/v1/datasets/{did}/export", tags=["datasets"])
-def dataset_export(did: int, format: str = "csv", version: int = 0):
+def dataset_export(did: int, format: str = "csv", version: int = 0, mask_pii: int = 0):
     from ...services import datasets as _d
     vs = [v for v in STORE["dsversions"] if v.get("dataset_id") == did]
     rows = (vs[-1].get("rows", []) if vs else spec_rows(did))
     if version:
         v = next((x for x in vs if x.get("version") == version), None)
         rows = v.get("rows", []) if v else []
+    if mask_pii:
+        from ...services import pii as _pii
+        rows = [{k: _pii.mask(str(val)) for k, val in r.items()} for r in rows]
     if format == "json":
         return {"rows": rows}
     return {"csv": _d.to_csv(rows)}
@@ -297,6 +300,12 @@ def ingest_document(spec: dict, authorization: str = Header(""), x_api_key: str 
             "title": spec.get("title", ""), "kind": spec.get("kind", "txt"),
             "source_url": spec.get("source_url", ""), "doc_metadata": ext.get("meta", {}),
             "extracted": ext.get("extracted"), "reason": ext.get("reason", "")}
+    try:
+        from ...services import pii as _pii
+        item["doc_metadata"]["pii"] = {k: len(v) for k, v in
+                                       _pii.detect(ext.get("text", "")).items()}
+    except Exception:
+        pass
     STORE["documents"].append(item)
     try:
         from ...search.semantic import get_index
@@ -308,12 +317,50 @@ def ingest_document(spec: dict, authorization: str = Header(""), x_api_key: str 
     return item
 
 
+@router.get("/api/v1/lineage/{fid}", tags=["knowledge"])
+def lineage(fid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Answer 'where did this come from?': finding -> evidence -> sources/jobs."""
+    _, org, _ = _ctx(authorization, x_api_key)
+    f = next((x for x in STORE["findings"]
+              if x.get("id") == fid and x.get("org", 1) == org), None)
+    if not f:
+        raise HTTPException(404, "finding not found")
+    ev = [x for x in STORE["evidence"] if x.get("id") in (f.get("evidence_ids") or [])]
+    jobs = [j for j in STORE["jobs"]
+            if j.get("job_id") in {e.get("job_id", "") for e in ev} or
+            j.get("job_id") in {p.get("job_id", "") for p in STORE["prices"]}]
+    nodes = [n for n in STORE["nodes"]
+             if n.get("name") in (f.get("entities") or []) or n.get("key") in (f.get("entities") or [])]
+    return {"finding": {"id": f["id"], "title": f.get("title"), "kind": f.get("kind")},
+            "evidence": [{"id": e["id"], "source": e.get("source"), "url": e.get("url"),
+                          "content_hash": e.get("content_hash")} for e in ev],
+            "jobs": [{"job_id": j.get("job_id"), "url": j.get("url"),
+                      "strategy": j.get("strategy"), "status": j.get("status")} for j in jobs][:20],
+            "entities": [n.get("name") for n in nodes]}
+
+
 @router.get("/api/v1/documents", tags=["knowledge"])
 def list_documents(page: int = 1, size: int = 20,
                    authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization, x_api_key)
     return paginate(_visible_by_org(STORE["documents"], org), page, size)
 
+
+
+@router.get("/api/v1/graph/path", tags=["knowledge"])
+def graph_path(src: int = 0, dst: int = 0, rel: str = "",
+               authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import graph as _g
+    _, org, _ = _ctx(authorization, x_api_key)
+    mine = {n["id"] for n in STORE["nodes"] if n.get("org", 1) == org}
+    if src not in mine or dst not in mine:
+        raise HTTPException(404, "node not found")
+    edges = [e for e in STORE["edges"] if e.get("org", 1) == org]
+    hops = _g.path(STORE["nodes"], edges, src, dst, rel.split(",") if rel else None)
+    if not hops:
+        return {"path": [], "connected": False}
+    return {"path": [{"node": h["node"]["name"] if h.get("node") else None,
+                      "via": h["via"]} for h in hops], "connected": True}
 
 
 # ---- graph SVG (paginated subgraph, never the whole graph) ----

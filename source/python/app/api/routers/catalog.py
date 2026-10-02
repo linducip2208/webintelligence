@@ -89,3 +89,52 @@ def match_connector(capability: str = "", category: str = ""):
     return {"items": _c.match(STORE["connectors"], capability, category)}
 
 
+@router.post("/api/v1/connectors/{cid}/test", tags=["sources"])
+def connector_test(cid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...connectors.runners import execute
+    _, org, _ = _ctx(authorization, x_api_key)
+    c = next((x for x in STORE["connectors"]
+              if x.get("id") == cid and x.get("org", 1) == org), None)
+    if not c:
+        raise HTTPException(404, "connector not found")
+    out = execute(c)
+    return {"ok": out.get("ok", False), "count": len(out.get("items", [])),
+            "error": out.get("error", ""), "sample": out.get("items", [])[:3]}
+
+
+@router.post("/api/v1/connectors/{cid}/execute", tags=["sources"])
+def connector_execute(cid: int, spec: dict, authorization: str = Header(""),
+                      x_api_key: str = Header("")):
+    from ...connectors.runners import execute
+    from ...services import datasets as _d
+    email, org, _ = _ctx(authorization, x_api_key)
+    c = next((x for x in STORE["connectors"]
+              if x.get("id") == cid and x.get("org", 1) == org), None)
+    if not c:
+        raise HTTPException(404, "connector not found")
+    out = execute(c)
+    if not out.get("ok"):
+        _audit(email, "connector.execute.failed", c.get("name", ""))
+        return out
+    saved = {}
+    if spec.get("save_articles"):
+        n = 0
+        for it in out.get("items", [])[:200]:
+            STORE["articles"].append({"id": len(STORE["articles"]) + 1, "org": org,
+                                      "publisher": c.get("name", ""),
+                                      "title": it.get("title", ""),
+                                      "url": it.get("url", "")})
+            n += 1
+        saved["articles"] = n
+    if spec.get("save_dataset"):
+        ds = {"id": len(STORE["datasets"]) + 1, "org": org, "name": spec.get("dataset", c.get("name", "")),
+              "kind": "connector", "status": "published"}
+        STORE["datasets"].append(ds)
+        v = _d.publish(STORE["dsversions"], ds["id"], out.get("items", [])[:2000],
+                       {"source": "connector", "connector_id": cid})
+        saved["dataset_version"] = v["version"]
+    _audit(email, "connector.execute", f"{c.get('name')}:{len(out.get('items', []))}")
+    out["saved"] = saved
+    return out
+
+

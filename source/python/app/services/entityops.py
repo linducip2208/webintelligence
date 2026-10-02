@@ -4,6 +4,7 @@ def merge(entities: list, history: list, keep_id: int, drop_id: int, actor="syst
     drop = next((e for e in entities if e.get("id") == drop_id), None)
     if not keep or not drop: return {"ok": False, "error": "entity not found"}
     drop["merged_into"] = keep_id
+    keep.pop("_review", None)
     history.append({"op": "MERGE", "keep": keep_id, "drop": drop_id, "actor": actor})
     return {"ok": True, "entity": keep}
 def split(entities: list, history: list, entity_id: int, parts: list, actor="system"):

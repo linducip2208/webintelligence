@@ -1,5 +1,5 @@
-# Final Audit — Universal Intelligence Platform v2.5.0
-Date: 2026-10-02. Method: code inspection + 71 green tests + live smoke runs.
+# Final Audit — Universal Intelligence Platform v2.6.0
+Date: 2026-10-02. Method: code inspection + 79 green tests + live process runs.
 Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 
 | # | Category | Verdict | Evidence |
@@ -38,6 +38,7 @@ Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 | 32 | Round-4 architecture (v2.3) | IMPLEMENTED | main.py split into api/shared + 6 routers (suite green = behavior identical); Fernet secret encryption with honest fallback; DB-backed AI providers; DB-level pagination; RUNNING state; reviews import/summary; graph filters; OPERATIONS.md; dead deps removed |
 | 33 | Round-5 live integration (v2.4) | IMPLEMENTED | Go SSRF guard (resolve-then-validate, metadata/private blocked, redirect recheck); fixed Go BLPOP double-read bug; collector body shipping (contract extended); extraction-on-ingest closes collect→price gap; LIVE chain green with REAL processes (MiniRedis RESP + uvicorn + Go binary) incl. kill-and-restart recovery from SQLite; alert ack/resolve; dataset CSV import |
 | 34 | Round-6 multi-vendor AI (v2.5) | IMPLEMENTED | No single hardcoded vendor: OpenAI + Anthropic + Google + Ollama + Muse Spark + DB-configured providers behind one interface, env-driven registry + fallback chain with per-attempt errors; real HTTP verified against stub (schemas, headers, SSE streaming, model discovery); usage/cost/latency tracked per call; versioned prompt registry; injection defense (override-strip + evidence DATA wrapping) applied to chat evidence path |
+| 35 | Round-7 operations round (v2.6) | IMPLEMENTED | Real connector execution (RSS parsed incl. Atom, REST pagination, CSV sniffing, SSRF-guarded) + test/execute/materialize endpoints; review queue (REVIEW entities, bad claims, low-confidence); lineage explorer; graph shortest-path; feature flags (scoped, gating AI); retention runner (audited); PII detect/mask at ingest+export; system doctor; /api/version; webintel CLI; measured load 363rps p95 72ms 0 errors; ARCHITECTURE/SECURITY/OPERATIONS/CHANGELOG docs |
 
-Score: 33 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
+Score: 34 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
 No fake metrics, no hardcoded results, no committed secrets (verified: .env ignored, .env.example only).

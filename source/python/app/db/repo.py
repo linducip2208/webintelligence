@@ -308,6 +308,16 @@ class Repo:
         except Exception:
             pass
 
+    def kv_get(self, key, default=None):
+        try:
+            from ..models.universal import KV
+            s = self._session()
+            row = s.query(KV).filter_by(key=key).first()
+            s.close()
+            return row.value if row else default
+        except Exception:
+            return default
+
     def set_budget(self, project_id, limit):
         try:
             from ..models.entities import Project

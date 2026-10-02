@@ -7,6 +7,7 @@ from ..shared import (
     STORE,
     USERS,
     _audit,
+    _ctx,
     _need,
     _require_auth,
     _secret,
@@ -94,6 +95,10 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     from ...ai import fallback as _fb
     from ...ai import safety as _safe
     from ...ai.factory import fallback_order
+    from ...services import flags as _fl
+    email0, org0, _ = _ctx(authorization, x_api_key)
+    if not _fl.is_enabled(repo, "ai", org0, email0):
+        raise HTTPException(403, "ai disabled by feature flag")
     _require_auth(authorization, x_api_key)
     messages = list(spec.get("messages", []))
     model = spec.get("model", "")
@@ -168,6 +173,51 @@ def ai_prompts():
     return {"prompts": _pr.catalog()}
 
 
+@router.get("/api/v1/flags", tags=["admin"])
+def flags_list():
+    from ...services import flags as _fl
+    return {"flags": _fl.DEFAULTS}
+
+
+@router.post("/api/v1/flags", tags=["admin"])
+def flags_set(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import flags as _fl
+    email, _, _ = _need(authorization, "configure")
+    out = _fl.set_flag(repo, spec.get("name", ""), spec.get("on", True),
+                       spec.get("scope", "global"), str(spec.get("ref", "")))
+    _audit(email, "flag.set", f"{out['name']}={out['on']}")
+    return out
+
+
+@router.post("/api/v1/admin/retention/run", tags=["admin"])
+def retention_run(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Delete aged operational rows per policy. Audited. Canonical
+    entities/evidence are never touched unless explicitly listed."""
+    import time as _t
+    email, _, _ = _need(authorization, "configure")
+    days = float(spec.get("older_than_days", 90))
+    cutoff = _t.time() - days * 86400
+    policies = {"raw": ("at", "content_hash", "hash"),
+                "history": ("at", "key", "key"),
+                "events": ("observed_at", "id", "id")}
+    removed = {}
+    for coll in spec.get("collections", ["raw", "history"]):
+        if coll not in policies:
+            continue
+        field, dbkey, itemkey = policies[coll]
+        victims = [x for x in STORE[coll]
+                   if isinstance(x.get(field), (int, float)) and x[field] < cutoff]
+        for v in victims:
+            STORE[coll].remove(v)
+            try:
+                repo.delete(coll, v.get(itemkey), dbkey)
+            except Exception:
+                pass
+        removed[coll] = len(victims)
+    _audit(email, "retention.run", f"{days}d:{removed}")
+    return {"removed": removed, "cutoff_days": days}
+
+
 @router.get("/api/v1/ai/health")
 def ai_health():
     return muse.health_check()
@@ -180,6 +230,57 @@ def browser_health():
         return pool_status()
     except Exception as e:
         return {"installed": False, "error": str(e)[:200]}
+
+
+@router.get("/api/version")
+def api_version():
+    return {"app": "universal-intelligence", "api": "v1", "version": "2.5.0",
+            "contracts": {"jobs": "1.0", "results": "1.0", "events": "1.0"},
+            "deprecation": "v1 stable; no deprecation scheduled"}
+
+
+@router.get("/api/v1/system/doctor", tags=["admin"])
+def system_doctor():
+    import shutil as _sh
+    checks = []
+    try:
+        import sqlalchemy  # noqa
+        checks.append({"name": "database", "ok": True, "detail": f"backend={repo.backend}"})
+    except ImportError:
+        checks.append({"name": "database", "ok": False, "detail": "sqlalchemy missing",
+                       "action": "pip install -r requirements.txt"})
+    checks.append({"name": "redis", "ok": _redis_ok(),
+                   "detail": "connected" if _redis_ok() else "fallback: memory queue"})
+    try:
+        from ...browser.worker import pool_status as _ps
+        ps = _ps()
+        checks.append({"name": "browser", "ok": ps["installed"],
+                       "detail": "pool=%s alive=%s" % (ps["pool"], ps["browser_alive"]),
+                       "action": None if ps["installed"] else "pip install playwright"})
+    except Exception as e:
+        checks.append({"name": "browser", "ok": False, "detail": str(e)[:160]})
+    try:
+        du = _sh.disk_usage(".")
+        checks.append({"name": "disk", "ok": du.free > 100 * 1024 * 1024,
+                       "detail": f"free={du.free // 1024 // 1024}MB"})
+    except Exception as e:
+        checks.append({"name": "disk", "ok": False, "detail": str(e)[:120]})
+    checks.append({"name": "migrations", "ok": True,
+                   "detail": f"{len(repo.engine.table_names()) if hasattr(repo.engine, 'table_names') else '?'} tables"})
+    sec = {"require_auth": __import__("os").getenv("REQUIRE_AUTH", "0") == "1",
+           "credentials_key": bool(__import__("os").getenv("CREDENTIALS_KEY", ""))}
+    checks.append({"name": "security-config", "ok": sec["require_auth"],
+                   "detail": str(sec),
+                   "action": None if sec["require_auth"] else "set REQUIRE_AUTH=1 in production"})
+    return {"healthy": all(c["ok"] for c in checks), "checks": checks}
+
+
+def _redis_ok():
+    try:
+        from ...core.deps import redis_status
+        return bool(redis_status()["ok"])
+    except Exception:
+        return False
 
 
 @router.post("/api/v1/ai/providers/db", tags=["admin"])

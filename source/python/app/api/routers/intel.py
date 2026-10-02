@@ -186,7 +186,10 @@ def entity_resolve(spec: dict, authorization: str = Header(""), x_api_key: str =
         STORE["entities"].append(item)
         return {"verdict": "NEW", "entity": item, "score": 0.0}
     if verdict == "LINK":
+        best.pop("_review", None)
         return {"verdict": "LINK", "entity": best, "score": best_s}
+    best["_review"] = True
+    repo.sync("entities", best)
     return {"verdict": "REVIEW", "entity": best, "score": best_s}
 
 
@@ -387,6 +390,21 @@ def entity_reject(spec: dict, authorization: str = Header(""), x_api_key: str = 
 @router.get("/api/v1/entities/history", tags=["entities"])
 def entity_history():
     return {"items": STORE["entity_history"]}
+
+
+@router.get("/api/v1/reviews/queue", tags=["entities"])
+def review_queue(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Human-in-the-loop queue: REVIEW entities, UNVERIFIED/CONFLICTED claims,
+    low-confidence findings. Approve/reject via entity ops + claim verify."""
+    _, org, _ = _ctx(authorization, x_api_key)
+    pending_entities = [e for e in STORE["entities"] if e.get("_review")]
+    claims = [c for c in STORE["claims"]
+              if c.get("org", 1) == org and c.get("status") in ("UNVERIFIED", "CONFLICTED")]
+    low = [f for f in STORE["findings"]
+           if f.get("org", 1) == org and (f.get("confidence") or 0) < 0.5]
+    return {"entities": pending_entities, "claims": claims, "findings": low,
+            "counts": {"entities": len(pending_entities), "claims": len(claims),
+                       "findings": len(low)}}
 
 
 @router.get("/api/v1/entities/{eid}", tags=["entities"])
