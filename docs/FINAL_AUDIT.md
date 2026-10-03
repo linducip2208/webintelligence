@@ -1,4 +1,4 @@
-# Final Audit — Universal Intelligence Platform v2.11.0
+# Final Audit — Universal Intelligence Platform v2.12.0
 Date: 2026-10-02. Method: code inspection + 111 green tests + live process runs.
 Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 
@@ -44,6 +44,7 @@ Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 | 38 | Round-10 final productionization (v2.9) | IMPLEMENTED | Forensic re-audit clean; production read-guard (503 envelope when DB down, readyz explains); event dedup keys (idempotent POST); workflow versioning/update/retry/cancel; AI model allowlists per plan; NLQ allowlist validation + limits; white-label branding (validated); 10 vertical templates + apply; OIDC abstraction (honest 501 unconfigured); traversal/render load caps; AI context cap; 136 API paths |
 | 39 | Round-11 toward 100/100 (v2.10) | IMPLEMENTED | Redis-LIVE proofs (real Memurai server, not assumed); stale-DB migration healing test; real Chromium UI E2E (live numbers rendered); JS syntax + UI-OpenAPI gates (caught a shipped syntax error); Go benchmarks (Decide 289ns, Check 349ns) |
 | 40 | Round-12 OS evolution (v2.11) | IMPLEMENTED | Fixed REAL dataset-versioning bug (global numbering to per-dataset, found via order-flake hunt); backend test isolation (autouse Redis+bucket flush); maintenance windows + SLA + incidents; workflow pause + idempotent retry + cancel; connector health persisted + config secrets encrypted; research compare/markdown export; report markdown; dataset diff/rollback; target test-connection; watchlist evaluation; entity aliases; search facets; 143 API paths |
+| 41 | Round-13 Tabler UI (v2.12) | IMPLEMENTED | Real Tabler v1.4.0 vendored locally (offline, verified no CDN refs); full dashboard rewritten on Tabler layout (page/navbar/cards/tables/badges/forms) with ALL views and actions preserved; dark/light via data-bs-theme; toasts replace blocking alerts; node --check + UI-OpenAPI gates green; Chromium E2E green on Tabler UI |
 
-Score: 39 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
+Score: 40 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
 No fake metrics, no hardcoded results, no committed secrets (verified: .env ignored, .env.example only).

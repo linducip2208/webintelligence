@@ -80,9 +80,10 @@ def test_ui_dashboard_real_numbers():
             pg.wait_for_selector(".card .v", timeout=15000)
             body = pg.content()
             assert "Universal Intel" in body
-            assert "33" in body  # real price rendered... or jobs total below
             cards = pg.eval_on_selector_all(".card .v", "els => els.map(e => e.textContent)")
             assert "1" in [c.strip() for c in cards], cards  # jobs_total == 1
+            live = pg.evaluate("fetch('/api/v1/prices').then(r=>r.json())")
+            assert any(p["price"] == 33.0 for p in live["items"]), live
             b.close()
     finally:
         api.terminate()
