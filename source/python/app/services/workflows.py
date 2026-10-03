@@ -14,9 +14,12 @@ def run_step(step: dict, event: dict, store: dict):
     if a not in ACTIONS: return {"ok": False, "error": f"unknown action {a}"}
     params = step.get("params", {})
     if a == "create_alert":
+        import time as _t
         item = {"id": len(store.get("alerts", [])) + 1, "rule": params.get("rule", "workflow"),
                 "message": params.get("message", str(event))[:500], "channel": params.get("channel", "inapp"),
-                "project_id": params.get("project_id", 0), "is_read": False}
+                "project_id": params.get("project_id", 0), "is_read": False,
+                "severity": params.get("severity", "info"),
+                "sla_due": _t.time() + 72 * 3600}
         store.setdefault("alerts", []).append(item)
         return {"ok": True, "alert_id": item["id"]}
     if a == "tag":

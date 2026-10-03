@@ -181,12 +181,14 @@ def _sorted(items, sort="", order="asc"):
 
 def _fire_watchlists(item: dict):
     from ..services import watchlists as _w
+    from ..services import alertlife as _al
     for wid in _w.match(STORE["watchlists"], {"value": item.get("entity_key", ""),
                                               "text": f"{item.get('type','')} {item.get('entity_key','')}"}):
         STORE["alerts"].append({"id": len(STORE["alerts"]) + 1, "rule": "watchlist_hit",
                                 "channel": "inapp",
                                 "message": f"Watchlist #{wid} hit by {item.get('type')}",
-                                "project_id": 0, "is_read": False})
+                                "project_id": 0, "is_read": False, "severity": "info",
+                                "sla_due": _al.sla_due("info")})
 
 
 def _secret():
@@ -271,6 +273,18 @@ def _audit(actor, action, ref=""):
         del STORE["audit"][:-5000]
 
 
+def _suppressed(rule: str, org: int):
+    from ..services import alertlife as _al
+    return _al.suppressed(STORE.get("maintenance", []), rule, org)
+
+
+def _stamp_alert(item: dict):
+    from ..services import alertlife as _al
+    item.setdefault("severity", "info")
+    item.setdefault("sla_due", _al.sla_due(item["severity"]))
+    return item
+
+
 def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
     """Persist a pipeline/collector result bundle into STORE. Shared by
     inline runs, /results ingestion, and worker ticks."""
@@ -311,17 +325,25 @@ def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
         STORE["changes"].append({"target_id": target_id, "kind": res["change"],
                                  "diff": res.get("diagnostics", {}), "at": time.time()})
     for a in res.get("alerts", []):
-        STORE["alerts"].append({"id": len(STORE["alerts"]) + 1, **a,
-                                "project_id": project_id, "is_read": False})
+        if _suppressed(a.get("rule", ""), (job or {}).get("org", 1)):
+            res.setdefault("suppressed", []).append(a.get("rule"))
+            continue
+        STORE["alerts"].append(_stamp_alert(
+            {"id": len(STORE["alerts"]) + 1, **a,
+             "project_id": project_id, "is_read": False}))
     if res.get("status") == "success":
         inc("jobs_success")
     elif res.get("status") in ("failed",):
         inc("jobs_failed")
-        STORE["alerts"].append({"id": len(STORE["alerts"]) + 1,
-                                "rule": "collection_failure", "channel": "inapp",
-                                "message": f"Job {res.get('job_id')} failed "
-                                           f"({res.get('strategy')}, http={res.get('http_status')})",
-                                "project_id": project_id, "is_read": False})
+        if _suppressed("collection_failure", (job or {}).get("org", 1)):
+            res.setdefault("suppressed", []).append("collection_failure")
+        else:
+            STORE["alerts"].append(_stamp_alert(
+                {"id": len(STORE["alerts"]) + 1,
+                 "rule": "collection_failure", "channel": "inapp",
+                 "message": f"Job {res.get('job_id')} failed "
+                            f"({res.get('strategy')}, http={res.get('http_status')})",
+                 "project_id": project_id, "is_read": False}))
     STORE["attempts"].append({"target_id": target_id, "ok": res.get("status") == "success",
                               "latency_ms": res.get("latency_ms", 0),
                               "completeness": (res.get("quality") or {}).get("overall", 0),

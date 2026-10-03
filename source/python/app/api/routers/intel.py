@@ -90,9 +90,11 @@ def classify_change(old_hash: str = None, new_hash: str = None,
 # ---- alerts ----
 @router.post("/api/v1/alerts")
 def create_alert(a: AlertRuleIn, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import alertlife as _al
     _need(authorization, "alert", x_api_key)
     item = build_alert(a.rule, a.message, a.project_id, a.channel) | {
-        "id": len(STORE["alerts"]) + 1}
+        "id": len(STORE["alerts"]) + 1, "severity": "info",
+        "sla_due": _al.sla_due("info")}
     STORE["alerts"].append(item)
     return item
 
@@ -358,6 +360,10 @@ def report_export(rep_id: int, format: str = "json",
     if format == "csv":
         from ...reports.builder import to_csv
         return JSONResponse(content={"csv": to_csv(r)})
+    if format == "markdown":
+        from ...reports.builder import to_markdown
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(to_markdown(r), media_type="text/markdown")
     if format == "pdf":
         try:
             from ...reports.builder import to_pdf
@@ -547,16 +553,32 @@ def feed_personal(authorization: str = Header(""), x_api_key: str = Header("")):
 @router.post("/api/v1/alerts/check", tags=["alerts"])
 def alert_check(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import alertguard as _ag
-    _need(authorization, "alert", x_api_key)
+    from ...services import alertlife as _al
+    _, org, _ = _need(authorization, "alert", x_api_key)
     out = _ag.check_threshold(spec.get("value", 0), spec.get("op", "gt"), spec.get("threshold", 0))
+    if out.get("fired"):
+        win = _al.suppressed(STORE.get("maintenance", []), spec.get("rule", "threshold"), org)
+        if win:
+            out["suppressed_by"] = win.get("name", win.get("id"))
+            return out
     if out.get("fired") and _ag.should_fire(spec.get("rule", "threshold"), STORE["alert_hist"],
                                             spec.get("cooldown_s", 3600)):
         repo.kv_set("alert_hist", STORE["alert_hist"])
         item = {"id": len(STORE["alerts"]) + 1, "rule": spec.get("rule", "threshold"),
                 "channel": "inapp", "message": out["message"], "project_id": spec.get("project_id", 0),
-                "severity": spec.get("severity", "info"), "is_read": False}
+                "severity": spec.get("severity", "info"), "is_read": False,
+                "sla_due": _al.sla_due(spec.get("severity", "info"))}
         STORE["alerts"].append(item)
         out["alert_id"] = item["id"]
     return out
+
+
+@router.get("/api/v1/alerts/incidents", tags=["alerts"])
+def alert_incidents(authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import alertlife as _al
+    _, org, _ = _ctx(authorization, x_api_key)
+    mine = [a for a in STORE["alerts"]
+            if (lambda o: o is None or o == org)(_porg(a.get("project_id")))]
+    return {"incidents": _al.incidents(mine)}
 
 

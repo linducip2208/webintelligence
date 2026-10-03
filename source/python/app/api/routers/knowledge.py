@@ -270,6 +270,46 @@ def research_runs(page: int = 1, size: int = 20,
     return paginate(_visible_by_org(STORE["research"], org), page, size)
 
 
+@router.get("/api/v1/research/compare", tags=["research"])
+def research_compare(a: int = 0, b: int = 0,
+                     authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    ra = next((x for x in STORE["research"] if x.get("id") == a and x.get("org", 1) == org), None)
+    rb = next((x for x in STORE["research"] if x.get("id") == b and x.get("org", 1) == org), None)
+    if not ra or not rb:
+        raise HTTPException(404, "run not found")
+    ea, eb = set(ra.get("evidence_ids", [])), set(rb.get("evidence_ids", []))
+    return {"a": a, "b": b, "same_question": ra.get("question") == rb.get("question"),
+            "evidence_overlap": len(ea & eb),
+            "evidence_only_a": sorted(ea - eb), "evidence_only_b": sorted(eb - ea),
+            "analysis_changed": ra.get("analysis") != rb.get("analysis")}
+
+
+@router.get("/api/v1/research/runs/{rid}/export", tags=["research"])
+def research_export(rid: int, format: str = "json",
+                    authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import research as _r
+    _, org, _ = _ctx(authorization, x_api_key)
+    run = next((x for x in STORE["research"]
+                if x.get("id") == rid and x.get("org", 1) == org), None)
+    if not run:
+        raise HTTPException(404, "not found")
+    if format == "markdown":
+        ev = [e for e in STORE["evidence"] if e.get("id") in (run.get("evidence_ids") or [])]
+        lines = [f"# Research: {run.get('question', '')}", "",
+                 f"Status: {run.get('status')} | Model: {run.get('ai_model', '')} "
+                 f"| Prompt: {run.get('prompt_version', '')}", "",
+                 "## Analysis", run.get("analysis", "") or "_none_", "",
+                 "## Evidence"]
+        for e in ev:
+            lines.append(f"- [{e['id']}] {e.get('source', '')} {e.get('url', '')}")
+        lines += ["", "## Limitations",
+                  "Evidence-grounded only; unverified claims excluded."]
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("\n".join(lines), media_type="text/markdown")
+    return _r.bundle(run)
+
+
 
 # ---- datasets ----
 @router.post("/api/v1/datasets", tags=["datasets"])
@@ -323,6 +363,43 @@ def dataset_versions(did: int, authorization: str = Header(""), x_api_key: str =
         raise HTTPException(404, "dataset not found")
     vs = [v for v in STORE["dsversions"] if v.get("dataset_id") == did]
     return {"items": [{k: val for k, val in v.items() if k != "rows"} for v in vs]}
+
+
+@router.get("/api/v1/datasets/{did}/diff", tags=["datasets"])
+def dataset_diff(did: int, v1: int = 0, v2: int = 0,
+                 authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import datasets as _d
+    _, org, _ = _ctx(authorization, x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    vs = sorted([v for v in STORE["dsversions"] if v.get("dataset_id") == did],
+                key=lambda x: x.get("version", 0))
+    a = next((x for x in vs if x.get("version") == v1), vs[0] if vs else None)
+    b = next((x for x in vs if x.get("version") == v2), vs[-1] if vs else None)
+    if not a or not b:
+        raise HTTPException(404, "version not found")
+    return {"from": a.get("version"), "to": b.get("version"),
+            **_d.diff(a.get("rows", []), b.get("rows", []))}
+
+
+@router.post("/api/v1/datasets/{did}/rollback", tags=["datasets"])
+def dataset_rollback(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import datasets as _d
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    src = next((x for x in STORE["dsversions"]
+                if x.get("dataset_id") == did and x.get("version") == spec.get("version")), None)
+    if not src:
+        raise HTTPException(404, "version not found")
+    v = _d.publish(STORE["dsversions"], did, src.get("rows", []),
+                   {"source": "rollback", "from_version": src.get("version"), "by": email})
+    _audit(email, "dataset.rollback", f"{did}->v{v['version']}")
+    return v
 
 
 @router.get("/api/v1/datasets/{did}/export", tags=["datasets"])

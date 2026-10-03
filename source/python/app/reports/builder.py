@@ -41,3 +41,14 @@ def to_pdf(report):
               Paragraph(str(report.get("limitations", ""))[:2000], styles["Normal"])]
     doc.build(story)
     return buf.getvalue()
+def to_markdown(report):
+    lines = [f"# {report.get('kind', 'report')} — {report.get('project', '')}", "",
+             f"_Generated: {report.get('generated_at', '')}_", "",
+             "## Methodology", str(report.get("methodology", "")), "",
+             f"## Data ({report.get('source_coverage', 0)} points)"]
+    for row in (report.get("rows") or [])[:100]:
+        lines.append(f"- {row}")
+    lines += ["", "## Evidence", str(report.get("evidence", ""))[:3000], "",
+              "## AI analysis", str(report.get("ai_analysis", ""))[:3000], "",
+              "## Limitations", str(report.get("limitations", ""))]
+    return "\n".join(lines) + "\n"

@@ -270,6 +270,8 @@ def update_workflow(wid: int, spec: dict, authorization: str = Header(""), x_api
         wf["version"] = wf.get("version", 1) + 1
     if "enabled" in spec:
         wf["enabled"] = bool(spec["enabled"])
+    if "paused" in spec:
+        wf["paused"] = bool(spec["paused"])
     if "name" in spec:
         wf["name"] = spec["name"]
     repo.sync("workflows", wf)
@@ -287,6 +289,8 @@ def workflow_retry(wid: int, spec: dict, authorization: str = Header(""), x_api_
                if x.get("id") == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not wf:
         raise HTTPException(404, "workflow not found/disabled")
+    if wf.get("paused"):
+        raise HTTPException(409, "workflow is paused")
     event = spec.get("event", {})
     run_key = _w.key(wid, "run", event)
     prior = next((r for r in STORE["wfruns"] if r.get("idempotency_key") == run_key), None)
@@ -333,6 +337,8 @@ def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_ke
                if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not wf:
         raise HTTPException(404, "workflow not found/disabled")
+    if wf.get("paused"):
+        raise HTTPException(409, "workflow is paused")
     event = spec.get("event", {})
     log, effects = [], []
     for i, step in enumerate(wf.get("definition", {}).get("steps", [])):
@@ -412,6 +418,42 @@ def webhook_replay(did: int, authorization: str = Header(""), x_api_key: str = H
     repo.sync("deliveries", d)
     return out
 
+
+# ---- maintenance windows ----
+@router.post("/api/v1/maintenance", tags=["monitoring"])
+def create_maintenance(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    try:
+        starts, ends = float(spec.get("starts_at", 0)), float(spec.get("ends_at", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "starts_at/ends_at must be epoch seconds")
+    if not ends > starts:
+        raise HTTPException(400, "ends_at must be after starts_at")
+    item = {"id": len(STORE["maintenance"]) + 1, "org": org, "name": spec.get("name", ""),
+            "starts_at": starts, "ends_at": ends,
+            "suppress_rules": spec.get("suppress_rules", []), "enabled": True}
+    STORE["maintenance"].append(item)
+    _audit(email, "maintenance.create", item["name"][:120])
+    return item
+
+
+@router.get("/api/v1/maintenance", tags=["monitoring"])
+def list_maintenance(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    return {"items": [w for w in STORE["maintenance"] if w.get("org", 1) == org]}
+
+
+@router.post("/api/v1/maintenance/{mid}/disable", tags=["monitoring"])
+def disable_maintenance(mid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    w = next((x for x in STORE["maintenance"]
+              if x.get("id") == mid and x.get("org", 1) == org), None)
+    if not w:
+        raise HTTPException(404, "not found")
+    w["enabled"] = False
+    repo.sync("maintenance", w)
+    _audit(email, "maintenance.disable", str(mid))
+    return {"ok": True}
 
 
 # ---- webhook ingestion source (HMAC + timestamp window + nonce dedupe) ----

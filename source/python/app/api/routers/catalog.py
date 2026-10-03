@@ -94,7 +94,11 @@ def register_connector(spec: dict, authorization: str = Header(""), x_api_key: s
 @router.get("/api/v1/connectors", tags=["sources"])
 def list_connectors(authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization, x_api_key)
-    return {"items": _visible_by_org(STORE["connectors"], org)}
+    def _safe(c):
+        cfg = {k: ("***" if any(w in k.lower() for w in ("key", "secret", "token", "password")) else v)
+               for k, v in (c.get("config", {}) or {}).items()}
+        return {**c, "config": cfg}
+    return {"items": [_safe(c) for c in _visible_by_org(STORE["connectors"], org)]}
 
 
 @router.get("/api/v1/connectors/match", tags=["sources"])
@@ -146,6 +150,10 @@ def connector_test(cid: int, authorization: str = Header(""), x_api_key: str = H
     if not c:
         raise HTTPException(404, "connector not found")
     out = execute(c)
+    import time as _t
+    c["health"] = {"last_run": _t.time(), "ok": bool(out.get("ok")),
+                   "count": len(out.get("items", [])), "error": out.get("error", "")[:200]}
+    repo.sync("connectors", c)
     return {"ok": out.get("ok", False), "count": len(out.get("items", [])),
             "error": out.get("error", ""), "sample": out.get("items", [])[:3]}
 
@@ -183,6 +191,10 @@ def connector_execute(cid: int, spec: dict, authorization: str = Header(""),
         saved["dataset_version"] = v["version"]
     _audit(email, "connector.execute", f"{c.get('name')}:{len(out.get('items', []))}")
     out["saved"] = saved
+    import time as _t
+    c["health"] = {"last_run": _t.time(), "ok": bool(out.get("ok")),
+                   "count": len(out.get("items", [])), "error": out.get("error", "")[:200]}
+    repo.sync("connectors", c)
     return out
 
 

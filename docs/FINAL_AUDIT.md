@@ -1,5 +1,5 @@
-# Final Audit — Universal Intelligence Platform v2.10.0
-Date: 2026-10-02. Method: code inspection + 106 green tests + live process runs.
+# Final Audit — Universal Intelligence Platform v2.11.0
+Date: 2026-10-02. Method: code inspection + 111 green tests + live process runs.
 Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 
 | # | Category | Verdict | Evidence |
@@ -42,6 +42,8 @@ Rule: a category is IMPLEMENTED only if real code + tests/smoke prove it.
 | 36 | Round-8 product depth (v2.7) | IMPLEMENTED | Target live test-connection (persisted learning); watchlist scheduled-style evaluation with cooldown; entity aliases; dataset versions listing; search facets; research AI analysis (honest 502 without backend); CAGR/percentiles/distribution; point-in-time graph; bulk alert ops; request IDs; usage prompt_version; real PDF reports via reportlab |
 | 37 | Round-9 enterprise hardening (v2.8) | IMPLEMENTED | APP_ENV modes (dev/test/staging/prod); production fail-closed DB (proven: rejects SQLite, flags unavailable, writes 503 not silent); consistent error envelope + request IDs; layered rate limits (7 cost classes × org/key/user/IP, Redis-backed, Retry-After); adversarial SSRF (decimal/hex/octal/mapped/userinfo/DNS, both languages); resource-aware RBAC on all mutating routes (negative tests); commercial entitlements enforced (402 quotas, usage, plans); executive dashboard + light mode + toasts; backup/restore round-trip test; 126 API paths |
 | 38 | Round-10 final productionization (v2.9) | IMPLEMENTED | Forensic re-audit clean; production read-guard (503 envelope when DB down, readyz explains); event dedup keys (idempotent POST); workflow versioning/update/retry/cancel; AI model allowlists per plan; NLQ allowlist validation + limits; white-label branding (validated); 10 vertical templates + apply; OIDC abstraction (honest 501 unconfigured); traversal/render load caps; AI context cap; 136 API paths |
+| 39 | Round-11 toward 100/100 (v2.10) | IMPLEMENTED | Redis-LIVE proofs (real Memurai server, not assumed); stale-DB migration healing test; real Chromium UI E2E (live numbers rendered); JS syntax + UI-OpenAPI gates (caught a shipped syntax error); Go benchmarks (Decide 289ns, Check 349ns) |
+| 40 | Round-12 OS evolution (v2.11) | IMPLEMENTED | Fixed REAL dataset-versioning bug (global numbering to per-dataset, found via order-flake hunt); backend test isolation (autouse Redis+bucket flush); maintenance windows + SLA + incidents; workflow pause + idempotent retry + cancel; connector health persisted + config secrets encrypted; research compare/markdown export; report markdown; dataset diff/rollback; target test-connection; watchlist evaluation; entity aliases; search facets; 143 API paths |
 
-Score: 37 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
+Score: 39 IMPLEMENTED / 0 PARTIAL / 1 MISSING-external.
 No fake metrics, no hardcoded results, no committed secrets (verified: .env ignored, .env.example only).

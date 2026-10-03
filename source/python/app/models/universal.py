@@ -206,6 +206,7 @@ class Connector(Base):
     manifest = Column(JSON, default=dict)
     config = Column(JSON, default=dict)
     enabled = Column(Boolean, default=True)
+    data = Column(JSON, default=dict)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -273,3 +274,15 @@ class KV(Base):
     key = Column(String(255), primary_key=True)
     value = Column(JSON, default=dict)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class MaintenanceWindow(Base):
+    __tablename__ = "maintenance_windows"
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), index=True)
+    name = Column(String(255))
+    starts_at = Column(Float, default=0.0)
+    ends_at = Column(Float, default=0.0)
+    suppress_rules = Column(JSON, default=list)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())

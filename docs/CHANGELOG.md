@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.11.0
+- Dataset versioning fixed (per-dataset numbering; was global)
+- Hermetic test isolation (autouse backend flush)
+- Maintenance windows + SLA + incidents
+- Workflow pause/version/idempotent-retry/cancel
+- Connector health persisted, config secrets encrypted
+- Research compare + markdown export, report markdown
+- Dataset diff/rollback, target test-connection, watchlist evaluation
+- Entity aliases, search facets, review queue, lineage, graph path
+- 143 API paths, 111 tests green
+
 ## v2.10.0
 - Redis-LIVE proofs (real server, not assumed)
 - Stale-DB auto-migration healing test

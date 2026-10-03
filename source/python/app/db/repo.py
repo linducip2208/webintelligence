@@ -523,7 +523,8 @@ def _m_alerts(item):
                    "delivered": bool(item.get("delivered", False)),
                    "acked": bool(item.get("acked", False)),
                    "resolved": bool(item.get("resolved", False)),
-                   "resolution": item.get("resolution", "") or ""}
+                   "resolution": item.get("resolution", "") or "",
+                   "sla_due": item.get("sla_due", 0.0) or 0.0}
 
 
 def _h_alerts(row):
@@ -531,7 +532,24 @@ def _h_alerts(row):
             "channel": row.channel, "project_id": row.project_id,
             "is_read": bool(row.is_read), "severity": row.severity or "info",
             "delivered": bool(row.delivered), "acked": bool(row.acked),
-            "resolved": bool(row.resolved), "resolution": row.resolution or ""}
+            "resolved": bool(row.resolved), "resolution": row.resolution or "",
+            "sla_due": row.sla_due or 0.0}
+
+
+def _m_maintenance(item):
+    from ..models.universal import MaintenanceWindow
+    return MaintenanceWindow, {"org_id": item.get("org", 1), "name": item.get("name", ""),
+                               "starts_at": item.get("starts_at", 0) or 0,
+                               "ends_at": item.get("ends_at", 0) or 0,
+                               "suppress_rules": item.get("suppress_rules", []),
+                               "enabled": bool(item.get("enabled", True))}
+
+
+def _h_maintenance(row):
+    return {"id": row.id, "org": row.org_id, "name": row.name,
+            "starts_at": row.starts_at or 0, "ends_at": row.ends_at or 0,
+            "suppress_rules": row.suppress_rules or [],
+            "enabled": bool(row.enabled)}
 
 
 def _m_entities(item):
@@ -815,20 +833,55 @@ def _h_dsversions(row):
             "lineage": row.lineage or {}, "rows": (row.data or {}).get("rows", [])}
 
 
+def _scrub_config(cfg: dict):
+    try:
+        from ..core.crypto import encrypt
+    except ImportError:
+        from core.crypto import encrypt
+    out = {}
+    for k, v in (cfg or {}).items():
+        if isinstance(v, str) and any(w in k.lower() for w in ("key", "secret", "token", "password")):
+            out[k] = encrypt(v)
+        else:
+            out[k] = v
+    return out
+
+
+def _unscrub_config(cfg: dict):
+    try:
+        from ..core.crypto import decrypt
+    except ImportError:
+        from core.crypto import decrypt
+    out = {}
+    for k, v in (cfg or {}).items():
+        if isinstance(v, str) and (v.startswith("enc:") or v.startswith("plain:")):
+            try:
+                out[k] = decrypt(v)
+                continue
+            except Exception:
+                pass
+        out[k] = v
+    return out
+
+
 def _m_connectors(item):
     from ..models.universal import Connector
     return Connector, {"org_id": item.get("org", 1), "name": item.get("name", ""),
                        "category": item.get("category", "CUSTOM"),
                        "version": item.get("version", "1.0"),
                        "manifest": item.get("manifest", {}),
-                       "config": item.get("config", {}),
-                       "enabled": bool(item.get("enabled", True))}
+                       "config": _scrub_config(item.get("config", {})),
+                       "enabled": bool(item.get("enabled", True)),
+                       "data": {"health": item.get("health", {})}}
 
 
 def _h_connectors(row):
-    return {"id": row.id, "org": row.org_id, "name": row.name, "category": row.category,
-            "version": row.version, "manifest": row.manifest or {},
-            "config": row.config or {}, "enabled": bool(row.enabled)}
+    d = dict(row.data or {})
+    d.update({"id": row.id, "org": row.org_id, "name": row.name, "category": row.category,
+              "version": row.version, "manifest": row.manifest or {},
+              "config": _unscrub_config(row.config or {}),
+              "enabled": bool(row.enabled)})
+    return d
 
 
 def _m_documents(item):
@@ -938,7 +991,7 @@ _MIRRORS = {
     "documents": _m_documents, "webhooks": _m_webhooks,
     "deliveries": _m_deliveries, "history": _m_snapshots, "feed_subs": _m_feedsubs,
     "entity_history": _m_entity_history, "ai_providers": _m_aiproviders,
-    "reviews": _m_reviews, "ai_usage": _m_aiusage,
+    "reviews": _m_reviews, "ai_usage": _m_aiusage, "maintenance": _m_maintenance,
 }
 
 _HYDRATE = {
@@ -960,7 +1013,7 @@ _HYDRATE = {
     "deliveries": (None, _h_deliveries), "history": (None, _h_snapshots),
     "feed_subs": (None, _h_feedsubs), "entity_history": (None, _h_entity_history),
     "ai_providers": (None, _h_aiproviders), "reviews": (None, _h_reviews),
-    "ai_usage": (None, _h_aiusage),
+    "ai_usage": (None, _h_aiusage), "maintenance": (None, _h_maintenance),
 }
 
 _KEYS = {"jobs": "job_uid", "apikeys": "key_hash"}
@@ -975,7 +1028,8 @@ def _model_for(coll):
                                     GraphEdge, Event, Evidence, Claim, Finding,
                                     ResearchRun, Watchlist, Workflow, WorkflowRun,
                                     Dataset, DatasetVersion, Connector, Document,
-                                    Webhook, WebhookDelivery, Snapshot, FeedSub)
+                                    Webhook, WebhookDelivery, Snapshot, FeedSub,
+                                    MaintenanceWindow, KV)
     return {"projects": Project, "targets": Target, "jobs": CollectionJob,
             "prices": Price, "articles": Article, "reports": Report,
             "schedules": Schedule, "raw": RawDocument, "changes": Change,
@@ -991,7 +1045,8 @@ def _model_for(coll):
             "dsversions": DatasetVersion, "connectors": Connector,
             "documents": Document, "webhooks": Webhook,
             "deliveries": WebhookDelivery, "history": Snapshot,
-            "feed_subs": FeedSub, "entity_history": Snapshot}[coll]
+            "feed_subs": FeedSub, "entity_history": Snapshot,
+            "maintenance": MaintenanceWindow}[coll]
 
 
 # bind models into _HYDRATE
