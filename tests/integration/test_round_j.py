@@ -38,3 +38,7 @@ def test_research_compare_export_and_report_md():
     rep = c.post("/api/v1/reports", json={"kind": "price", "project": "MD"}).json()
     md2 = c.get(f"/api/v1/reports/{rep['id']}/export?format=markdown")
     assert md2.status_code == 200 and "Methodology" in md2.text
+    html = c.get(f"/api/v1/reports/{rep['id']}/export?format=html")
+    assert html.status_code == 200 and "text/html" in html.headers["content-type"]
+    assert "/static/vendor/tabler/tabler.min.css" in html.text
+    assert "cdn" not in html.text.lower() and "jsdelivr" not in html.text.lower()

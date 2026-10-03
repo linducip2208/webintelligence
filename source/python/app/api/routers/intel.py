@@ -364,6 +364,10 @@ def report_export(rep_id: int, format: str = "json",
         from ...reports.builder import to_markdown
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse(to_markdown(r), media_type="text/markdown")
+    if format == "html":
+        from ...reports.builder import to_html
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(to_html(r))
     if format == "pdf":
         try:
             from ...reports.builder import to_pdf

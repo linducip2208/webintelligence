@@ -52,3 +52,27 @@ def to_markdown(report):
               "## AI analysis", str(report.get("ai_analysis", ""))[:3000], "",
               "## Limitations", str(report.get("limitations", ""))]
     return "\n".join(lines) + "\n"
+def to_html(report):
+    """Standalone Tabler-styled report page (offline vendor CSS)."""
+    import html as _h
+    rows = "".join(f"<tr><td>{_h.escape(str(x))[:200]}</td></tr>"
+                   for x in (report.get("rows") or [])[:100])
+    return f"""<!doctype html><html lang="en" data-bs-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report: {_h.escape(str(report.get('kind', '')))} — {_h.escape(str(report.get('project', '')))}</title>
+<link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet"></head>
+<body><div class="page"><div class="page-wrapper"><div class="page-body"><div class="container-xl">
+<h2 class="page-title">Intelligence Report: {_h.escape(str(report.get('kind', '')))}</h2>
+<p class="text-muted">Project: {_h.escape(str(report.get('project', '')))} | Generated: {_h.escape(str(report.get('generated_at', '')))}</p>
+<div class="card"><div class="card-body"><h3 class="card-title">Methodology</h3>
+<p>{_h.escape(str(report.get('methodology', ''))[:2000])}</p></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">Data ({report.get('source_coverage', 0)} points)</h3>
+<div class="table-responsive"><table class="table table-vcenter"><tbody>{rows}</tbody></table></div></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">Evidence</h3>
+<pre>{_h.escape(str(report.get('evidence', ''))[:3000])}</pre></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">AI analysis</h3>
+<p>{_h.escape(str(report.get('ai_analysis', ''))[:3000])}</p></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">Limitations</h3>
+<p class="text-muted">{_h.escape(str(report.get('limitations', ''))[:2000])}</p></div></div>
+</div></div></div></div>
+<script src="/static/vendor/tabler/tabler.min.js"></script></body></html>"""
