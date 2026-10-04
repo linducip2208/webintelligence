@@ -29,7 +29,7 @@ pre{white-space:pre-wrap}
 <h1 class="navbar-brand">Universal Intel</h1>
 <div class="navbar-text text-muted small">v2.11 · live data only</div>
 <div class="d-flex gap-2 my-2">
-<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option></select>
+<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select>
 <button class="btn btn-icon btn-sm" onclick="toggleTheme()" title="dark/light">◐</button>
 </div>
 <div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100"></div></div>
@@ -70,7 +70,7 @@ const NAV=[
  ['Administration',[['organizations','orgs'],['users','orgs'],['apikeys','apikeys'],['audit','audit'],['health','health'],['costs','costs'],['search','search'],['articles','articles'],['schedules','schedules']]],
 ];
 function T(k){return (I18N[k]||k)}
-async function init(){try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}$('#lang').value=LANG;load();}
+async function init(){try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}$('#lang').value=LANG;document.documentElement.lang=LANG;document.documentElement.dir=(LANG==='ar'?'rtl':'ltr');load();}
 function setLang(v){LANG=v;localStorage.setItem('wi-lang',v);init();}
 function nav(){$('#nav').innerHTML='<ul class="navbar-nav">'+NAV.map(([s,items])=>`<li class="nav-item"><div class="px-3 pt-3 pb-1 text-muted small text-uppercase">${T(s.toLowerCase())}</div></li>`+items.map(([label,v])=>`<li class="nav-item"><a href="#" data-v="${v}" data-l="${label}" class="nav-link ${v===view?'active':''}"><span class="nav-link-title">${T(label)}</span></a></li>`).join('')).join('')+'</ul>';
 document.querySelectorAll('#nav a').forEach(a=>a.onclick=e=>{e.preventDefault();view=a.dataset.v;load()});}
