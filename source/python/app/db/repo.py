@@ -141,21 +141,50 @@ class Repo:
 
     # ---------- seed / users ----------
     def _seed(self):
+        # Staged commits: parents before children. A single transaction
+        # lets MySQL flush children first and dies on FK 1452, leaving
+        # organizations missing — which then silently drops every
+        # FK-backed write (memory-only data lost on restart).
         try:
             from ..models.universal import Organization
             from ..models.entities import User
             s = self.Session()
-            if s.query(Organization).count() == 0:
-                import os as _o
-                s.add(Organization(id=1, name="Default", slug="default",
-                                   plan=_o.getenv("DEFAULT_PLAN", "starter")))
+            try:
+                if s.query(Organization).count() == 0:
+                    import os as _o
+                    s.add(Organization(id=1, name="Default", slug="default",
+                                       plan=_o.getenv("DEFAULT_PLAN", "starter")))
+                    s.commit()
+            finally:
+                pass
             from ..models.universal import Membership
-            if s.query(Membership).count() == 0:
-                s.add(Membership(org_id=1, email="admin@local", role="owner"))
-            if s.query(User).filter_by(email="admin@local").count() == 0:
-                from ..core.security import hash_password
-                s.add(User(email="admin@local", password_hash=hash_password("admin123"),
-                           role="owner", is_active=True))
+            try:
+                if s.query(Membership).count() == 0:
+                    s.add(Membership(org_id=1, email="admin@local", role="owner"))
+                    s.commit()
+            finally:
+                pass
+            try:
+                if s.query(User).filter_by(email="admin@local").count() == 0:
+                    from ..core.security import hash_password
+                    s.add(User(email="admin@local", password_hash=hash_password("admin123"),
+                               role="owner", is_active=True))
+                    s.commit()
+            finally:
+                pass
+            # All AI provider slots exist as (disabled) DB rows so every API
+            # is configurable from Settings/UI with zero code changes.
+            # Secrets are added later via API/UI and stored encrypted.
+            from ..models.entities import AIProvider
+            _slots = [("openai", "https://api.openai.com/v1", "chat", "gpt-4o-mini"),
+                      ("anthropic", "https://api.anthropic.com", "anthropic",
+                       "claude-3-5-haiku-latest"),
+                      ("google", "https://generativelanguage.googleapis.com", "google",
+                       "gemini-2.0-flash")]
+            for _name, _base, _proto, _model in _slots:
+                if s.query(AIProvider).filter_by(name=_name).count() == 0:
+                    s.add(AIProvider(name=_name, base_url=_base, api_key_enc="",
+                                     model=_model, protocol=_proto, enabled=False))
             s.commit()
             s.close()
         except Exception:
@@ -959,12 +988,14 @@ def _m_aiproviders(item):
     return AIProvider, {"name": item.get("name", ""), "base_url": item.get("base_url", ""),
                         "api_key_enc": item.get("api_key_enc", ""),
                         "model": item.get("model", ""),
+                        "protocol": item.get("protocol", "chat") or "chat",
                         "enabled": bool(item.get("enabled", True))}
 
 
 def _h_aiproviders(row):
     return {"id": row.id, "name": row.name, "base_url": row.base_url,
-            "model": row.model, "enabled": bool(row.enabled)}
+            "model": row.model, "protocol": getattr(row, "protocol", "chat") or "chat",
+            "enabled": bool(row.enabled)}
 
 
 def _m_entity_history(item):

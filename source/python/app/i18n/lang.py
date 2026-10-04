@@ -29,21 +29,6 @@ STRINGS = {
    "audit":"Log Audit","health":"Kesehatan Sistem","prices":"Harga","articles":"Artikel",
    "costs":"Biaya","search":"Pencarian","schedules":"Jadwal","documents":"Dokumen",
    "claims":"Klaim","webhooks":"Webhook"},
-  "ar": {"dashboard":"لوحة التحكم","intelligence":"الاستخبارات","feed":"الموجز","research":"البحث",
-   "sources":"المصادر","entities":"الكيانات","knowledge":"المعرفة","datasets":"مجموعات البيانات",
-   "monitoring":"المراقبة","ai":"الذكاء الاصطناعي","admin":"الإدارة","findings":"النتائج",
-   "trends":"الاتجاهات","anomalies":"الشذوذ","opportunities":"الفرص",
-   "runs":"جولات البحث","reports":"التقارير","targets":"الأهداف","connectors":"الموصلات",
-   "jobs":"مهام الجمع","reliability":"الموثوقية","companies":"الشركات",
-   "products":"المنتجات","people":"الأشخاص","brands":"العلامات التجارية","domains":"النطاقات",
-   "locations":"المواقع","graph":"الرسم البياني","relationships":"العلاقات","events":"الأحداث",
-   "changes":"التغييرات","evidence":"الأدلة","versions":"الإصدارات","quality":"الجودة",
-   "lineage":"النسب","watchlists":"قوائم المراقبة","alerts":"التنبيهات","workflows":"سير العمل",
-   "providers":"المزودون","models":"النماذج","usage":"الاستخدام","settings":"إعدادات الذكاء الاصطناعي",
-   "organizations":"المنظمات","users":"المستخدمون","roles":"الأدوار","apikeys":"مفاتيح API",
-   "audit":"سجلات التدقيق","health":"صحة النظام","prices":"الأسعار","articles":"المقالات",
-   "costs":"التكاليف","search":"البحث","schedules":"الجداول","documents":"المستندات",
-   "claims":"الادعاءات","webhooks":"الويب هوك"},
 }
 def t(lang: str, key: str) -> str:
     return STRINGS.get(lang, STRINGS["en"]).get(key, STRINGS["en"].get(key, key))

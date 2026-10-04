@@ -2,7 +2,8 @@
 
 > 🌐 **Languages:** [English](#-english) · [Indonesia](#-bahasa-indonesia) · [العربية](#-العربية)
 >
-> Dashboard UI: `English / Indonesia / العربية` (RTL supported) — switcher in sidebar, served by `GET /api/v1/i18n?lang=en|id|ar`.
+> Dashboard UI: `English / Indonesia` — switcher in sidebar, served by `GET /api/v1/i18n?lang=en|id`.
+> (Trilingual EN/ID/AR applies to this README documentation only.)
 
 DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT.
 
@@ -17,30 +18,98 @@ Persistence is **write-through**: every mutation commits to MySQL when reachable
 
 Security: SSRF guard + trusted-egress allowlist, token + scoped/expiring API-key auth, org isolation on every collection (IDOR-tested), HMAC webhook ingestion with replay window, per-IP rate limits (429), body-size guard (413), secret-redacted logs. Set `REQUIRE_AUTH=1` in production.
 
-API surface: **143 versioned paths under `/api/v1`** (see `contracts/openapi/openapi.json`): orgs, roles, memberships, apikeys, projects, targets, jobs, results, prices, changes, articles, search (+semantic), analytics, intel (compare/reviews/news), entities, costs, ml (+predict), alerts (+check/send), reports (+export), ask, feed (+subscriptions), opportunities, research, watchlists, workflows, datasets, connectors, documents (+reviews), webhooks (+ingest/deliveries), i18n (`en|id|ar`), audit, dashboard, health, metrics, browser.
+API surface: **143 versioned paths under `/api/v1`** (verified against `contracts/openapi/openapi.json`; full catalog below).
 
-### Features
-1. **Collection engine (Go + Python workers)** — concurrent HTTP/API collection, retries with backoff+jitter, circuit breaker, rate limiting, connection pooling, graceful shutdown. Collection strategy escalation: `DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA`.
-2. **Headless browser (Playwright)** — pooled contexts (default 2), per-job timeout, media/font blocking, session-per-job, metadata capture (status, final URL, size, ms).
-3. **Connectors** — RSS / paginated REST / CSV execution with `test` + `execute` endpoints; target `test-connection` with strategy recommendation.
-4. **Target intelligence** — per-target profile (success rate, EWMA latency/cost, preferred strategy learning); respects robots.txt/ToS.
-5. **Normalization & ETL** — products, companies, prices, reviews, articles, offers, websites, events, search results → typed tables with full provenance (`raw_document_id`, parser/schema versions).
-6. **Entity resolution** — exact → normalized-string → domain/identifier → fuzzy (≥0.87 auto-link, 0.70–0.87 needs review) → optional AI assist; aliases, merge/split/reject, history, `needs_review` queue.
-7. **Price intelligence** — history, change detection, volatility (stdev/mean), competitor comparison, `price_drop_pct` / `back_in_stock` alerts.
-8. **Competitor / Market / Review / News intelligence** — evidence-backed compare (every claim cites `raw_document_id`), category trends, TF-based emerging topics, lexicon sentiment + complaint/praise themes, extractive news summaries.
-9. **Change detection** — hash + field-level compare → `NEW / CHANGED / REMOVED / UNCHANGED`; diffs stored.
-10. **Knowledge graph** — nodes/edges, traverse, shortest path, SVG render; events, evidence, claims verification, contradictions check, findings with lineage.
-11. **Research & feed** — research planner + runs, findings, personalized feed + subscriptions, opportunities (z-score).
-12. **Monitoring** — watchlists (keyword/company/domain) with evaluation, schedules (once/interval/hourly/daily/weekly/cron/event), alerts (in-app/email/HMAC webhook) with ack/resolve/bulk/check/send, workflows (trigger → action, pause/version/retry/cancel), incidents + SLA + maintenance windows.
-13. **Analytics & ML** — descriptive, time-series, price, competitor/source compare, anomaly (z-score ≥ 3), Pearson correlation, 1-D k-means; forecast (EWMA/linear), classification, entity-match score; model registry with version+metrics.
-14. **AI (multi-vendor)** — `AIProvider` abstraction: Muse Spark 1.3 (default), OpenAI, Anthropic, Google, Ollama, DB-configured; fallback chain, usage/cost tracking, prompt registry, injection defense. Evidence-grounded chat/ask (`evidence_ids` + citations).
-15. **Search** — MySQL FULLTEXT (`search/query, scope`) + pagination; semantic-search abstraction (`EmbeddingProvider`/`VectorStore`, default noop, Pinecone/Milvus/Qdrant-ready); facets.
-16. **Reports & datasets** — market/competitor/product/price/review/site/executive reports; web/PDF/CSV/JSON/XLSX + Markdown export; methodology/coverage/timestamps/evidence/limitations on every report. Datasets with per-dataset versioning, diff/rollback, CSV import.
-17. **Dashboard (real data only)** — jobs, success/fail, workers, provider/target health, price moves, alerts, AI insights, quality, costs; empty states, never fake. Dark/light mode, toasts, executive view.
-18. **Multilingual UI (EN/ID/AR)** — `GET /api/v1/i18n?lang=`; Arabic fully translated with RTL layout.
-19. **Admin & governance** — orgs, users, roles, RBAC on all mutating routes, scoped/expiring API keys, commercial entitlements (plans/quotas/model allowlist, 402), feature flags (global/org/user), retention runner, PII detect/mask, audit trail, system doctor, backup/restore round-trip, webintel CLI.
-20. **Reliability & observability** — Redis queue/leases/heartbeats/pubsub, DLQ, idempotency keys, restart recovery; JSON logs with trace IDs, Prometheus `/metrics`, `/healthz` + `/readyz`, cost tracking with budgets enforced pre-dispatch.
-21. **Deployment** — aaPanel (Nginx HTTPS → 127.0.0.1:8000, systemd units for api/worker/browser/collector), no Docker required.
+### Feature catalog (recorded from implementation)
+
+#### 1. Collection & job execution
+| Feature | Key endpoints |
+|---|---|
+| Create / list collection jobs | `POST / GET /api/v1/jobs` |
+| Run now, cancel, retry a job | `POST /api/v1/jobs/{job_id}/run`, `/cancel`, `/retry` |
+| Result ingestion (Go collector + Python workers post here) | `POST /api/v1/results` |
+| Dead-letter queue inspection | `GET /api/v1/dlq` |
+| Schedules (once/interval/hourly/daily/weekly/cron/event) + manual tick | `POST / GET /api/v1/schedules`, `POST /api/v1/worker/tick` |
+| Collection strategy decision engine (`DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA`) | `POST /api/v1/strategy/decide` |
+| Go collector engine (concurrent HTTP/API, retries + backoff/jitter, circuit breaker, rate limit, pooling) | `build/linux/collector` (from `source/go/collector`) |
+| Headless browser pool (Playwright, 2 contexts, per-job timeout, media/font blocking) | `GET /api/v1/browser/health` |
+| Own-proxy pool health; Bright Data connection test | `GET /api/v1/proxies/health`, `POST /api/v1/brightdata/test` |
+
+#### 2. Sources, targets & connectors
+| Feature | Key endpoints |
+|---|---|
+| Projects | `POST / GET /api/v1/projects` |
+| Targets + test-connection (with strategy recommendation) | `POST / GET /api/v1/targets`, `POST /api/v1/targets/{tid}/test` |
+| Connectors (RSS / paginated REST / CSV) + match / test / execute | `POST / GET /api/v1/connectors`, `/match`, `/{cid}/test`, `/{cid}/execute` |
+| Target reliability score (success rate, latency, stability) | `GET /api/v1/reliability/targets` |
+| Per-target learning profile (EWMA latency/cost, preferred strategy); robots.txt/ToS respected | `services/targets.py` |
+
+#### 3. Price, market, review & news intelligence
+| Feature | Key endpoints |
+|---|---|
+| Price points + price correlation | `GET /api/v1/prices`, `POST /api/v1/correlate/prices` |
+| Price analytics + market trends / emerging topics | `GET /api/v1/analytics/prices`, `/analytics/trends` |
+| Data-quality scoring | `POST /api/v1/quality/score`, `GET /api/v1/analytics/quality` |
+| Website change feed + change classification | `GET /api/v1/changes`, `POST /api/v1/changes/classify` |
+| Opportunities (z-score) | `GET /api/v1/opportunities` |
+| News articles | `POST / GET /api/v1/articles` |
+| Reviews: CSV import, summary (avg rating, sentiment, themes), moderation queue | `POST /api/v1/reviews/import`, `GET /api/v1/reviews/summary`, `/reviews/queue` |
+| Competitor compare (evidence-backed), review intel, news summarization | `POST /api/v1/intel/competitors/compare`, `/intel/reviews`, `/intel/news/summarize` |
+
+#### 4. Knowledge graph, evidence & research
+| Feature | Key endpoints |
+|---|---|
+| Graph nodes / edges, traverse, shortest path, SVG render | `POST /api/v1/graph/nodes`, `/edges`, `GET /traverse`, `/path`, `/render` |
+| Events, evidence store, claims + verification, contradiction check | `POST / GET /api/v1/events`, `/evidence`, `/claims`, `/claims/verify`, `/contradictions/check` |
+| Findings + data lineage | `POST / GET /api/v1/findings`, `GET /findings/{fid}`, `/lineage/{fid}` |
+| Intelligence feed + subscriptions + personalized feed | `GET /api/v1/feed`, `/feed/personalized`, `POST /api/v1/feed/subscriptions` |
+| Research: plan, runs, AI analyze, finish, compare, markdown export | `POST /api/v1/research/plan`, `/runs`, `/runs/{rid}/analyze`, `/finish`, `/compare`, `/export` |
+| Entities: list / detail / resolve / merge / split / reject / aliases / history | `GET / POST /api/v1/entities...` (8 paths) |
+
+#### 5. Monitoring: watchlists, alerts, workflows, webhooks
+| Feature | Key endpoints |
+|---|---|
+| Watchlists (keyword/company/domain) + global check + per-item evaluate | `POST / GET /api/v1/watchlists`, `/check`, `/{wid}/evaluate`, `DELETE /{wid}` |
+| Alerts: create/list, ack, resolve, bulk, rule check, send, incidents | `POST / GET /api/v1/alerts`, `/{alert_id}/ack`, `/resolve`, `/bulk`, `/check`, `/send`, `/incidents` |
+| Workflows (trigger → action): CRUD, run, idempotent retry, cancel | `POST / GET /api/v1/workflows`, `/{wid}`, `/run`, `/retry`, `/cancel` |
+| Maintenance windows + disable | `POST / GET /api/v1/maintenance`, `/{mid}/disable` |
+| Outbound webhooks: CRUD, test, delivery log + replay | `POST / GET /api/v1/webhooks`, `/{wid}/test`, `/deliveries`, `/deliveries/{did}/replay` |
+| Inbound webhook ingestion (HMAC-signed, replay window) | `POST /api/v1/ingest/webhook` |
+
+#### 6. Datasets, documents & reports
+| Feature | Key endpoints |
+|---|---|
+| Datasets: CRUD, per-dataset versions, diff, rollback, CSV import, export, publish, archive | `POST / GET /api/v1/datasets`, `/{did}/versions`, `/diff`, `/rollback`, `/import`, `/export`, `/publish`, `/archive` |
+| Document ingestion (txt/html/csv; pdf via pypdf) | `POST / GET /api/v1/documents` |
+| Reports (market/competitor/product/price/review/site/executive) + export (web/PDF/CSV/JSON/XLSX/markdown) | `POST / GET /api/v1/reports`, `GET /api/v1/reports/{rep_id}/export` |
+
+#### 7. AI, search & ask
+| Feature | Key endpoints |
+|---|---|
+| AI providers (env + DB-configured), disable, models, health, usage/cost, prompt registry | `GET /api/v1/ai/providers`, `/providers/db`, `/{pid}/disable`, `/models`, `/health`, `/usage`, `/prompts` |
+| Evidence-grounded chat + ask (`evidence_ids` + citations) | `POST /api/v1/ai/chat`, `POST /api/v1/ask` |
+| FULLTEXT search + semantic search abstraction | `GET /api/v1/search`, `/search/semantic` |
+| ML: model registry + prediction (forecast, anomaly, classification, clustering) | `POST /api/v1/ml/register`, `GET /api/v1/ml/models`, `POST /api/v1/ml/predict` |
+
+#### 8. Admin, billing & governance
+| Feature | Key endpoints |
+|---|---|
+| Organizations + white-label branding, memberships, roles (RBAC) | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles` |
+| Scoped/expiring API keys + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
+| Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
+| Commercial billing: plans, current plan, usage/quotas (402 on exceed) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
+| Feature flags (global/org/user) | `GET / POST /api/v1/flags` |
+| Industry vertical templates + apply | `GET /api/v1/verticals`, `/{name}`, `POST /{name}/apply` |
+| Retention runner, cost summary, budget set/check | `POST /api/v1/admin/retention/run`, `GET /api/v1/costs/summary`, `POST /api/v1/costs/budget`, `GET /budget/check` |
+| Audit trail, system doctor | `GET /api/v1/audit`, `/api/v1/system/doctor` |
+
+#### 9. Platform (non-API)
+| Feature | Notes |
+|---|---|
+| Dashboard (real data only, dark/light, EN/ID, toasts, executive view) | `GET /`, `GET /api/v1/dashboard` |
+| i18n (English, Indonesia) | `GET /api/v1/i18n?lang=en\|id` |
+| Version, liveness, readiness, Prometheus metrics | `GET /api/version`, `/healthz`, `/readyz`, `/metrics` |
+| Persistence / security / reliability / deployment / CLI / backup-restore / PII masking | see Overview; `source/python/cli.py`, `deploy/` |
 
 ### Quick start (Windows dev / Linux same, minus service files)
 ```bat
@@ -79,30 +148,98 @@ Persistensi **write-through**: setiap perubahan tersimpan ke MySQL jika terjangk
 
 Keamanan: pelindung SSRF + allowlist egress tepercaya, auth token + API-key berskop/kedaluwarsa, isolasi org di setiap koleksi (teruji IDOR), ingest webhook HMAC dengan jendela replay, rate limit per-IP (429), penjaga ukuran body (413), log yang menyensor rahasia. Setel `REQUIRE_AUTH=1` di produksi.
 
-Permukaan API: **143 path berversi di bawah `/api/v1`** (lihat `contracts/openapi/openapi.json`): org, peran, keanggotaan, apikey, proyek, target, job, hasil, harga, perubahan, artikel, pencarian (+semantik), analitik, intel (banding/ulasan/berita), entitas, biaya, ml (+prediksi), peringatan (+cek/kirim), laporan (+ekspor), tanya, umpan (+langganan), peluang, riset, daftar pantau, alur kerja, dataset, konektor, dokumen (+ulasan), webhook (+ingest/pengiriman), i18n (`en|id|ar`), audit, dasbor, kesehatan, metrik, browser.
+Permukaan API: **143 path berversi di bawah `/api/v1`** (terverifikasi terhadap `contracts/openapi/openapi.json`; katalog lengkap di bawah).
 
-### Fitur-fitur
-1. **Mesin koleksi (Go + worker Python)** — koleksi HTTP/API konkuren, retry dengan backoff+jitter, circuit breaker, rate limiting, connection pooling, graceful shutdown. Eskalasi strategi: `DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA`.
-2. **Browser headless (Playwright)** — pool konteks (default 2), timeout per-job, blokir media/font, sesi per-job, capture metadata (status, URL akhir, ukuran, ms).
-3. **Konektor** — eksekusi RSS / REST berpaginasi / CSV dengan endpoint `test` + `execute`; `test-connection` target dengan rekomendasi strategi.
-4. **Intelijen target** — profil per-target (tingkat sukses, latensi/biaya EWMA, pembelajaran strategi terbaik); menghormati robots.txt/ToS.
-5. **Normalisasi & ETL** — produk, perusahaan, harga, ulasan, artikel, penawaran, situs, peristiwa, hasil pencarian → tabel bertipe dengan provenance penuh.
-6. **Resolusi entitas** — eksak → string ternormalisasi → domain/identifier → fuzzy (≥0,87 auto-link, 0,70–0,87 perlu review) → bantuan AI opsional; alias, merge/split/reject, riwayat, antrean `needs_review`.
-7. **Intelijen harga** — riwayat, deteksi perubahan, volatilitas, perbandingan kompetitor, peringatan `price_drop_pct` / `back_in_stock`.
-8. **Intelijen kompetitor / pasar / ulasan / berita** — perbandingan berbasis bukti (setiap klaim mengutip `raw_document_id`), tren kategori, topik emerging berbasis TF, sentimen leksikon + tema keluhan/pujian, ringkasan berita ekstraktif.
-9. **Deteksi perubahan** — hash + perbandingan level-field → `NEW / CHANGED / REMOVED / UNCHANGED`; diff tersimpan.
-10. **Knowledge graph** — node/edge, traversal, jalur terpendek, render SVG; event, bukti, verifikasi klaim, cek kontradiksi, temuan dengan lineage.
-11. **Riset & umpan** — perencana + run riset, temuan, umpan personal + langganan, peluang (z-score).
-12. **Pemantauan** — daftar pantau (keyword/perusahaan/domain) dengan evaluasi, jadwal (sekali/interval/per jam/harian/mingguan/cron/event), peringatan (in-app/email/webhook HMAC) dengan ack/resolve/bulk/cek/kirim, workflow (pemicu → aksi, jeda/versi/retry/batal), insiden + SLA + jendela pemeliharaan.
-13. **Analitik & ML** — deskriptif, time-series, harga, banding kompetitor/sumber, anomali (z-score ≥ 3), korelasi Pearson, k-means 1-D; forecast (EWMA/linear), klasifikasi, skor entity-match; registry model dengan versi+metrik.
-14. **AI (multi-vendor)** — abstraksi `AIProvider`: Muse Spark 1.3 (default), OpenAI, Anthropic, Google, Ollama, konfigurasi-DB; fallback chain, pelacakan usage/biaya, registry prompt, pertahanan injeksi. Chat/tanya berbasis bukti (`evidence_ids` + sitasi).
-15. **Pencarian** — MySQL FULLTEXT + paginasi; abstraksi pencarian semantik (default noop, siap Pinecone/Milvus/Qdrant); faset.
-16. **Laporan & dataset** — laporan pasar/kompetitor/produk/harga/ulasan/situs/eksekutif; ekspor web/PDF/CSV/JSON/XLSX + Markdown; setiap laporan memuat metodologi/cakupan/timestamp/bukti/keterbatasan. Dataset dengan versioning per-dataset, diff/rollback, impor CSV.
-17. **Dasbor (hanya data nyata)** — job, sukses/gagal, worker, kesehatan provider/target, pergerakan harga, peringatan, wawasan AI, kualitas, biaya; empty state, tidak pernah palsu. Mode gelap/terang, toast, tampilan eksekutif.
-18. **UI multibahasa (EN/ID/AR)** — `GET /api/v1/i18n?lang=`; Arab diterjemahkan penuh dengan tata letak RTL.
-19. **Admin & tata kelola** — org, pengguna, peran, RBAC di semua rute mutasi, API key berskop/kedaluwarsa, entitlements komersial (paket/kuota/allowlist model, 402), feature flag (global/org/user), retention runner, deteksi/masking PII, audit trail, system doctor, backup/restore, CLI webintel.
-20. **Reliabilitas & observabilitas** — antrean/lease/heartbeat/pubsub Redis, DLQ, idempotency key, pemulihan restart; log JSON dengan trace ID, `/metrics` Prometheus, `/healthz` + `/readyz`, pelacakan biaya dengan budget yang ditegakkan sebelum dispatch.
-21. **Deployment** — aaPanel (Nginx HTTPS → 127.0.0.1:8000, unit systemd untuk api/worker/browser/collector), tanpa Docker.
+### Katalog fitur (dicatat dari implementasi)
+
+#### 1. Koleksi & eksekusi job
+| Fitur | Endpoint utama |
+|---|---|
+| Buat / lihat daftar job koleksi | `POST / GET /api/v1/jobs` |
+| Jalankan sekarang, batalkan, ulangi job | `POST /api/v1/jobs/{job_id}/run`, `/cancel`, `/retry` |
+| Penampungan hasil (kolektor Go + worker Python melapor ke sini) | `POST /api/v1/results` |
+| Inspeksi antrean gagal (dead-letter queue) | `GET /api/v1/dlq` |
+| Jadwal (sekali/interval/per jam/harian/mingguan/cron/event) + tick manual | `POST / GET /api/v1/schedules`, `POST /api/v1/worker/tick` |
+| Mesin keputusan strategi koleksi (`DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA`) | `POST /api/v1/strategy/decide` |
+| Mesin kolektor Go (HTTP/API konkuren, retry + backoff/jitter, circuit breaker, rate limit, pooling) | `build/linux/collector` (dari `source/go/collector`) |
+| Pool browser headless (Playwright, 2 konteks, timeout per-job, blokir media/font) | `GET /api/v1/browser/health` |
+| Kesehatan pool proxy sendiri; tes koneksi Bright Data | `GET /api/v1/proxies/health`, `POST /api/v1/brightdata/test` |
+
+#### 2. Sumber, target & konektor
+| Fitur | Endpoint utama |
+|---|---|
+| Proyek | `POST / GET /api/v1/projects` |
+| Target + tes koneksi (dengan rekomendasi strategi) | `POST / GET /api/v1/targets`, `POST /api/v1/targets/{tid}/test` |
+| Konektor (RSS / REST berpaginasi / CSV) + cocokkan / tes / eksekusi | `POST / GET /api/v1/connectors`, `/match`, `/{cid}/test`, `/{cid}/execute` |
+| Skor keandalan target (tingkat sukses, latensi, stabilitas) | `GET /api/v1/reliability/targets` |
+| Profil belajar per-target (latensi/biaya EWMA, strategi terbaik); menghormati robots.txt/ToS | `services/targets.py` |
+
+#### 3. Intelijen harga, pasar, ulasan & berita
+| Fitur | Endpoint utama |
+|---|---|
+| Titik harga + korelasi harga | `GET /api/v1/prices`, `POST /api/v1/correlate/prices` |
+| Analitik harga + tren pasar / topik emerging | `GET /api/v1/analytics/prices`, `/analytics/trends` |
+| Skoring kualitas data | `POST /api/v1/quality/score`, `GET /api/v1/analytics/quality` |
+| Arus perubahan situs + klasifikasi perubahan | `GET /api/v1/changes`, `POST /api/v1/changes/classify` |
+| Peluang (z-score) | `GET /api/v1/opportunities` |
+| Artikel berita | `POST / GET /api/v1/articles` |
+| Ulasan: impor CSV, ringkasan (rating, sentimen, tema), antrean moderasi | `POST /api/v1/reviews/import`, `GET /api/v1/reviews/summary`, `/reviews/queue` |
+| Banding kompetitor (berbasis bukti), intel ulasan, ringkasan berita | `POST /api/v1/intel/competitors/compare`, `/intel/reviews`, `/intel/news/summarize` |
+
+#### 4. Knowledge graph, bukti & riset
+| Fitur | Endpoint utama |
+|---|---|
+| Node/edge graf, traversal, jalur terpendek, render SVG | `POST /api/v1/graph/nodes`, `/edges`, `GET /traverse`, `/path`, `/render` |
+| Peristiwa, bank bukti, klaim + verifikasi, cek kontradiksi | `POST / GET /api/v1/events`, `/evidence`, `/claims`, `/claims/verify`, `/contradictions/check` |
+| Temuan + silsilah data (lineage) | `POST / GET /api/v1/findings`, `GET /findings/{fid}`, `/lineage/{fid}` |
+| Umpan intelijen + langganan + umpan personal | `GET /api/v1/feed`, `/feed/personalized`, `POST /api/v1/feed/subscriptions` |
+| Riset: rencana, run, analisis AI, selesaikan, bandingkan, ekspor markdown | `POST /api/v1/research/plan`, `/runs`, `/runs/{rid}/analyze`, `/finish`, `/compare`, `/export` |
+| Entitas: daftar / detail / resolve / gabung / pisah / tolak / alias / riwayat | `GET / POST /api/v1/entities...` (8 path) |
+
+#### 5. Pemantauan: daftar pantau, peringatan, workflow, webhook
+| Fitur | Endpoint utama |
+|---|---|
+| Daftar pantau (keyword/perusahaan/domain) + cek global + evaluasi per-item | `POST / GET /api/v1/watchlists`, `/check`, `/{wid}/evaluate`, `DELETE /{wid}` |
+| Peringatan: buat/daftar, ack, resolve, bulk, cek aturan, kirim, insiden | `POST / GET /api/v1/alerts`, `/{alert_id}/ack`, `/resolve`, `/bulk`, `/check`, `/send`, `/incidents` |
+| Workflow (pemicu → aksi): CRUD, jalankan, retry idempoten, batal | `POST / GET /api/v1/workflows`, `/{wid}`, `/run`, `/retry`, `/cancel` |
+| Jendela pemeliharaan + nonaktifkan | `POST / GET /api/v1/maintenance`, `/{mid}/disable` |
+| Webhook keluar: CRUD, tes, log pengiriman + ulangi | `POST / GET /api/v1/webhooks`, `/{wid}/test`, `/deliveries`, `/deliveries/{did}/replay` |
+| Ingest webhook masuk (bertanda HMAC, jendela replay) | `POST /api/v1/ingest/webhook` |
+
+#### 6. Dataset, dokumen & laporan
+| Fitur | Endpoint utama |
+|---|---|
+| Dataset: CRUD, versi per-dataset, diff, rollback, impor CSV, ekspor, publikasi, arsip | `POST / GET /api/v1/datasets`, `/{did}/versions`, `/diff`, `/rollback`, `/import`, `/export`, `/publish`, `/archive` |
+| Ingest dokumen (txt/html/csv; pdf via pypdf) | `POST / GET /api/v1/documents` |
+| Laporan (pasar/kompetitor/produk/harga/ulasan/situs/eksekutif) + ekspor (web/PDF/CSV/JSON/XLSX/markdown) | `POST / GET /api/v1/reports`, `GET /api/v1/reports/{rep_id}/export` |
+
+#### 7. AI, pencarian & tanya
+| Fitur | Endpoint utama |
+|---|---|
+| Provider AI (env + konfigurasi-DB), nonaktifkan, model, kesehatan, usage/biaya, registry prompt | `GET /api/v1/ai/providers`, `/providers/db`, `/{pid}/disable`, `/models`, `/health`, `/usage`, `/prompts` |
+| Chat + tanya berbasis bukti (`evidence_ids` + sitasi) | `POST /api/v1/ai/chat`, `POST /api/v1/ask` |
+| Pencarian FULLTEXT + abstraksi pencarian semantik | `GET /api/v1/search`, `/search/semantic` |
+| ML: registry model + prediksi (forecast, anomali, klasifikasi, clustering) | `POST /api/v1/ml/register`, `GET /api/v1/ml/models`, `POST /api/v1/ml/predict` |
+
+#### 8. Admin, billing & tata kelola
+| Fitur | Endpoint utama |
+|---|---|
+| Organisasi + branding white-label, keanggotaan, peran (RBAC) | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles` |
+| API key berskop/kedaluwarsa + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
+| Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
+| Billing komersial: paket, paket aktif, usage/kuota (402 jika lewat) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
+| Feature flag (global/org/user) | `GET / POST /api/v1/flags` |
+| Template vertikal industri + terapkan | `GET /api/v1/verticals`, `/{name}`, `POST /{name}/apply` |
+| Retention runner, ringkasan biaya, set/cek budget | `POST /api/v1/admin/retention/run`, `GET /api/v1/costs/summary`, `POST /api/v1/costs/budget`, `GET /budget/check` |
+| Audit trail, system doctor | `GET /api/v1/audit`, `/api/v1/system/doctor` |
+
+#### 9. Platform (non-API)
+| Fitur | Catatan |
+|---|---|
+| Dasbor (hanya data nyata, gelap/terang, EN/ID, toast, tampilan eksekutif) | `GET /`, `GET /api/v1/dashboard` |
+| i18n (Inggris, Indonesia) | `GET /api/v1/i18n?lang=en\|id` |
+| Versi, liveness, readiness, metrik Prometheus | `GET /api/version`, `/healthz`, `/readyz`, `/metrics` |
+| Persistensi / keamanan / reliabilitas / deployment / CLI / backup-restore / masking PII | lihat Ringkasan; `source/python/cli.py`, `deploy/` |
 
 ### Mulai cepat
 ```bat
@@ -141,30 +278,98 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 
 الأمان: حماية SSRF + قائمة egress موثوقة، مصادقة بالرمز + مفاتيح API محددة النطاق ومنتهية الصلاحية، عزل المنظمات في كل مجموعة (مختبر ضد IDOR)، استقبال ويب هوك بتوقيع HMAC مع نافذة إعادة، حدود معدل لكل IP (429)، حد حجم الجسم (413)، سجلات تُخفي الأسرار. اضبط `REQUIRE_AUTH=1` في الإنتاج.
 
-سطح API: **143 مسارًا مُصدَرًا تحت `/api/v1`** (انظر `contracts/openapi/openapi.json`): المنظمات، الأدوار، العضويات، مفاتيح API، المشاريع، الأهداف، المهام، النتائج، الأسعار، التغييرات، المقالات، البحث (+دلالي)، التحليلات، الاستخبارات (مقارنة/مراجعات/أخبار)، الكيانات، التكاليف، تعلم الآلة (+تنبؤ)، التنبيهات (+فحص/إرسال)، التقارير (+تصدير)، السؤال، الموجز (+اشتراكات)، الفرص، البحث، قوائم المراقبة، سير العمل، مجموعات البيانات، الموصلات، المستندات (+مراجعات)، الويب هوك (+استقبال/تسليم)، i18n (`en|id|ar`)، التدقيق، لوحة التحكم، الصحة، المقاييس، المتصفح.
+سطح API: **143 مسارًا مُصدَرًا تحت `/api/v1`** (تم التحقق مقابل `contracts/openapi/openapi.json`؛ الفهرس الكامل أدناه).
 
-### الميزات
-1. **محرك الجمع (Go + عمال Python)** — جمع HTTP/API متزامن، إعادة محاولة مع backoff+jitter، قاطع دائرة، تحديد معدل، تجميع اتصالات، إيقاف سلس. تصعيد الاستراتيجية: `DIRECT ← API ← BROWSER ← OWN_PROXY ← BRIGHT_DATA`.
-2. **متصفح headless (Playwright)** — تجمع سياقات (افتراضي 2)، مهلة لكل مهمة، حظر الوسائط/الخطوط، جلسة لكل مهمة، التقاط البيانات الوصفية (الحالة، URL النهائي، الحجم، المدة).
-3. **الموصلات** — تنفيذ RSS / REST مُرقّم / CSV مع نقطتي `test` + `execute`؛ و`test-connection` للأهداف مع توصية استراتيجية.
-4. **استخبارات الأهداف** — ملف لكل هدف (معدل النجاح، زمن/تكلفة EWMA، تعلم أفضل استراتيجية)؛ احترام robots.txt/شروط الاستخدام.
-5. **التطبيع و ETL** — المنتجات، الشركات، الأسعار، المراجعات، المقالات، العروض، المواقع، الأحداث، نتائج البحث ← جداول مُنظّمة مع provenance كامل.
-6. **حل الكيانات** — مطابق تمام ← نص مُطبّع ← نطاق/معرف ← ضبابي (≥0.87 ربط تلقائي، 0.70–0.87 يحتاج مراجعة) ← مساعدة AI اختيارية؛ أسماء بديلة، دمج/تقسيم/رفض، سجل، قائمة `needs_review`.
-7. **استخبارات الأسعار** — السجل، كشف التغيير، التقلب، مقارنة المنافسين، تنبيهات `price_drop_pct` / `back_in_stock`.
-8. **استخبارات المنافسين / السوق / المراجعات / الأخبار** — مقارنة موثقة بالأدلة (كل ادعاء يستشهد بـ `raw_document_id`)، اتجاهات الفئات، مواضيع ناشئة (TF)، مشاعر معجمية + موضوعات الشكاوى/المديح، ملخصات إخبارية استخراجية.
-9. **كشف تغييرات المواقع** — بصمة + مقارنة على مستوى الحقول ← `NEW / CHANGED / REMOVED / UNCHANGED`؛ الفروقات مخزنة.
-10. **الرسم المعرفي** — عقد/حواف، اجتياز، أقصر مسار، عرض SVG؛ أحداث، أدلة، تحقق الادعاءات، فحص التناقضات، نتائج مع النسب.
-11. **البحث والموجز** — مخطط + جولات بحث، نتائج، موجز مخصص + اشتراكات، فرص (z-score).
-12. **المراقبة** — قوائم مراقبة (كلمة/شركة/نطاق) مع تقييم، جداول (مرة/فاصل/ساعي/يومي/أسبوعي/cron/حدث)، تنبيهات (داخلية/بريد/ويب هوك HMAC) مع إقرار/حل/جماعي/فحص/إرسال، سير عمل (محفز ← إجراء، إيقاف/إصدار/إعادة/إلغاء)، حوادث + SLA + نوافذ صيانة.
-13. **التحليلات وتعلم الآلة** — وصفي، سلاسل زمنية، أسعار، مقارنة منافسين/مصادر، شذوذ (z-score ≥ 3)، ارتباط Pearson، k-means أحادي؛ تنبؤ (EWMA/خطي)، تصنيف، درجة مطابقة الكيانات؛ سجل نماذج بالإصدار+المقاييس.
-14. **الذكاء الاصطناعي (متعدد المزودين)** — تجريد `AIProvider`: Muse Spark 1.3 (افتراضي)، OpenAI، Anthropic، Google، Ollama، مُكوَّن من DB؛ سلسلة احتياطية، تتبع الاستخدام/التكلفة، سجل prompts، دفاع ضد الحقن. دردشة/سؤال موثق بالأدلة (`evidence_ids` + استشهادات).
-15. **البحث** — MySQL FULLTEXT + ترقيم؛ تجريد البحث الدلالي (افتراضي noop، جاهز لـ Pinecone/Milvus/Qdrant)؛ أوجه.
-16. **التقارير ومجموعات البيانات** — تقارير السوق/المنافسين/المنتجات/الأسعار/المراجعات/المواقع/التنفيذية؛ تصدير web/PDF/CSV/JSON/XLSX + Markdown؛ كل تقرير يشمل المنهجية/التغطية/الأوقات/الأدلة/القيود. مجموعات بيانات بإصدارات لكل مجموعة، diff/rollback، استيراد CSV.
-17. **لوحة التحكم (بيانات حقيقية فقط)** — المهام، نجاح/فشل، العمال، صحة المزودين/الأهداف، تحركات الأسعار، التنبيهات، رؤى AI، الجودة، التكاليف؛ حالات فارغة، لا تزييف أبدًا. وضع داكن/فاتح، تنبيهات toast، عرض تنفيذي.
-18. **واجهة متعددة اللغات (EN/ID/AR)** — `GET /api/v1/i18n?lang=`؛ العربية مترجمة بالكامل مع تخطيط RTL.
-19. **الإدارة والحوكمة** — منظمات، مستخدمون، أدوار، RBAC في كل المسارات المعدِّلة، مفاتيح API محددة النطاق/منتهية، استحقاقات تجارية (خطط/حصص/قائمة نماذج، 402)، أعلام ميزات (عام/منظمة/مستخدم)، احتفاظ تلقائي، كشف/إخفاء PII، سجل تدقيق، طبيب النظام، نسخ احتياطي/استعادة، CLI.
-20. **الموثوقية والمراقبة** — قائمة Redis/leases/نبضات/pubsub، DLQ، مفاتيح عدم التكرار، تعافٍ بعد إعادة التشغيل؛ سجلات JSON بمعرفات تتبع، `/metrics` لبروميثيوس، `/healthz` + `/readyz`، تتبع التكاليف بميزانيات تُفرض قبل الإرسال.
-21. **النشر** — aaPanel (Nginx HTTPS ← 127.0.0.1:8000، وحدات systemd لـ api/worker/browser/collector)، بدون Docker.
+### فهرس الميزات (موثق من التنفيذ)
+
+#### 1. الجمع وتنفيذ المهام
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| إنشاء / عرض مهام الجمع | `POST / GET /api/v1/jobs` |
+| تشغيل فوري، إلغاء، إعادة المحاولة | `POST /api/v1/jobs/{job_id}/run`، `/cancel`، `/retry` |
+| استقبال النتائج (يُرسل إليها جامع Go وعمال Python) | `POST /api/v1/results` |
+| فحص قائمة الرسائل الفاشلة | `GET /api/v1/dlq` |
+| الجداول (مرة/فاصل/ساعي/يومي/أسبوعي/cron/حدث) + تشغيل يدوي | `POST / GET /api/v1/schedules`، `POST /api/v1/worker/tick` |
+| محرك قرار استراتيجية الجمع (`DIRECT ← API ← BROWSER ← OWN_PROXY ← BRIGHT_DATA`) | `POST /api/v1/strategy/decide` |
+| محرك الجمع Go (متزامن، إعادة محاولة، قاطع دائرة، تحديد معدل، تجميع اتصالات) | `build/linux/collector` (من `source/go/collector`) |
+| تجمع المتصفح headless (Playwright، سياقان، مهلة لكل مهمة، حظر الوسائط) | `GET /api/v1/browser/health` |
+| صحة تجمع البروكسي؛ اختبار اتصال Bright Data | `GET /api/v1/proxies/health`، `POST /api/v1/brightdata/test` |
+
+#### 2. المصادر والأهداف والموصلات
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| المشاريع | `POST / GET /api/v1/projects` |
+| الأهداف + اختبار الاتصال (مع توصية استراتيجية) | `POST / GET /api/v1/targets`، `POST /api/v1/targets/{tid}/test` |
+| الموصلات (RSS / REST مُرقّم / CSV) + مطابقة / اختبار / تنفيذ | `POST / GET /api/v1/connectors`، `/match`، `/{cid}/test`، `/{cid}/execute` |
+| درجة موثوقية الأهداف (معدل النجاح، الزمن، الاستقرار) | `GET /api/v1/reliability/targets` |
+| ملف تعلم لكل هدف؛ احترام robots.txt/الشروط | `services/targets.py` |
+
+#### 3. استخبارات الأسعار والسوق والمراجعات والأخبار
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| نقاط الأسعار + ارتباط الأسعار | `GET /api/v1/prices`، `POST /api/v1/correlate/prices` |
+| تحليلات الأسعار + اتجاهات السوق / المواضيع الناشئة | `GET /api/v1/analytics/prices`، `/analytics/trends` |
+| تقييم جودة البيانات | `POST /api/v1/quality/score`، `GET /api/v1/analytics/quality` |
+| موجز تغييرات المواقع + تصنيف التغييرات | `GET /api/v1/changes`، `POST /api/v1/changes/classify` |
+| الفرص (z-score) | `GET /api/v1/opportunities` |
+| المقالات الإخبارية | `POST / GET /api/v1/articles` |
+| المراجعات: استيراد CSV، ملخص، قائمة مراجعة | `POST /api/v1/reviews/import`، `GET /api/v1/reviews/summary`، `/reviews/queue` |
+| مقارنة المنافسين (موثقة)، استخبارات المراجعات، تلخيص الأخبار | `POST /api/v1/intel/competitors/compare`، `/intel/reviews`، `/intel/news/summarize` |
+
+#### 4. الرسم المعرفي والأدلة والبحث
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| العقد/الحواف، الاجتياز، أقصر مسار، عرض SVG | `POST /api/v1/graph/nodes`، `/edges`، `GET /traverse`، `/path`، `/render` |
+| الأحداث، مخزن الأدلة، الادعاءات + التحقق، فحص التناقضات | `POST / GET /api/v1/events`، `/evidence`، `/claims`، `/claims/verify`، `/contradictions/check` |
+| النتائج + نسب البيانات | `POST / GET /api/v1/findings`، `GET /findings/{fid}`، `/lineage/{fid}` |
+| الموجز + الاشتراكات + الموجز المخصص | `GET /api/v1/feed`، `/feed/personalized`، `POST /api/v1/feed/subscriptions` |
+| البحث: خطة، جولات، تحليل AI، إنهاء، مقارنة، تصدير markdown | `POST /api/v1/research/plan`، `/runs`، `/runs/{rid}/analyze`، `/finish`، `/compare`، `/export` |
+| الكيانات: عرض/تفصيل/حل/دمج/تقسيم/رفض/بدائل/سجل | `GET / POST /api/v1/entities...` (8 مسارات) |
+
+#### 5. المراقبة: قوائم المراقبة والتنبيهات وسير العمل والويب هوك
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| قوائم المراقبة + فحص شامل + تقييم لكل عنصر | `POST / GET /api/v1/watchlists`، `/check`، `/{wid}/evaluate`، `DELETE /{wid}` |
+| التنبيهات: إنشاء/عرض، إقرار، حل، جماعي، فحص القواعد، إرسال، حوادث | `POST / GET /api/v1/alerts`، `/{alert_id}/ack`، `/resolve`، `/bulk`، `/check`، `/send`، `/incidents` |
+| سير العمل (محفز ← إجراء): CRUD، تشغيل، إعادة غير مكررة، إلغاء | `POST / GET /api/v1/workflows`، `/{wid}`، `/run`، `/retry`، `/cancel` |
+| نوافذ الصيانة + تعطيل | `POST / GET /api/v1/maintenance`، `/{mid}/disable` |
+| الويب هوك الصادر: CRUD، اختبار، سجل التسليم + إعادة | `POST / GET /api/v1/webhooks`، `/{wid}/test`، `/deliveries`، `/deliveries/{did}/replay` |
+| استقبال الويب هوك (بتوقيع HMAC) | `POST /api/v1/ingest/webhook` |
+
+#### 6. مجموعات البيانات والمستندات والتقارير
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| مجموعات البيانات: CRUD، إصدارات، diff، rollback، استيراد CSV، تصدير، نشر، أرشفة | `POST / GET /api/v1/datasets`، `/{did}/versions`، `/diff`، `/rollback`، `/import`، `/export`، `/publish`، `/archive` |
+| استقبال المستندات (txt/html/csv؛ pdf عبر pypdf) | `POST / GET /api/v1/documents` |
+| التقارير (سوق/منافسين/منتجات/أسعار/مراجعات/مواقع/تنفيذية) + تصدير (web/PDF/CSV/JSON/XLSX/markdown) | `POST / GET /api/v1/reports`، `GET /api/v1/reports/{rep_id}/export` |
+
+#### 7. الذكاء الاصطناعي والبحث والسؤال
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| مزودو AI (env + DB)، تعطيل، نماذج، صحة، استخدام/تكلفة، سجل prompts | `GET /api/v1/ai/providers`، `/providers/db`، `/{pid}/disable`، `/models`، `/health`، `/usage`، `/prompts` |
+| دردشة + سؤال موثق بالأدلة | `POST /api/v1/ai/chat`، `POST /api/v1/ask` |
+| بحث FULLTEXT + تجريد البحث الدلالي | `GET /api/v1/search`، `/search/semantic` |
+| تعلم الآلة: سجل النماذج + تنبؤ | `POST /api/v1/ml/register`، `GET /api/v1/ml/models`، `POST /api/v1/ml/predict` |
+
+#### 8. الإدارة والفوترة والحوكمة
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| المنظمات + branding، العضويات، الأدوار (RBAC) | `POST / GET /api/v1/orgs`، `/orgs/{oid}/branding`، `/memberships`، `/roles` |
+| مفاتيح API محددة النطاق/منتهية + إلغاء | `POST / GET /api/v1/apikeys`، `POST /api/v1/apikeys/{kid}/revoke` |
+| المصادقة: دخول (Bearer)، OIDC | `POST /api/v1/auth/login`، `/auth/oidc/login`، `/callback`، `/providers` |
+| الفوترة: الخطط، الخطة الحالية، الاستخدام/الحصص (402 عند التجاوز) | `GET /api/v1/billing/plans`، `/plan`، `/usage` |
+| أعلام الميزات (عام/منظمة/مستخدم) | `GET / POST /api/v1/flags` |
+| قوالب القطاعات + تطبيق | `GET /api/v1/verticals`، `/{name}`، `POST /{name}/apply` |
+| الاحتفاظ التلقائي، ملخص التكاليف، ضبط/فحص الميزانية | `POST /api/v1/admin/retention/run`، `GET /api/v1/costs/summary`، `POST /api/v1/costs/budget`، `GET /budget/check` |
+| سجل التدقيق، طبيب النظام | `GET /api/v1/audit`، `/api/v1/system/doctor` |
+
+#### 9. المنصة (غير API)
+| الميزة | ملاحظات |
+|---|---|
+| لوحة التحكم (بيانات حقيقية فقط، داكن/فاتح، EN/ID، عرض تنفيذي) | `GET /`، `GET /api/v1/dashboard` |
+| i18n (الإنجليزية، الإندونيسية) | `GET /api/v1/i18n?lang=en\|id` |
+| الإصدار، الحيوية، الجاهزية، مقاييس بروميثيوس | `GET /api/version`، `/healthz`، `/readyz`، `/metrics` |
+| الثبات / الأمان / الموثوقية / النشر / CLI / النسخ الاحتياطي / إخفاء PII | انظر النظرة العامة؛ `source/python/cli.py`، `deploy/` |
 
 ### بداية سريعة
 ```bat

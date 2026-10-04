@@ -29,7 +29,7 @@ from ..schemas.api import ProjectIn, TargetIn, JobIn, AlertRuleIn
 from . import dashboard as dash
 from ..collectors.proxy import OwnProxyProvider
 from ..collectors.brightdata import BrightDataProvider
-from ..ai.muse_provider import MuseSparkProvider
+from ..ai.factory import build_provider as _build_provider
 from ..ai import registry as aireg
 from ..core.config import settings
 from ..alerts.service import build as build_alert
@@ -96,8 +96,8 @@ USERS = {"admin@local": {"password_hash": hash_password("admin123")}}
 own_proxy = OwnProxyProvider(settings.own_proxy_urls)
 bright = BrightDataProvider(settings.brightdata_api_key, settings.brightdata_zone,
                             settings.brightdata_endpoint)
-muse = MuseSparkProvider(settings.muse_base_url, settings.muse_api_key,
-                         settings.muse_model)
+muse = _build_provider(settings.muse_protocol, settings.muse_base_url,
+                       settings.muse_api_key, settings.muse_model)
 aireg.register("muse-spark", muse)
 try:
     from ..ai.factory import build_all as _build_ai

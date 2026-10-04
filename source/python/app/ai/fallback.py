@@ -1,6 +1,19 @@
 """Provider fallback: try providers in order, record each failure. stdlib only."""
 import time
 
+_PREFERRED = ("muse-spark", "openai", "anthropic", "google", "ollama")
+
+
+def default_names(reg):
+    """Fallback order derived from the live registry — never a frozen list.
+
+    Preferred vendors first (if registered), then any other registered
+    provider (custom/DB-added) alphabetically, so newly added providers
+    join the chain with zero code changes.
+    """
+    have = set(reg.names())
+    return [n for n in _PREFERRED if n in have] + sorted(have - set(_PREFERRED))
+
 
 def chat_fallback(providers: list, messages: list, model: str = ""):
     """providers: [(name, provider)]. Returns response or aggregated error."""

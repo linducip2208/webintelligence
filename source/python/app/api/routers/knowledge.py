@@ -226,7 +226,7 @@ def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_ap
     messages = [{"role": "user", "content": _safe.wrap_evidence(
         [{"text": f"[{e['id']}] {e.get('snippet', '')} ({e.get('url', '')})"} for e in ev])},
         {"role": "user", "content": prompt}]
-    names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
+    names = fallback_order() or _fb.default_names(_reg)
     out = _fb.chat_fallback([(n, _reg.get(n)) for n in names], messages,
                             run.get("ai_model", ""))
     if out.get("error"):

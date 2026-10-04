@@ -5,11 +5,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 from ai.vendors import (OpenAIProvider, AnthropicProvider, GoogleProvider,  # noqa: E402
-                        OllamaProvider, MuseSparkProvider)
+                         OllamaProvider, MuseSparkProvider)
+from ai.responses_provider import ResponsesProvider  # noqa: E402
 from ai import fallback as FB  # noqa: E402
 from ai import safety as SF  # noqa: E402
 from ai import prompts as PR  # noqa: E402
-from ai.factory import build_all, fallback_order  # noqa: E402
+from ai.factory import build_all, fallback_order, build_provider  # noqa: E402
 
 
 class Stub(BaseHTTPRequestHandler):
@@ -57,6 +58,26 @@ class Stub(BaseHTTPRequestHandler):
             assert self.headers.get("anthropic-version"), "version header"
             self._send({"content": [{"type": "text", "text": "stub-ant"}],
                         "usage": {"input_tokens": 4, "output_tokens": 1}})
+        elif self.path == "/responses":
+            assert self.headers.get("Authorization") == "Bearer k-resp", "bearer key"
+            ua = self.headers.get("User-Agent", "")
+            assert "urllib" not in ua and ua, "gateway-safe user agent"
+            assert payload.get("model") == "muse-spark-1.3-contributor", "model passthrough"
+            assert isinstance(payload.get("input"), list), "responses input array"
+            if payload.get("stream"):
+                chunks = ['data: {"type":"response.output_text.delta","delta":"he"}\n\n',
+                          'data: {"type":"response.output_text.delta","delta":"llo"}\n\n',
+                          "data: [DONE]\n\n"]
+                raw = "".join(chunks).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
+            self._send({"output": [{"type": "message", "content": [
+                {"type": "output_text", "text": "stub-resp"}]}],
+                "usage": {"input_tokens": 6, "output_tokens": 3}})
         elif ":generateContent" in self.path:
             assert "key=k-goog" in self.path, "api key in url"
             self._send({"candidates": [{"content": {"parts": [{"text": "stub-goog"}]}}],
@@ -143,3 +164,55 @@ def test_factory_env():
     assert set(got) >= {"openai", "anthropic", "ollama"}
     assert "google" not in got and "muse-spark" not in got
     assert fallback_order(lambda k, d="": "a,b" if k == "AI_FALLBACKS" else d) == ["a", "b"]
+
+
+def test_responses_protocol_chat_stream_health():
+    s = _srv()
+    base = f"http://127.0.0.1:{s.server_port}"
+    p = ResponsesProvider(base, "k-resp", "muse-spark-1.3-contributor")
+    assert p.configured
+    out = p.chat([{"role": "user", "content": "hi"}])
+    assert out["text"] == "stub-resp" and out["input_tokens"] == 6
+    assert out["output_tokens"] == 3 and out["model"] == "muse-spark-1.3-contributor"
+    assert p.list_models() == {"models": ["stub-model"]}
+    assert p.health_check()["ok"] is True
+    got = "".join(c.get("delta", "") for c in p.stream([{"role": "user", "content": "hi"}]))
+    assert got == "hello"
+    assert ResponsesProvider("").chat([])["error"] == "not-configured"
+    assert ResponsesProvider("").health_check() == {"ok": False, "reason": "not-configured"}
+    s.shutdown()
+
+
+def test_factory_responses_protocol():
+    env = {"MUSE_SPARK_BASE_URL": "http://x/v1", "MUSE_SPARK_API_KEY": "k",
+           "MUSE_SPARK_MODEL": "muse-spark-1.3-contributor",
+           "MUSE_SPARK_PROTOCOL": "responses"}
+    got = build_all(env.get)
+    assert isinstance(got["muse-spark"], ResponsesProvider)
+    env2 = {"MUSE_SPARK_BASE_URL": "http://x/v1"}
+    assert isinstance(build_all(env2.get)["muse-spark"], MuseSparkProvider)
+
+
+def test_no_hardcoded_providers():
+    # protocol is data: builder picks class, no caller hardcodes it
+    assert isinstance(build_provider("responses", "http://x"), ResponsesProvider)
+    assert isinstance(build_provider("chat", "http://x"), MuseSparkProvider)
+    assert isinstance(build_provider("", "http://x"), MuseSparkProvider)
+    # generic slot: any OpenAI-compatible endpoint, zero code changes
+    env = {"CUSTOM_AI_NAME": "my-gw", "CUSTOM_AI_BASE_URL": "http://gw/v1",
+           "CUSTOM_AI_API_KEY": "k", "CUSTOM_AI_MODEL": "m1",
+           "CUSTOM_AI_PROTOCOL": "responses"}
+    got = build_all(env.get)
+    assert isinstance(got["my-gw"], ResponsesProvider)
+    env2 = dict(env, CUSTOM_AI_PROTOCOL="chat")
+    from ai.openai_compat import OpenAICompatProvider
+    assert isinstance(build_all(env2.get)["my-gw"], OpenAICompatProvider)
+    # fallback order derives from the live registry, not a frozen list
+    import ai.registry as R
+    R._REG.clear()
+    try:
+        R.register("zeta-custom", ResponsesProvider("http://z", "k", "m"))
+        R.register("muse-spark", MuseSparkProvider("", ""))
+        assert FB.default_names(R) == ["muse-spark", "zeta-custom"]
+    finally:
+        R._REG.clear()

@@ -84,6 +84,7 @@ class AIProvider(Base, Timestamp):
     __tablename__ = "ai_providers"
     id = Column(Integer, primary_key=True); name = Column(String(64), unique=True); base_url = Column(String(512))
     api_key_enc = Column(String(1024), default=""); model = Column(String(128), default="muse-spark-1.3"); enabled = Column(Boolean, default=True)
+    protocol = Column(String(16), default="chat")
 class AIUsage(Base, Timestamp):
     __tablename__ = "ai_usage"
     id = Column(Integer, primary_key=True); provider = Column(String(64)); model = Column(String(128))

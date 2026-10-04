@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebIntel Docs — Panduan Pemakaian</title>
+<link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
+<style>
+body{scroll-behavior:smooth}
+.toc{position:sticky;top:1rem}
+.toc a{display:block;padding:.3rem .7rem;border-radius:.4rem;color:var(--tblr-muted);text-decoration:none;font-size:.86rem}
+.toc a:hover{background:var(--tblr-border-color);color:inherit}
+.toc a.sub{padding-left:1.6rem;font-size:.8rem}
+pre{background:#0d1117;color:#e6edf3;padding:.8rem 1rem;border-radius:.6rem;white-space:pre-wrap;font-size:.82rem}
+code.inline{background:var(--tblr-border-color);padding:.1rem .4rem;border-radius:.3rem;font-size:.85em}
+table.doc{width:100%;font-size:.87rem}
+table.doc th,table.doc td{padding:.45rem .6rem;border-bottom:1px solid var(--tblr-border-color);vertical-align:top}
+.step{background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:.6rem;padding:.8rem 1rem;margin-bottom:.7rem}
+.step .n{display:inline-flex;width:1.7rem;height:1.7rem;border-radius:99px;background:var(--tblr-primary);color:#fff;align-items:center;justify-content:center;font-weight:700;margin-right:.5rem}
+section{scroll-margin-top:1rem}
+</style>
+</head>
+<body>
+<div class="page">
+<div class="container-xl py-4">
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+<div><h1 class="m-0">📖 WebIntel Docs</h1><div class="text-muted small">Universal Intelligence Platform v2.11.0 · <span data-t="tag">Panduan pemakaian lengkap &amp; terstruktur</span></div></div>
+<div class="ms-auto d-flex gap-2">
+<select id="lang" class="form-select form-select-sm" style="width:auto" onchange="setLang(this.value)"><option value="id">Indonesia</option><option value="en">English</option></select>
+<a class="btn btn-sm" href="/" data-t="dash">Dashboard</a>
+<a class="btn btn-sm" href="/api-docs" target="_blank">Swagger</a>
+</div>
+</div>
+<div class="row g-3">
+<div class="col-lg-3 d-none d-lg-block"><div class="toc card"><div class="card-body" id="toc"></div></div></div>
+<div class="col-lg-9" id="content">
+
+<section id="intro"><div class="card"><div class="card-body">
+<h2 data-t="s1t">1. Pengenalan</h2>
+<div data-t="s1b"><p><b>Universal Intelligence Platform (WebIntel)</b> adalah aplikasi monitoring &amp; intelijen data web: mengambil data publik dari website/API/dokumen, lalu mengubahnya menjadi informasi siap pakai — pantauan harga, pergerakan kompetitor, berita, perubahan situs, knowledge graph, sampai laporan eksekutif.</p>
+<p>Alur kerja: <code class="inline">DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT</code>. Prinsip penting: <b>dashboard hanya menampilkan data nyata</b> — tidak ada angka dummy. Kalau masih kosong, berarti belum ada aktivitas koleksi.</p></div>
+</div></div></section>
+
+<section id="req"><div class="card"><div class="card-body">
+<h2 data-t="s2t">2. Persyaratan</h2>
+<div data-t="s2b"><table class="doc"><tr><th>Komponen</th><th>Kebutuhan</th></tr>
+<tr><td>OS</td><td>Windows (dev, mis. Laragon) / Linux (produksi aaPanel)</td></tr>
+<tr><td>Python</td><td>3.12+ (paket: <code class="inline">source/python/requirements.txt</code>; pin <code class="inline">bcrypt==4.0.1</code>)</td></tr>
+<tr><td>Database</td><td><b>MySQL 8.4</b> (utama). Tanpa MySQL, app otomatis fallback ke file SQLite <code class="inline">data/webintel.db</code>, lalu memori</td></tr>
+<tr><td>Redis</td><td>Opsional (antrean &amp; rate-limit; tanpa Redis pakai memori)</td></tr>
+<tr><td>Go 1.21+</td><td>Opsional, hanya untuk build kolektor Go</td></tr>
+<tr><td>Kredensial live (opsional)</td><td>Bright Data (<code class="inline">BRIGHTDATA_API_KEY</code>) untuk crawl skala besar; AI provider (<code class="inline">MUSE_SPARK_API_KEY</code> dsb.) untuk fitur AI</td></tr></table></div>
+</div></div></section>
+
+<section id="install"><div class="card"><div class="card-body">
+<h2 data-t="s3t">3. Instalasi &amp; Menjalankan</h2>
+<div data-t="s3b">
+<div class="step"><span class="n">1</span><b>Siapkan database MySQL</b> (contoh Laragon, user root tanpa password):
+<pre>mysql -u root -e "CREATE DATABASE IF NOT EXISTS webintel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'webintel'@'%' IDENTIFIED BY 'GANTI_PASSWORD'; GRANT ALL PRIVILEGES ON webintel.* TO 'webintel'@'%'; FLUSH PRIVILEGES;"</pre></div>
+<div class="step"><span class="n">2</span><b>Install dependensi Python</b>:
+<pre>cd source\python
+pip install -r requirements.txt
+pip install "bcrypt==4.0.1"</pre></div>
+<div class="step"><span class="n">3</span><b>Set koneksi database</b> (PowerShell, sekali saja — tersimpan permanen):
+<pre>setx DATABASE_URL "mysql+pymysql://webintel:GANTI_PASSWORD@127.0.0.1:3306/webintel"</pre>
+Tutup-buka terminal agar variabel berlaku.</div>
+<div class="step"><span class="n">4</span><b>Jalankan server</b>:
+<pre>cd source\python
+python -m uvicorn app.main:app --port 8000</pre></div>
+<div class="step"><span class="n">5</span><b>Buka aplikasi</b>: Dashboard <code class="inline">http://127.0.0.1:8000/</code> · Panduan ini <code class="inline">/docs</code> · Swagger <code class="inline">/api-docs</code>. Cek kesehatan: <code class="inline">GET /readyz</code> — pastikan <code class="inline">database: backend=mysql</code>.</div>
+<div class="step"><span class="n">6</span><b>Kolektor Go (opsional)</b>:
+<pre>cd source\go\collector
+go test ./...
+go build -o ..\..\..\build\linux\collector .\cmd\collector</pre></div>
+</div>
+</div></div></section>
+
+<section id="concept"><div class="card"><div class="card-body">
+<h2 data-t="s4t">4. Konsep Inti</h2>
+<div data-t="s4b"><table class="doc"><tr><th>Konsep</th><th>Artinya</th></tr>
+<tr><td><b>Project</b></td><td>Wadah kerja (mis. “Monitoring Toko”). Semua data terisolasi per organisasi proyek.</td></tr>
+<tr><td><b>Target</b></td><td>Situs/URL yang dipantau, milik sebuah project. Punya profil belajar: strategi terbaik, rata-rata sukses/latensi.</td></tr>
+<tr><td><b>Job</b></td><td>Tugas ambil data untuk satu URL. Dibuat lalu di-<b>Run</b>; hasilnya (harga, perubahan, dsb.) masuk otomatis.</td></tr>
+<tr><td><b>Strategi</b></td><td>Urutan eskalasi pengambilan: <code class="inline">DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA</code>. Sistem memilih otomatis; bisa dites via <code class="inline">POST /api/v1/strategy/decide</code>.</td></tr>
+<tr><td><b>Evidence</b></td><td>Setiap klaim/temuan harus menunjuk bukti (dokumen mentah) — tidak ada intelijen tanpa sumber.</td></tr></table></div>
+</div></div></section>
+
+<section id="quick"><div class="card"><div class="card-body">
+<h2 data-t="s5t">5. Mulai Cepat 5 Menit</h2>
+<div data-t="s5b">
+<div class="step"><span class="n">1</span>Buka Dashboard, isi <b>API token / key</b> bila <code class="inline">REQUIRE_AUTH=1</code> (default mati di dev).</div>
+<div class="step"><span class="n">2</span>Menu <b>Sources → sources</b>: buat Project (isi nama → Add).</div>
+<div class="step"><span class="n">3</span>Menu <b>targets</b>: isi <code class="inline">project_id, domain, url</code> → Add. Klik <b>Test</b> untuk cek koneksi &amp; rekomendasi strategi.</div>
+<div class="step"><span class="n">4</span>Menu <b>jobs</b>: isi <code class="inline">project_id, target_id, url</code> → Add, lalu <b>Run now</b>. Status <code class="inline">success</code> = data masuk.</div>
+<div class="step"><span class="n">5</span>Kembali ke <b>Dashboard</b> → Refresh: kartu Jobs, Feed, dan menu lain (prices, changes, articles) kini ada isinya.</div>
+</div>
+</div></div></section>
+
+<section id="feat"><div class="card"><div class="card-body">
+<h2 data-t="s6t">6. Panduan Fitur</h2>
+<div data-t="s6b">
+<h3>6.1 Dashboard</h3><p>Ringkasan real-time: total job (sukses/gagal), alert terbuka, titik harga, estimasi biaya, peluang, kualitas data, panggilan AI, status sistem. Klik <b>Refresh</b>. Ganti bahasa via dropdown sidebar (English/Indonesia), mode gelap/terang via tombol ◐.</p>
+<h3>6.2 Sources (sources, targets, connectors, jobs, reliability)</h3><p>Kelola proyek, target pantauan, konektor RSS/REST/CSV (uji dengan <b>test</b>, jalankan dengan <b>execute</b>), dan job koleksi. <b>reliability</b> menampilkan skor keandalan target setelah ada riwayat koleksi nyata.</p>
+<h3>6.3 Job &amp; Jadwal (jobs, schedules)</h3><p>Job dijalankan manual (<b>Run now</b>) atau otomatis via <b>schedules</b> (interval/cron). Tombol <b>Run scheduler now</b> memicu jadwal yang jatuh tempo. Job gagal bisa <b>retry</b>/<b>cancel</b>; yang gagal permanen terlihat di <b>dlq</b>.</p>
+<h3>6.4 Harga &amp; Intel Pasar (products/prices, changes, articles, analytics, opps)</h3><p><b>products/prices</b>: riwayat &amp; volatilitas harga. <b>changes</b>: perubahan situs (NEW/CHANGED/REMOVED). <b>articles</b>: kelola artikel berita. <b>analytics</b>: tren &amp; anomali. <b>opps</b>: peluang terdeteksi (z-score).</p>
+<h3>6.5 Knowledge &amp; Riset (graph, events, evidence, claims, documents, research, runs, reports, findings)</h3><p><b>graph</b>: tambah node/edge, telusuri &amp; render SVG. <b>claims</b>: verifikasi klaim terhadap bukti. <b>documents</b>: ingest teks/HTML/CSV. <b>research</b>: tulis pertanyaan → Plan → run → analisis. <b>reports</b>: buat laporan lalu <b>View</b>/ekspor (web/PDF/CSV/JSON/XLSX/markdown).</p>
+<h3>6.6 Monitoring (watchlists, alerts, workflows, webhooks)</h3><p><b>watchlists</b>: daftarkan keyword/perusahaan/domain → <b>Evaluate</b> untuk cek kecocokan. <b>alerts</b>: aturan peringatan + <b>Send</b> (in-app/email/webhook). <b>workflows</b>: otomasi pemicu → aksi (<b>Run</b> manual untuk tes). <b>webhooks</b>: daftarkan URL penerima + <b>Test</b>.</p>
+<h3>6.7 Dataset (datasets)</h3><p>Kumpulkan data menjadi dataset berversi: lihat <b>versions</b>, bandingkan <b>diff</b>, kembalikan via <b>rollback</b>, impor CSV, <b>publish</b>/<b>archive</b> saat selesai.</p>
+<h3>6.8 AI &amp; Pencarian (ai, search)</h3><p><b>ai</b>: status provider &amp; chat berbasis bukti (jawaban menyertakan sitasi). <b>search</b>: pencarian global + semantik. Butuh kredensial provider (mis. Muse Spark) agar chat live; tanpa itu endpoint health tetap jalan.</p>
+<h3>6.9 Admin &amp; Billing (organizations, users, apikeys, audit, health, costs, billing)</h3><p>Kelola organisasi, user, API key berskop &amp; kedaluwarsa, lihat audit log, kesehatan sistem, ringkasan biaya &amp; budget, serta paket/kuota billing.</p>
+</div>
+</div></div></section>
+
+<section id="cli"><div class="card"><div class="card-body">
+<h2 data-t="s7t">7. Operasi via Terminal (CLI)</h2>
+<div data-t="s7b"><pre>cd source\python
+python cli.py health                  # cek /healthz
+python cli.py doctor                  # diagnosa sistem (perlu sehat semua)
+python cli.py jobs                    # daftar job
+python cli.py job STATUS &lt;id&gt;         # status satu job (prefix id cukup)
+python cli.py job RETRY &lt;id&gt;          # ulangi job
+python cli.py version                 # versi app/API/kontrak
+set API_BASE=http://server-lain:8000 &amp; python cli.py health   # ke server lain
+set API_TOKEN=wi_xxxx &amp; python cli.py jobs                    # dengan API key</pre></div>
+</div></div></section>
+
+<section id="auth"><div class="card"><div class="card-body">
+<h2 data-t="s8t">8. Autentikasi &amp; Keamanan</h2>
+<div data-t="s8b"><p>Default dev: terbuka (tanpa login). Untuk produksi set <code class="inline">REQUIRE_AUTH=1</code>: semua <code class="inline">/api/v1/*</code> butuh <b>Bearer token</b> (dari <code class="inline">POST /api/v1/auth/login</code>) atau <b>X-API-Key</b> (dibuat di menu apikeys, berskop &amp; bisa kedaluwarsa &amp; di-revoke). Proteksi lain: anti-SSRF + allowlist egress, isolasi data per organisasi, rate-limit per identitas (429 + Retry-After), batas ukuran body (413), log menyensor rahasia.</p>
+<pre>curl -X POST http://127.0.0.1:8000/api/v1/auth/login -H "Content-Type: application/json" -d "{\"email\":\"admin@local\",\"password\":\"...\"}"
+curl http://127.0.0.1:8000/api/v1/projects -H "Authorization: Bearer TOKEN"
+curl http://127.0.0.1:8000/api/v1/projects -H "X-API-Key: wi_xxxx"</pre></div>
+</div></div></section>
+
+<section id="api"><div class="card"><div class="card-body">
+<h2 data-t="s9t">9. Referensi API</h2>
+<div data-t="s9b"><p><b>143 path berversi</b> di bawah <code class="inline">/api/v1</code> + <code class="inline">/api/version</code>, <code class="inline">/healthz</code>, <code class="inline">/readyz</code>, <code class="inline">/metrics</code>. Dokumentasi interaktif: <a href="/api-docs" target="_blank">Swagger /api-docs</a>. Spesifikasi beku: <code class="inline">contracts/openapi/openapi.json</code> (hasilkan ulang via <code class="inline">python source/python/gen_openapi.py</code>).</p>
+<table class="doc"><tr><th>Grup</th><th>Contoh path</th></tr>
+<tr><td>Koleksi</td><td><code class="inline">/jobs, /jobs/{id}/run, /results, /schedules, /worker/tick, /dlq, /strategy/decide</code></td></tr>
+<tr><td>Sumber</td><td><code class="inline">/projects, /targets, /connectors, /reliability/targets, /proxies/health, /brightdata/test, /browser/health</code></td></tr>
+<tr><td>Intel</td><td><code class="inline">/prices, /changes, /articles, /analytics/*, /opportunities, /reviews/*, /intel/*, /correlate/prices, /quality/score</code></td></tr>
+<tr><td>Knowledge</td><td><code class="inline">/graph/*, /events, /evidence, /claims*, /contradictions/check, /findings*, /lineage/*, /feed*</code></td></tr>
+<tr><td>Riset</td><td><code class="inline">/research/plan, /research/runs*, /research/compare</code></td></tr>
+<tr><td>Monitoring</td><td><code class="inline">/watchlists*, /alerts*, /workflows*, /maintenance*, /webhooks*, /ingest/webhook</code></td></tr>
+<tr><td>Data</td><td><code class="inline">/datasets*, /documents, /reports*</code></td></tr>
+<tr><td>AI/Search/ML</td><td><code class="inline">/ai/*, /ask, /search*, /ml/*</code></td></tr>
+<tr><td>Admin</td><td><code class="inline">/orgs*, /memberships, /roles, /apikeys*, /auth/*, /billing/*, /flags, /verticals*, /costs/*, /audit, /system/doctor, /admin/retention/run, /i18n, /dashboard</code></td></tr></table>
+<p>Format error selalu: <code class="inline">{"error": {"code", "message", "request_id"}}</code> + header <code class="inline">X-Request-ID</code>. Paginasi: <code class="inline">?page=&amp;size=</code> (maks 100).</p></div>
+</div></div></section>
+
+<section id="ops"><div class="card"><div class="card-body">
+<h2 data-t="s10t">10. Operasional &amp; Observability</h2>
+<div data-t="s10b"><table class="doc"><tr><th>Kebutuhan</th><th>Cara</th></tr>
+<tr><td>Cek sehat</td><td><code class="inline">GET /healthz</code> (liveness), <code class="inline">GET /readyz</code> (readiness + rincian backend), <code class="inline">GET /api/v1/system/doctor</code></td></tr>
+<tr><td>Metrik Prometheus</td><td><code class="inline">GET /metrics</code> (jobs_total/sukses/gagal, latensi, antrean, biaya AI…)</td></tr>
+<tr><td>Jadwal otomatis</td><td>Buat schedules di UI; pastikan worker tick berjalan (systemd <code class="inline">webintel-worker</code> di produksi, atau <code class="inline">POST /api/v1/worker/tick</code> manual)</td></tr>
+<tr><td>Backup/restore</td><td>Via <code class="inline">python cli.py backup</code>; MySQL: mysqldump rutin; file SQLite <code class="inline">data/webintel.db</code> cukup disalin saat server mati</td></tr>
+<tr><td>Retensi data</td><td><code class="inline">POST /api/v1/admin/retention/run</code></td></tr>
+<tr><td>Deploy produksi</td><td>aaPanel: Nginx HTTPS → 127.0.0.1:8000 + unit systemd api/worker/browser/collector (lihat <code class="inline">deploy/</code>). Wajib <code class="inline">REQUIRE_AUTH=1</code> + MySQL + SECRET_KEY/Intranet aman</td></tr></table></div>
+</div></div></section>
+
+<section id="trouble"><div class="card"><div class="card-body">
+<h2 data-t="s11t">11. Troubleshooting</h2>
+<div data-t="s11b"><table class="doc"><tr><th>Gejala</th><th>Penyebab umum → Solusi</th></tr>
+<tr><td>Data (project/job) hilang setiap restart, padahal MySQL</td><td>Seed lama gagal FK 1452 dalam satu transaksi → <code class="inline">organizations</code> kosong → tulis ber-FK hanya di memori (sudah diperbaiki: <code class="inline">repo._seed</code> commit bertahap). Cek: <code class="inline">organizations</code> harus ada 1 baris; kalau kosong, restart server (seed otomatis)</td></tr>
+<tr><td><code class="inline">/readyz: backend=sqlite</code> padahal mau MySQL</td><td>Env <code class="inline">DATABASE_URL</code> tidak sampai ke proses server, atau <code class="inline">pymysql</code> belum di-install → app fallback diam-diam. Solusi: <code class="inline">pip install -r requirements.txt</code>, lalu <code class="inline">setx DATABASE_URL "mysql+pymysql://user:pass@127.0.0.1:3306/webintel"</code>, tutup-buka terminal, restart server</td></tr>
+<tr><td>Server crash: <code class="inline">password cannot be longer than 72 bytes</code></td><td>bcrypt 5.x tidak cocok dengan passlib → <code class="inline">pip install "bcrypt==4.0.1"</code></td></tr>
+<tr><td><code class="inline">Access denied for user 'webintel'</code></td><td>User/db belum dibuat atau password salah → buat ulang via root (lihat §3 langkah 1), pastikan host <code class="inline">'%'</code></td></tr>
+<tr><td>Port 8000 dipakai / connection refused</td><td>Server lama masih jalan atau belum nyala → cek <code class="inline">Get-NetTCPConnection -LocalPort 8000</code>, matikan proses lama, jalankan ulang uvicorn</td></tr>
+<tr><td>Dashboard kosong (angka 0)</td><td>Normal untuk database fresh (real-data-only) → ikuti §5 Mulai Cepat: buat project → target → job → Run</td></tr>
+<tr><td>Job status <code class="inline">failed</code></td><td>Lihat detail job + <code class="inline">/dlq</code>; target mungkin memblokir bot / butuh JS (coba strategi BROWSER) / URL salah</td></tr>
+<tr><td><code class="inline">own_proxy / brightdata / ai: down</code> di health</td><td>Normal bila kredensial tidak diset — fitur inti tetap jalan; isi <code class="inline">OWN_PROXY_URLS / BRIGHTDATA_API_KEY / MUSE_SPARK_API_KEY</code> bila butuh</td></tr>
+<tr><td>401 unauthorized di semua API</td><td><code class="inline">REQUIRE_AUTH=1</code> aktif → login dulu / pakai X-API-Key (lihat §8)</td></tr>
+<tr><td>Sidebar hilang di HP</td><td>Desain menyembunyikan sidebar di layar sempit → buka dari layar lebar/laptop</td></tr></table></div>
+</div></div></section>
+
+<section id="faq"><div class="card"><div class="card-body">
+<h2 data-t="s12t">12. FAQ</h2>
+<div data-t="s12b">
+<p><b>Apakah ini toko online?</b> Bukan. Ini tool monitoring/riset data web.</p>
+<p><b>Apakah data contoh bawaan ada?</b> Tidak — semua angka berasal dari aktivitas nyata. Jalankan koleksi dulu (§5).</p>
+<p><b>Bahasa apa saja?</b> UI dashboard: Inggris &amp; Indonesia. Dokumentasi README: Inggris, Indonesia, Arab.</p>
+<p><b>Butuh Docker?</b> Tidak. Python + MySQL (+ Nginx/systemd di produksi) cukup.</p>
+<p><b>Apakah scraping melanggar aturan situs?</b> App menghormati robots.txt/ToS, tidak menembus login/CAPTCHA. Pantau hanya data publik &amp; patuhi ketentuan tiap situs.</p>
+</div>
+</div></div></section>
+
+<div class="text-muted small my-3">WebIntel v2.11.0 · <a href="/api-docs" target="_blank">Swagger</a> · <a href="/">Dashboard</a></div>
+</div>
+</div>
+</div>
+</div>
+<script>
+let LANG=localStorage.getItem('wi-lang')||'id';
+const EN={tag:'Complete & structured usage guide',dash:'Dashboard',
+s1t:'1. Introduction',s1b:'<p><b>Universal Intelligence Platform (WebIntel)</b> is a web data monitoring & intelligence app: it collects public data from websites/APIs/documents and turns it into ready insight — price tracking, competitor moves, news, site changes, knowledge graphs, executive reports.</p><p>Pipeline: <code class=\"inline\">DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT</code>. Key rule: <b>the dashboard shows real data only</b> — no dummy numbers. If it is empty, no collection has run yet.</p>',
+s2t:'2. Requirements',s2b:'<table class=\"doc\"><tr><th>Component</th><th>Requirement</th></tr><tr><td>OS</td><td>Windows (dev, e.g. Laragon) / Linux (aaPanel production)</td></tr><tr><td>Python</td><td>3.12+ (packages: <code class=\"inline\">source/python/requirements.txt</code>; pin <code class=\"inline\">bcrypt==4.0.1</code>)</td></tr><tr><td>Database</td><td><b>MySQL 8.4</b> (primary). Without MySQL the app auto-falls back to SQLite file <code class=\"inline\">data/webintel.db</code>, then memory</td></tr><tr><td>Redis</td><td>Optional (queue & rate limits; in-memory without it)</td></tr><tr><td>Go 1.21+</td><td>Optional, only to build the Go collector</td></tr><tr><td>Live credentials (optional)</td><td>Bright Data (<code class=\"inline\">BRIGHTDATA_API_KEY</code>) for large-scale crawling; AI provider (<code class=\"inline\">MUSE_SPARK_API_KEY</code> etc.) for AI features</td></tr></table>',
+s3t:'3. Installation & Running',s3b:'<div class=\"step\"><span class=\"n\">1</span><b>Prepare MySQL</b> (e.g. Laragon, root without password):<pre>mysql -u root -e \"CREATE DATABASE IF NOT EXISTS webintel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS \'webintel\'@\'%\' IDENTIFIED BY \'CHANGE_PASSWORD\'; GRANT ALL PRIVILEGES ON webintel.* TO \'webintel\'@\'%\'; FLUSH PRIVILEGES;\"</pre></div><div class=\"step\"><span class=\"n\">2</span><b>Install Python deps</b>:<pre>cd source\\python\npip install -r requirements.txt\npip install \"bcrypt==4.0.1\"</pre></div><div class=\"step\"><span class=\"n\">3</span><b>Set DB connection</b> (PowerShell, once — saved permanently):<pre>setx DATABASE_URL \"mysql+pymysql://webintel:CHANGE_PASSWORD@127.0.0.1:3306/webintel\"</pre>Reopen the terminal afterwards.</div><div class=\"step\"><span class=\"n\">4</span><b>Run the server</b>:<pre>cd source\\python\npython -m uvicorn app.main:app --port 8000</pre></div><div class=\"step\"><span class=\"n\">5</span><b>Open</b>: Dashboard <code class=\"inline\">http://127.0.0.1:8000/</code> · This guide <code class=\"inline\">/docs</code> · Swagger <code class=\"inline\">/api-docs</code>. Health: <code class=\"inline\">GET /readyz</code> — expect <code class=\"inline\">database: backend=mysql</code>.</div><div class=\"step\"><span class=\"n\">6</span><b>Go collector (optional)</b>:<pre>cd source\\go\\collector\ngo test ./...\ngo build -o ..\\..\\..\\build\\linux\\collector .\\cmd\\collector</pre></div>',
+s4t:'4. Core Concepts',s4b:'<table class=\"doc\"><tr><th>Concept</th><th>Meaning</th></tr><tr><td><b>Project</b></td><td>Work container (e.g. “Shop Monitoring”). All data isolated per org/project.</td></tr><tr><td><b>Target</b></td><td>Monitored site/URL inside a project, with a learning profile: best strategy, avg success/latency.</td></tr><tr><td><b>Job</b></td><td>One fetch task for a URL. Create then <b>Run</b>; results (prices, changes…) land automatically.</td></tr><tr><td><b>Strategy</b></td><td>Escalation order: <code class=\"inline\">DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA</code>. Auto-selected; test via <code class=\"inline\">POST /api/v1/strategy/decide</code>.</td></tr><tr><td><b>Evidence</b></td><td>Every claim/finding must cite evidence (raw documents) — no sourceless intel.</td></tr></table>',
+s5t:'5. 5-Minute Quickstart',s5b:'<div class=\"step\"><span class=\"n\">1</span>Open the Dashboard; fill <b>API token / key</b> if <code class=\"inline\">REQUIRE_AUTH=1</code> (off by default in dev).</div><div class=\"step\"><span class=\"n\">2</span><b>Sources → sources</b>: create a Project (name → Add).</div><div class=\"step\"><span class=\"n\">3</span><b>targets</b>: fill <code class=\"inline\">project_id, domain, url</code> → Add. Click <b>Test</b> for connection & strategy advice.</div><div class=\"step\"><span class=\"n\">4</span><b>jobs</b>: fill <code class=\"inline\">project_id, target_id, url</code> → Add, then <b>Run now</b>. <code class=\"inline\">success</code> = data landed.</div><div class=\"step\"><span class=\"n\">5</span>Back to <b>Dashboard</b> → Refresh: Jobs, Feed and other menus now show data.</div>',
+s6t:'6. Feature Guide',s6b:'<h3>6.1 Dashboard</h3><p>Real-time summary: jobs (success/fail), open alerts, price points, cost estimate, opportunities, data quality, AI calls, system status. <b>Refresh</b> to reload. Language via sidebar (English/Indonesia), dark/light via ◐.</p><h3>6.2 Sources</h3><p>Manage projects, targets, RSS/REST/CSV connectors (<b>test</b> then <b>execute</b>), collection jobs. <b>reliability</b> scores targets after real history exists.</p><h3>6.3 Jobs & Schedules</h3><p>Run jobs manually (<b>Run now</b>) or on <b>schedules</b> (interval/cron). <b>Run scheduler now</b> fires due schedules. Failed jobs can be retried/cancelled; permanent failures sit in <b>dlq</b>.</p><h3>6.4 Prices & Market Intel</h3><p><b>products/prices</b>: history & volatility. <b>changes</b>: site diffs (NEW/CHANGED/REMOVED). <b>articles</b>: news management. <b>analytics</b>: trends & anomalies. <b>opps</b>: z-score opportunities.</p><h3>6.5 Knowledge & Research</h3><p><b>graph</b>: add nodes/edges, traverse & SVG render. <b>claims</b>: verify claims vs evidence. <b>documents</b>: ingest text/HTML/CSV. <b>research</b>: question → Plan → run → analyze. <b>reports</b>: build then <b>View</b>/export (web/PDF/CSV/JSON/XLSX/markdown).</p><h3>6.6 Monitoring</h3><p><b>watchlists</b>: register keyword/company/domain → <b>Evaluate</b>. <b>alerts</b>: rules + <b>Send</b> (in-app/email/webhook). <b>workflows</b>: trigger → action automation (<b>Run</b> to test). <b>webhooks</b>: register receiver URL + <b>Test</b>.</p><h3>6.7 Datasets</h3><p>Versioned datasets: <b>versions</b>, <b>diff</b>, <b>rollback</b>, CSV import, <b>publish</b>/<b>archive</b>.</p><h3>6.8 AI & Search</h3><p><b>ai</b>: provider status & evidence-grounded chat (answers carry citations). <b>search</b>: global + semantic. Needs provider credentials (e.g. Muse Spark) for live chat.</p><h3>6.9 Admin & Billing</h3><p>Orgs, users, scoped/expiring API keys, audit log, system health, costs & budgets, billing plans/quotas.</p>',
+s7t:'7. Terminal Operation (CLI)',s7b:'<pre>cd source\\python\npython cli.py health                  # check /healthz\npython cli.py doctor                  # system diagnosis\npython cli.py jobs                    # list jobs\npython cli.py job STATUS &lt;id&gt;         # one job status (id prefix ok)\npython cli.py job RETRY &lt;id&gt;          # retry a job\npython cli.py version                 # app/API/contract versions</pre>',
+s8t:'8. Authentication & Security',s8b:'<p>Dev default: open (no login). For production set <code class=\"inline\">REQUIRE_AUTH=1</code>: every <code class=\"inline\">/api/v1/*</code> needs a <b>Bearer token</b> (from <code class=\"inline\">POST /api/v1/auth/login</code>) or <b>X-API-Key</b> (menu apikeys; scoped, expirable, revokable). Also: anti-SSRF + egress allowlist, per-org isolation, per-identity rate limits (429 + Retry-After), body-size cap (413), secret-redacted logs.</p>',
+s9t:'9. API Reference',s9b:'<p><b>143 versioned paths</b> under <code class=\"inline\">/api/v1</code> plus <code class=\"inline\">/api/version</code>, <code class=\"inline\">/healthz</code>, <code class=\"inline\">/readyz</code>, <code class=\"inline\">/metrics</code>. Interactive: <a href=\"/api-docs\" target=\"_blank\">Swagger /api-docs</a>. Frozen spec: <code class=\"inline\">contracts/openapi/openapi.json</code>. Errors: <code class=\"inline\">{\"error\": {\"code\", \"message\", \"request_id\"}}</code> + <code class=\"inline\">X-Request-ID</code>. Pagination <code class=\"inline\">?page=&amp;size=</code> (max 100). Groups: collection (/jobs…), sources (/projects…), intel (/prices…), knowledge (/graph…), research, monitoring, datasets/reports, AI/search/ML, admin.</p>',
+s10t:'10. Operations & Observability',s10b:'<p><code class=\"inline\">GET /healthz</code> liveness, <code class=\"inline\">GET /readyz</code> readiness, <code class=\"inline\">GET /api/v1/system/doctor</code> diagnosis, <code class=\"inline\">GET /metrics</code> Prometheus. Schedules need the worker tick (systemd <code class=\"inline\">webintel-worker</code> in prod, or manual <code class=\"inline\">POST /api/v1/worker/tick</code>). Backup via <code class=\"inline\">python cli.py backup</code> + mysqldump. Retention: <code class=\"inline\">POST /api/v1/admin/retention/run</code>. Prod deploy: aaPanel Nginx HTTPS → 127.0.0.1:8000 + systemd units (see <code class=\"inline\">deploy/</code>), with <code class=\"inline\">REQUIRE_AUTH=1</code>.</p>',
+s11t:'11. Troubleshooting',s11b:'<p><b>backend=sqlite instead of mysql</b> → DATABASE_URL missing in server env or pymysql not installed: <code class=\"inline\">pip install -r requirements.txt</code>, <code class=\"inline\">setx DATABASE_URL \"mysql+pymysql://…\"</code>, reopen terminal, restart server. <b>bcrypt 72-bytes crash</b> → <code class=\"inline\">pip install \"bcrypt==4.0.1\"</code>. <b>Access denied</b> → recreate DB user (see §3). <b>Empty dashboard</b> → normal on fresh DB; run §5 quickstart. <b>proxy/brightdata/ai down</b> → normal without credentials.</p>',
+s12t:'12. FAQ',s12b:'<p><b>An online shop?</b> No — a web-data monitoring/research tool. <b>Built-in demo data?</b> No — all numbers come from real runs. <b>Languages?</b> Dashboard UI: English & Indonesian. README docs: English, Indonesian, Arabic. <b>Docker needed?</b> No. <b>Legal?</b> Respects robots.txt/ToS, no login/CAPTCHA bypass; monitor public data and obey each site’s terms.</p>'};
+const ID={};document.querySelectorAll('[data-t]').forEach(el=>{ID[el.dataset.t]=el.innerHTML});
+document.getElementById('toc').innerHTML=['intro','req','install','concept','quick','feat','cli','auth','api','ops','trouble','faq'].map((id,i)=>{const h=document.querySelector('#'+id+' h2');return `<a href="#${id}" class="${i>5?'sub':''}">${h.textContent}</a>`}).join('');
+function setLang(v){LANG=v;localStorage.setItem('wi-lang',v);document.documentElement.lang=v;document.querySelectorAll('[data-t]').forEach(el=>{const k=el.dataset.t;el.innerHTML=(v==='en'&&EN[k])?EN[k]:ID[k];});document.getElementById('toc').innerHTML=['intro','req','install','concept','quick','feat','cli','auth','api','ops','trouble','faq'].map((id,i)=>{const h=document.querySelector('#'+id+' h2');return `<a href="#${id}" class="${i>5?'sub':''}">${h.textContent}</a>`}).join('');}
+document.getElementById('lang').value=LANG;if(LANG==='en')setLang('en');
+</script>
+</body>
+</html>

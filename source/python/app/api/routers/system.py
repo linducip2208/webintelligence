@@ -163,10 +163,10 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
                 if x.get("name") == db_name and x.get("enabled")), None) if provider else None
     if dbp:
         from ...core.crypto import decrypt
-        from ...ai.muse_provider import MuseSparkProvider
-        chain = [(dbp["name"], MuseSparkProvider(
-            dbp.get("base_url", ""), decrypt(dbp.get("api_key_enc", "")),
-            dbp.get("model", "") or use_model))]
+        from ...ai.factory import build_provider as _bp
+        chain = [(dbp["name"], _bp(dbp.get("protocol", "chat"),
+             dbp.get("base_url", ""), decrypt(dbp.get("api_key_enc", "")),
+             dbp.get("model", "") or use_model))]
         use_model = dbp.get("model", "") or use_model
     elif provider:
         p0 = aireg.get(provider)
@@ -174,10 +174,27 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
             raise HTTPException(404, f"unknown provider {provider}")
         chain = [(provider, p0)]
     else:
-        names = fallback_order() or ["muse-spark", "openai", "anthropic", "google", "ollama"]
+        names = fallback_order() or _fb.default_names(aireg)
         chain = [(n, aireg.get(n)) for n in names]
+        # Enabled DB-configured providers join the default chain too, so
+        # every AI added via Settings works without naming it explicitly.
+        seen = {n for n, _ in chain}
+        from ...core.crypto import decrypt as _dec
+        from ...ai.factory import build_provider as _bp2
+        for row in STORE["ai_providers"]:
+            if not row.get("enabled") or row.get("name") in seen:
+                continue
+            try:
+                chain.append((row["name"], _bp2(
+                    row.get("protocol", "chat"), row.get("base_url", ""),
+                    _dec(row.get("api_key_enc", "")), row.get("model", ""))))
+            except Exception:
+                continue
     org_plan = next((o.get("plan", "starter") for o in STORE["orgs"] if o.get("id") == org0), "starter")
     allowed = _e.PLANS.get(org_plan, _e.PLANS["starter"]).get("allowed_models", [])
+    if allowed != ["*"]:
+        allowed = list(allowed) + [x.strip() for x in
+                    (_o.getenv("AI_EXTRA_MODELS", "") or "").split(",") if x.strip()]
     if use_model and allowed != ["*"] and use_model not in allowed:
         raise HTTPException(403, f"model {use_model} not in plan {org_plan}")
     out = _fb.chat_fallback(chain, messages, use_model)
@@ -348,8 +365,11 @@ def ai_provider_create(spec: dict, authorization: str = Header(""), x_api_key: s
         raise HTTPException(400, "name and base_url required")
     if any(x.get("name") == spec["name"] for x in STORE["ai_providers"]):
         raise HTTPException(409, "provider exists")
+    proto = (spec.get("protocol", "chat") or "chat").lower()
+    if proto not in ("chat", "responses", "anthropic", "google"):
+        raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
     item = {"id": len(STORE["ai_providers"]) + 1, "name": spec["name"],
-            "base_url": spec["base_url"],
+            "base_url": spec["base_url"], "protocol": proto,
             "api_key_enc": encrypt(spec.get("api_key", "")),
             "model": spec.get("model", ""), "enabled": True}
     STORE["ai_providers"].append(item)
@@ -373,6 +393,72 @@ def ai_provider_disable(pid: int, authorization: str = Header(""), x_api_key: st
     repo.sync("ai_providers", p)
     _audit(email, "ai.provider.disable", p["name"])
     return {"ok": True}
+
+
+@router.post("/api/v1/ai/providers/db/{pid}/enable", tags=["admin"])
+def ai_provider_enable(pid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _need(authorization, "configure")
+    p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
+    if not p:
+        raise HTTPException(404, "not found")
+    p["enabled"] = True
+    repo.sync("ai_providers", p)
+    _audit(email, "ai.provider.enable", p["name"])
+    return {"ok": True}
+
+
+@router.post("/api/v1/ai/providers/db/{pid}/test", tags=["admin"])
+def ai_provider_test(pid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Live credential check for one DB provider: success -> ok:true,
+    otherwise ok:false with the concrete reason (never echoes the key)."""
+    from ...core.crypto import decrypt
+    from ...ai.factory import build_provider as _bp
+    email, _, _ = _need(authorization, "configure")
+    p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
+    if not p:
+        raise HTTPException(404, "not found")
+    try:
+        key = decrypt(p.get("api_key_enc", ""))
+    except Exception as e:
+        return {"ok": False, "reason": f"key-unreadable: {e}"[:200]}
+    if not key:
+        return {"ok": False, "reason": "no-key-saved"}
+    try:
+        prov = _bp(p.get("protocol", "chat"), p.get("base_url", ""), key,
+                   p.get("model", ""))
+    except Exception as e:
+        return {"ok": False, "reason": f"build-failed: {e}"[:200]}
+    try:
+        out = prov.health_check()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+    _audit(email, "ai.provider.test", f"{p['name']}:{out.get('ok')}")
+    return out
+
+
+@router.post("/api/v1/ai/providers/db/{pid}", tags=["admin"])
+def ai_provider_update(pid: int, spec: dict, authorization: str = Header(""),
+                       x_api_key: str = Header("")):
+    """Update base_url/protocol/model/api_key (key re-encrypted at rest)."""
+    from ...core.crypto import encrypt
+    email, _, _ = _need(authorization, "configure")
+    p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
+    if not p:
+        raise HTTPException(404, "not found")
+    if "base_url" in spec:
+        p["base_url"] = spec["base_url"]
+    if "model" in spec:
+        p["model"] = spec["model"]
+    if "protocol" in spec:
+        proto = (spec["protocol"] or "chat").lower()
+        if proto not in ("chat", "responses", "anthropic", "google"):
+            raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
+        p["protocol"] = proto
+    if "api_key" in spec:
+        p["api_key_enc"] = encrypt(spec["api_key"])
+    repo.sync("ai_providers", p)
+    _audit(email, "ai.provider.update", p["name"])
+    return {k: v for k, v in p.items() if k != "api_key_enc"}
 
 
 

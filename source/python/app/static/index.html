@@ -29,7 +29,7 @@ pre{white-space:pre-wrap}
 <h1 class="navbar-brand">Universal Intel</h1>
 <div class="navbar-text text-muted small">v2.11 · live data only</div>
 <div class="d-flex gap-2 my-2">
-<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select>
+<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option></select>
 <button class="btn btn-icon btn-sm" onclick="toggleTheme()" title="dark/light">◐</button>
 </div>
 <div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100"></div></div>
@@ -41,7 +41,7 @@ pre{white-space:pre-wrap}
 <div class="row g-2 align-items-center">
 <div class="col"><h2 class="page-title" id="title">Dashboard</h2><div id="sub" class="text-muted small"></div></div>
 <div class="col-auto ms-auto d-print-none"><div class="btn-list">
-<button class="btn" onclick="load()">Refresh</button><span id="actions"></span>
+<button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank">📖 Docs</a><span id="actions"></span>
 </div></div>
 </div></div></div>
 <div class="page-body"><div class="container-xl">
@@ -70,7 +70,7 @@ const NAV=[
  ['Administration',[['organizations','orgs'],['users','orgs'],['apikeys','apikeys'],['audit','audit'],['health','health'],['costs','costs'],['search','search'],['articles','articles'],['schedules','schedules']]],
 ];
 function T(k){return (I18N[k]||k)}
-async function init(){try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}$('#lang').value=LANG;document.documentElement.lang=LANG;document.documentElement.dir=(LANG==='ar'?'rtl':'ltr');load();}
+async function init(){try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}$('#lang').value=LANG;load();}
 function setLang(v){LANG=v;localStorage.setItem('wi-lang',v);init();}
 function nav(){$('#nav').innerHTML='<ul class="navbar-nav">'+NAV.map(([s,items])=>`<li class="nav-item"><div class="px-3 pt-3 pb-1 text-muted small text-uppercase">${T(s.toLowerCase())}</div></li>`+items.map(([label,v])=>`<li class="nav-item"><a href="#" data-v="${v}" data-l="${label}" class="nav-link ${v===view?'active':''}"><span class="nav-link-title">${T(label)}</span></a></li>`).join('')).join('')+'</ul>';
 document.querySelectorAll('#nav a').forEach(a=>a.onclick=e=>{e.preventDefault();view=a.dataset.v;load()});}
@@ -119,7 +119,14 @@ else if(view==='webhooks'){const d=await api('/api/v1/webhooks');$('#actions').i
 else if(view==='orgs'){const d=await api('/api/v1/orgs');C.innerHTML=form([['name','org name']],'addOrg')+table(d.items||[],['id','name','slug']);}
 else if(view==='apikeys'){const d=await api('/api/v1/apikeys');C.innerHTML=form([['name','name'],['scopes','read (comma ok)']],'addKey')+table(d.items||[],['id','name','scopes','revoked']);}
 else if(view==='health'){const h=await api('/readyz');C.innerHTML=`<div class="grid">${h.checks.map(c=>`<div class="card"><div class="card-body"><div class="subheader">${esc(c.name)}</div><div class="v"><span class="status ${c.status==='up'?'ok':'err'}">${c.status}</span></div><div class="text-muted">${esc(c.detail||'')}</div></div></div>`).join('')}</div>`;}
-else if(view==='ai'){const h=await api('/api/v1/ai/providers');const s=await api('/api/v1/ai/health');C.innerHTML=`<div class="card"><div class="card-body"><h3 class="card-title">Providers</h3><pre>${esc(JSON.stringify(h,null,2))}</pre><h3 class="card-title">Health</h3><pre>${esc(JSON.stringify(s,null,2))}</pre></div></div><div class="card"><div class="card-body"><h3 class="card-title">Ask (evidence-grounded)</h3><form class="d-flex flex-wrap gap-2" onsubmit="chat(event)"><input name="q" class="form-control" style="max-width:320px"><button class="btn btn-primary">Send</button></form><pre id="ans"></pre></div></div>`;}
+else if(view==='ai'){const h=await api('/api/v1/ai/providers');const s=await api('/api/v1/ai/health');let db=[];try{db=(await api('/api/v1/ai/providers/db')).items||[]}catch(e){}
+C.innerHTML=`<div class="card"><div class="card-body"><h3 class="card-title">Providers (env)</h3><pre>${esc(JSON.stringify(h,null,2))}</pre><h3 class="card-title">Health</h3><pre>${esc(JSON.stringify(s,null,2))}</pre></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">AI Settings — providers (DB, keys encrypted)</h3>
+<form class="d-flex flex-wrap gap-2" onsubmit="addDbAi(event)"><input name="name" class="form-control" style="max-width:140px" placeholder="name"><input name="base_url" class="form-control" style="max-width:260px" placeholder="base_url"><select name="protocol" class="form-select" style="max-width:130px"><option value="chat">chat</option><option value="responses">responses</option><option value="anthropic">anthropic</option><option value="google">google</option></select><input name="model" class="form-control" style="max-width:160px" placeholder="model"><input name="api_key" type="password" class="form-control" style="max-width:180px" placeholder="api key"><button class="btn btn-primary">Add</button></form>
+<div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>name</th><th>base_url</th><th>protocol</th><th>model</th><th>enabled</th><th></th><th></th></tr></thead><tbody>
+${db.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc((p.base_url||'').slice(0,40))}</td><td>${esc(p.protocol||'chat')}</td><td>${esc(p.model||'')}</td><td>${p.enabled?'yes':'no'}</td><td class="text-nowrap"><button class="btn btn-sm" onclick="testDbAi(${p.id})">Test</button> <button class="btn btn-sm" onclick="toggleDbAi(${p.id},${p.enabled?0:1})">${p.enabled?'Disable':'Enable'}</button></td><td><form class="d-flex gap-1" onsubmit="setDbKey(event,${p.id})"><input name="api_key" type="password" class="form-control form-control-sm" style="max-width:130px" placeholder="new key"><button class="btn btn-sm">Save</button></form></td></tr>`).join('')||'<tr><td colspan="7"><div class="empty">No DB providers.</div></td></tr>'}
+</tbody></table></div><div class="text-muted small">Keys are stored encrypted (Fernet) and never returned by the API.</div></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">Ask (evidence-grounded)</h3><form class="d-flex flex-wrap gap-2" onsubmit="chat(event)"><input name="q" class="form-control" style="max-width:320px"><button class="btn btn-primary">Send</button></form><pre id="ans"></pre></div></div>`;}
 else if(view==='search'){C.innerHTML=`<form class="d-flex flex-wrap gap-2" onsubmit="doSearch(event)"><input name="q" class="form-control" style="max-width:320px"><button class="btn btn-primary">Search</button></form><div id="res"></div>`;}
 else if(view==='jobs'){const d=await api('/api/v1/jobs?size=50');C.innerHTML=form([['project_id','project_id'],['target_id','target_id'],['url','https://…']],'addJob')+table(d.items||[],['job_id','url','strategy','status','estimated_cost'],'<button class="btn btn-sm" onclick="runJob(\'{job_id}\')">Run now</button>');}
 else if(view==='schedules'){$('#actions').innerHTML='<button class="btn" onclick="tick()">Run scheduler now</button>';const d=await api('/api/v1/schedules');C.innerHTML=form([['kind','interval|cron'],['every_min','every_min'],['cron','cron expr'],['url','https://…']],'addSched')+table(d.items||[],['id','kind','url','status','next_run','last_run']);}
@@ -181,6 +188,10 @@ async function runWf(id){toast(JSON.stringify(await post(`/api/v1/workflows/${id
 async function testWh(id){toast(JSON.stringify(await post(`/api/v1/webhooks/${id}/test`,{})).slice(0,300));load()}
 async function addOrg(e){e.preventDefault();await post('/api/v1/orgs',{name:val('name')});load()}
 async function addKey(e){e.preventDefault();const r=await post('/api/v1/apikeys',{name:val('name'),scopes:(val('scopes')||'read').split(',').map(s=>s.trim())});toast('KEY (shown once): '+r.key);load()}
+async function addDbAi(e){e.preventDefault();const f=e.target;const body={name:f.name.value,base_url:f.base_url.value,protocol:f.protocol.value,model:f.model.value,api_key:f.api_key.value};try{await post('/api/v1/ai/providers/db',body);toast('provider saved (key encrypted)')}catch(err){toast(String(err).slice(0,200))}load()}
+async function toggleDbAi(id,en){await post(`/api/v1/ai/providers/db/${id}/${en?'enable':'disable'}`,{});load()}
+async function testDbAi(id){try{const r=await post(`/api/v1/ai/providers/db/${id}/test`,{});toast(r.ok?('✅ key OK'+(r.models?(' — '+r.models.length+' models'):'')+(r.note?(' — '+r.note):'')):('❌ '+(r.reason||r.error||'failed')))}catch(err){toast('❌ '+String(err).slice(0,200))}}
+async function setDbKey(e,id){e.preventDefault();const k=e.target.api_key.value;if(!k)return;await post(`/api/v1/ai/providers/db/${id}`,{api_key:k});toast('key updated (encrypted)');load()}
 async function mkResearch(e){e.preventDefault();const p=await post('/api/v1/research/plan',{question:val('q')});document.querySelector('#rp').textContent=JSON.stringify(p,null,2).slice(0,2000);const r=await post('/api/v1/research/runs',{question:val('q'),plan:p});document.querySelector('#rr').textContent='run #'+r.id+' planned — collect evidence, then finish via API';}
 init();
 </script>

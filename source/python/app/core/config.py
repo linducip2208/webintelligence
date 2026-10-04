@@ -14,6 +14,7 @@ class Settings:
     muse_base_url: str = os.getenv("MUSE_SPARK_BASE_URL", "")
     muse_api_key: str = os.getenv("MUSE_SPARK_API_KEY", "")
     muse_model: str = os.getenv("MUSE_SPARK_MODEL", "muse-spark-1.3")
+    muse_protocol: str = os.getenv("MUSE_SPARK_PROTOCOL", "chat")
     brightdata_api_key: str = os.getenv("BRIGHTDATA_API_KEY", "")
     brightdata_zone: str = os.getenv("BRIGHTDATA_ZONE", "")
     brightdata_endpoint: str = os.getenv("BRIGHTDATA_ENDPOINT", "https://api.brightdata.com")
