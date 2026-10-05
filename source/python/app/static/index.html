@@ -58,16 +58,15 @@ document.documentElement.dataset.bsTheme=localStorage.getItem('wi-theme')||'dark
 function toggleTheme(){const t=document.documentElement.dataset.bsTheme==='light'?'dark':'light';document.documentElement.dataset.bsTheme=t;localStorage.setItem('wi-theme',t);}
 function toast(m){const d=document.createElement('div');d.className='toast';d.textContent=m;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),4000);}
 const NAV=[
- ['Dashboard',[['dashboard','dashboard']]],
- ['Intelligence',[['feed','feed'],['findings','findings'],['trends','analytics'],['anomalies','analytics'],['opportunities','opps']]],
- ['Research',[['research','research'],['runs','runs'],['reports','reports']]],
- ['Sources',[['sources','projects'],['targets','targets'],['connectors','connectors'],['jobs','jobs'],['reliability','health']]],
- ['Entities',[['companies','entities'],['products','prices'],['domains','entities'],['locations','entities']]],
- ['Knowledge',[['graph','graph'],['relationships','graph'],['events','events'],['changes','changes'],['evidence','evidence'],['claims','claims'],['documents','documents'],['reliability','reliability'],['reviews','reviews']]],
- ['Datasets',[['datasets','datasets'],['quality','analytics']]],
- ['Monitoring',[['watchlists','watchlists'],['alerts','alerts'],['workflows','workflows'],['webhooks','webhooks']]],
+ ['Overview',[['dashboard','dashboard']]],
+ ['Collect',[['sources','projects'],['targets','targets'],['connectors','connectors'],['jobs','jobs'],['schedules','schedules'],['documents','documents']]],
+ ['Process',[['products','prices'],['articles','articles'],['reviews','reviews'],['changes','changes']]],
+ ['Knowledge',[['companies','entities'],['domains','entities'],['locations','entities'],['graph','graph'],['relationships','graph'],['events','events']]],
+ ['Evidence',[['evidence','evidence'],['claims','claims'],['findings','findings']]],
+ ['Intelligence',[['feed','feed'],['research','research'],['runs','runs'],['reports','reports'],['trends','analytics'],['anomalies','analytics'],['opportunities','opps']]],
+ ['Act',[['watchlists','watchlists'],['alerts','alerts'],['workflows','workflows'],['webhooks','webhooks'],['datasets','datasets']]],
  ['AI',[['providers','ai'],['models','ai'],['usage','ai']]],
- ['Administration',[['organizations','orgs'],['users','orgs'],['apikeys','apikeys'],['audit','audit'],['health','health'],['costs','costs'],['search','search'],['articles','articles'],['schedules','schedules']]],
+ ['System',[['health','health'],['reliability','reliability'],['quality','analytics'],['costs','costs'],['search','search'],['organizations','orgs'],['users','orgs'],['apikeys','apikeys'],['audit','audit']]],
 ];
 function T(k){return (I18N[k]||k)}
 async function init(){try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}$('#lang').value=LANG;load();}
@@ -101,7 +100,7 @@ C.innerHTML=`<div class="grid">
 <div class="card"><div class="card-body"><div class="subheader">System</div><div class="v"><span class="status ${h.status==='healthy'?'ok':'warn'}">${h.status}</span></div><div class="text-muted">${down.length?('down: '+down.map(c=>c.name).join(', ')):'all dependencies up'}</div></div></div></div>
 <div class="grid"><div class="card"><div class="card-body"><h3 class="card-title">${T('feed')}</h3>${f.items.map(i=>`<div>• [${esc(i.kind)}] ${esc(i.title)}</div>`).join('')||'<div class="empty">Feed empty — run collections to generate intelligence.</div>'}</div></div>
 <div class="card"><div class="card-body"><h3 class="card-title">${T('runs')}</h3>${(runs.items||[]).map(r=>`<div>• #${r.id} ${esc((r.question||'').slice(0,60))} [${r.status}]</div>`).join('')||'<div class="empty">No research yet.</div>'}</div></div></div>
-${d.jobs_total===0?'<div class="empty">Create a project → target → job, then press “Run now” on the job. Numbers appear only from real runs.</div>':''}`;}
+${d.jobs_total===0?'<div class="empty">Follow the data flow in the sidebar: <b>1 · Collect</b> (sources → targets → jobs → Run now) → <b>2 · Process</b> → <b>3 · Knowledge</b> → <b>4 · Evidence</b> → <b>5 · Intelligence</b> → <b>6 · Act</b>. Numbers appear only from real runs.</div>':''}`;}
 else if(view==='feed'){const d=await api('/api/v1/feed?limit=50');C.innerHTML=d.items.map(i=>`<div class="card"><div class="card-body"><h3 class="card-title">[${esc(i.kind)}] ${esc(i.title)}</h3><div class="text-muted">${esc(JSON.stringify(i.ref))}</div></div></div>`).join('')||'<div class="empty">No feed items.</div>';}
 else if(view==='opps'){const d=await api('/api/v1/opportunities');C.innerHTML=table(d.items||[],['type','product_id','price','z']);}
 else if(view==='research'){C.innerHTML=`<div class="card"><div class="card-body"><h3 class="card-title">New research</h3><form class="d-flex flex-wrap gap-2" onsubmit="mkResearch(event)"><input name="q" class="form-control" style="max-width:340px" placeholder="Research question…"><button class="btn btn-primary">Plan</button></form><pre id="rp"></pre><pre id="rr"></pre></div></div>`;}
@@ -119,14 +118,7 @@ else if(view==='webhooks'){const d=await api('/api/v1/webhooks');$('#actions').i
 else if(view==='orgs'){const d=await api('/api/v1/orgs');C.innerHTML=form([['name','org name']],'addOrg')+table(d.items||[],['id','name','slug']);}
 else if(view==='apikeys'){const d=await api('/api/v1/apikeys');C.innerHTML=form([['name','name'],['scopes','read (comma ok)']],'addKey')+table(d.items||[],['id','name','scopes','revoked']);}
 else if(view==='health'){const h=await api('/readyz');C.innerHTML=`<div class="grid">${h.checks.map(c=>`<div class="card"><div class="card-body"><div class="subheader">${esc(c.name)}</div><div class="v"><span class="status ${c.status==='up'?'ok':'err'}">${c.status}</span></div><div class="text-muted">${esc(c.detail||'')}</div></div></div>`).join('')}</div>`;}
-else if(view==='ai'){const h=await api('/api/v1/ai/providers');const s=await api('/api/v1/ai/health');let db=[];try{db=(await api('/api/v1/ai/providers/db')).items||[]}catch(e){}
-C.innerHTML=`<div class="card"><div class="card-body"><h3 class="card-title">Providers (env)</h3><pre>${esc(JSON.stringify(h,null,2))}</pre><h3 class="card-title">Health</h3><pre>${esc(JSON.stringify(s,null,2))}</pre></div></div>
-<div class="card"><div class="card-body"><h3 class="card-title">AI Settings — providers (DB, keys encrypted)</h3>
-<form class="d-flex flex-wrap gap-2" onsubmit="addDbAi(event)"><input name="name" class="form-control" style="max-width:140px" placeholder="name"><input name="base_url" class="form-control" style="max-width:260px" placeholder="base_url"><select name="protocol" class="form-select" style="max-width:130px"><option value="chat">chat</option><option value="responses">responses</option><option value="anthropic">anthropic</option><option value="google">google</option></select><input name="model" class="form-control" style="max-width:160px" placeholder="model"><input name="api_key" type="password" class="form-control" style="max-width:180px" placeholder="api key"><button class="btn btn-primary">Add</button></form>
-<div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>name</th><th>base_url</th><th>protocol</th><th>model</th><th>enabled</th><th></th><th></th></tr></thead><tbody>
-${db.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc((p.base_url||'').slice(0,40))}</td><td>${esc(p.protocol||'chat')}</td><td>${esc(p.model||'')}</td><td>${p.enabled?'yes':'no'}</td><td class="text-nowrap"><button class="btn btn-sm" onclick="testDbAi(${p.id})">Test</button> <button class="btn btn-sm" onclick="toggleDbAi(${p.id},${p.enabled?0:1})">${p.enabled?'Disable':'Enable'}</button></td><td><form class="d-flex gap-1" onsubmit="setDbKey(event,${p.id})"><input name="api_key" type="password" class="form-control form-control-sm" style="max-width:130px" placeholder="new key"><button class="btn btn-sm">Save</button></form></td></tr>`).join('')||'<tr><td colspan="7"><div class="empty">No DB providers.</div></td></tr>'}
-</tbody></table></div><div class="text-muted small">Keys are stored encrypted (Fernet) and never returned by the API.</div></div></div>
-<div class="card"><div class="card-body"><h3 class="card-title">Ask (evidence-grounded)</h3><form class="d-flex flex-wrap gap-2" onsubmit="chat(event)"><input name="q" class="form-control" style="max-width:320px"><button class="btn btn-primary">Send</button></form><pre id="ans"></pre></div></div>`;}
+else if(view==='ai'){await aiProvidersView(C);}
 else if(view==='search'){C.innerHTML=`<form class="d-flex flex-wrap gap-2" onsubmit="doSearch(event)"><input name="q" class="form-control" style="max-width:320px"><button class="btn btn-primary">Search</button></form><div id="res"></div>`;}
 else if(view==='jobs'){const d=await api('/api/v1/jobs?size=50');C.innerHTML=form([['project_id','project_id'],['target_id','target_id'],['url','https://…']],'addJob')+table(d.items||[],['job_id','url','strategy','status','estimated_cost'],'<button class="btn btn-sm" onclick="runJob(\'{job_id}\')">Run now</button>');}
 else if(view==='schedules'){$('#actions').innerHTML='<button class="btn" onclick="tick()">Run scheduler now</button>';const d=await api('/api/v1/schedules');C.innerHTML=form([['kind','interval|cron'],['every_min','every_min'],['cron','cron expr'],['url','https://…']],'addSched')+table(d.items||[],['id','kind','url','status','next_run','last_run']);}
@@ -188,10 +180,88 @@ async function runWf(id){toast(JSON.stringify(await post(`/api/v1/workflows/${id
 async function testWh(id){toast(JSON.stringify(await post(`/api/v1/webhooks/${id}/test`,{})).slice(0,300));load()}
 async function addOrg(e){e.preventDefault();await post('/api/v1/orgs',{name:val('name')});load()}
 async function addKey(e){e.preventDefault();const r=await post('/api/v1/apikeys',{name:val('name'),scopes:(val('scopes')||'read').split(',').map(s=>s.trim())});toast('KEY (shown once): '+r.key);load()}
-async function addDbAi(e){e.preventDefault();const f=e.target;const body={name:f.name.value,base_url:f.base_url.value,protocol:f.protocol.value,model:f.model.value,api_key:f.api_key.value};try{await post('/api/v1/ai/providers/db',body);toast('provider saved (key encrypted)')}catch(err){toast(String(err).slice(0,200))}load()}
-async function toggleDbAi(id,en){await post(`/api/v1/ai/providers/db/${id}/${en?'enable':'disable'}`,{});load()}
-async function testDbAi(id){try{const r=await post(`/api/v1/ai/providers/db/${id}/test`,{});toast(r.ok?('✅ key OK'+(r.models?(' — '+r.models.length+' models'):'')+(r.note?(' — '+r.note):'')):('❌ '+(r.reason||r.error||'failed')))}catch(err){toast('❌ '+String(err).slice(0,200))}}
-async function setDbKey(e,id){e.preventDefault();const k=e.target.api_key.value;if(!k)return;await post(`/api/v1/ai/providers/db/${id}`,{api_key:k});toast('key updated (encrypted)');load()}
+async function aiProvidersView(C){
+let presets=[],db=[],envP={providers:[]},envH={ok:false};
+try{presets=(await api('/api/v1/ai/provider-presets')).presets||[]}catch(e){}
+try{db=(await api('/api/v1/ai/providers/db')).items||[]}catch(e){}
+try{envP=await api('/api/v1/ai/providers')}catch(e){}
+try{envH=await api('/api/v1/ai/health')}catch(e){}
+window._aiPresets=presets;
+const envCfg=envH.reason!=='not-configured';
+const badge=p=>{
+if(!p.enabled)return '<span class="status">Disabled</span>';
+if(p.last_test_status==='passed')return '<span class="status ok">● Connected</span>';
+if(p.last_test_status==='failed')return '<span class="status err">● Connection failed</span>';
+return '<span class="status">● Not tested</span>'};
+const tested=p=>p.last_tested_at?new Date(p.last_tested_at*1000).toLocaleString():'—';
+const lat=p=>(p.last_test_latency_ms!=null&&p.last_tested_at)?p.last_test_latency_ms+' ms':'—';
+const cards=db.map(p=>`<div class="card"><div class="card-body">
+<div class="d-flex align-items-center gap-2 flex-wrap"><h3 class="card-title m-0">${esc(p.name)}</h3>${badge(p)}<span class="text-muted small">${esc(p.preset||p.protocol||'')}</span></div>
+<div class="text-muted small mt-1">Model: <b>${esc(p.model||'—')}</b> · Protocol: ${esc(p.protocol||'chat')}</div>
+<div class="text-muted small">Last tested: ${tested(p)}${p.last_tested_at?' · Latency: '+lat(p):''}${p.last_test_status==='failed'&&p.last_test_error?' · <span class="text-danger">'+esc(p.last_test_error)+'</span>':''}</div>
+<div class="btn-list mt-2"><button class="btn btn-sm" id="t${p.id}" onclick="aiRowTest(${p.id})">Test connection</button><button class="btn btn-sm" onclick="aiEditOpen(${p.id})">Edit</button><button class="btn btn-sm btn-danger" onclick="aiDelete(${p.id},'${esc(p.name).replace(/'/g,"\\'")}')">Delete</button><button class="btn btn-sm" onclick="aiToggle(${p.id},${p.enabled?0:1})">${p.enabled?'Disable':'Enable'}</button></div>
+</div></div>`).join('');
+const envCard=envCfg?`<div class="card"><div class="card-body"><div class="d-flex align-items-center gap-2"><h3 class="card-title m-0">Muse Spark <span class="text-muted small">(environment)</span></h3>${envH.ok?'<span class="status ok">● Connected</span>':'<span class="status err">● Connection failed</span>'}</div><div class="text-muted small mt-1">Model: <b>${esc((envP.models||[])[0]||'—')}</b> · Read-only, managed via server environment.</div></div></div>`:'';
+C.innerHTML=`<div class="d-flex align-items-center flex-wrap gap-2 mb-3"><div><h2 class="m-0">AI Providers</h2><div class="text-muted small">Manage configured AI providers, credentials, connection status, and models. App API keys are managed separately under Administration → apikeys.</div></div><div class="ms-auto"><button class="btn btn-primary" onclick="aiWizardOpen()">+ Add AI provider</button></div></div>
+<div class="grid">${envCard}${cards}</div>
+${(!db.length&&!envCfg)?'<div class="card"><div class="card-body"><div class="empty"><h3>No AI providers configured.</h3><p>Add an AI provider to enable AI-powered features.</p><button class="btn btn-primary" onclick="aiWizardOpen()">+ Add AI provider</button></div></div></div>':''}
+<div class="card"><div class="card-body"><h3 class="card-title">Ask (evidence-grounded)</h3><form class="d-flex flex-wrap gap-2" onsubmit="chat(event)"><input name="q" class="form-control" style="max-width:320px" aria-label="question"><button class="btn btn-primary">Send</button></form><pre id="ans"></pre></div></div>
+<div id="ai-modal"></div>`;
+}
+function aiModal(html){const m=$('#ai-modal');m.innerHTML=`<div style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:2rem 1rem" onclick="if(event.target===this)aiModalClose()"><div class="card" style="width:100%;max-width:640px" role="dialog" aria-modal="true"><div class="card-body">${html}</div></div></div>`;const f=m.querySelector('input,select,button');if(f)f.focus();}
+function aiModalClose(){const m=$('#ai-modal');if(m)m.innerHTML='';}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')aiModalClose()});
+let WIZ=null;
+function aiWizardOpen(){WIZ={step:1,preset:null,name:'',endpoint:'',key:'',model:'',models:[],manual:false,tested:false,testing:false,result:null};aiWizardRender();}
+function aiWizardRender(){const P=window._aiPresets||[];
+if(WIZ.step===1){aiModal(`<h3>Select AI provider</h3><p class="text-muted">Choose a provider to configure. Only connection details you enter are used.</p><div class="grid">${P.map(p=>`<button id="preset-${p.id}" class="card text-start" style="cursor:pointer;text-align:left" onclick="aiWizardPick('${p.id}')"><div class="card-body"><b>${esc(p.display_name)}</b><div class="text-muted small">${esc(p.description)}</div><div class="text-muted small mt-1">Auth: ${esc(p.auth==='optional_key'?'optional key':'API key')} · Protocol: ${esc(p.protocol)}</div></div></button>`).join('')}</div><div class="mt-2"><button class="btn" onclick="aiModalClose()">Cancel</button></div>`);return;}
+const pr=WIZ.preset,ro=pr.endpoint_mode==='fixed',needEp=pr.endpoint_mode!=='fixed';
+const modelBox=WIZ.models.length?`<label class="form-label">Model</label><select id="wmodel" class="form-select" aria-label="model">${WIZ.models.map(m=>`<option ${m.id===WIZ.model?'selected':''}>${esc(m.id)}</option>`).join('')}</select>`:`<label class="form-label">Model</label><input id="wmodel" class="form-control" value="${esc(WIZ.model)}" placeholder="${pr.discovery?'Discover via Test connection':'Type model id'}" aria-label="model">${WIZ.manual?'<div class="text-muted small mt-1">Model discovery is not supported by this provider — type the model id.</div>':''}`;
+aiModal(`<h3>${esc(pr.display_name)}</h3><p class="text-muted">${esc(pr.description)}</p>
+<label class="form-label">Configuration name</label><input id="wname" class="form-control" value="${esc(WIZ.name||pr.display_name)}" aria-label="configuration name">
+${needEp?`<label class="form-label mt-2">Endpoint</label><input id="wep" class="form-control" value="${esc(WIZ.endpoint||pr.default_endpoint)}" ${ro?'readonly':''} aria-label="endpoint">`:''}
+<label class="form-label mt-2">${esc(pr.key_label)}</label><input id="wkey" type="password" class="form-control" value="" placeholder="${pr.key_required?'(required)':'(optional)'}" autocomplete="new-password" aria-label="api key">
+<div class="mt-2">${modelBox}</div>
+<details class="mt-2"><summary class="text-muted">Advanced settings</summary><div class="text-muted small mt-1">Protocol: <b>${esc(pr.protocol)}</b> · Model discovery: <b>${pr.discovery?'supported':'manual entry'}</b> · Credentials are encrypted server-side and never shown again.</div></details>
+<div id="wres" class="mt-2">${WIZ.result?aiTestResultHtml(WIZ.result):''}</div>
+<div class="btn-list mt-3"><button class="btn" id="wtest" onclick="aiWizardTest()" ${WIZ.testing?'disabled':''}>${WIZ.testing?'<span class="spinner-border spinner-border-sm me-1"></span>Testing…':'Test connection'}</button><button class="btn btn-primary" onclick="aiWizardSave()" ${WIZ.tested?'':'disabled'}>Save provider</button><button class="btn" onclick="aiModalClose()">Cancel</button></div>
+${WIZ.tested?'':'<div class="text-muted small mt-1">Test the connection first — saving requires a successful test.</div>'}`);}
+function aiWizardPick(id){const pr=(window._aiPresets||[]).find(p=>p.id===id);if(!pr)return;WIZ.preset=pr;WIZ.step=2;WIZ.name=pr.display_name;WIZ.endpoint=pr.default_endpoint||'';WIZ.model=pr.default_model||'';WIZ.models=[];WIZ.manual=!pr.discovery;WIZ.tested=false;WIZ.result=null;aiWizardRender();}
+async function aiWizardTest(){const pr=WIZ.preset;WIZ.name=$('#wname').value.trim();if(pr.endpoint_mode!=='fixed')WIZ.endpoint=$('#wep').value.trim();const k=$('#wkey').value;if(k)WIZ.key=k;const ms=$('#wmodel');if(ms)WIZ.model=ms.value.trim();
+if(!WIZ.name){toast('Name required');return}
+if(pr.endpoint_mode==='required'&&!WIZ.endpoint){toast('Endpoint required');return}
+if(pr.key_required&&!WIZ.key){toast('API key required');return}
+WIZ.testing=true;aiWizardRender();
+try{const r=await post('/api/v1/ai/providers/db/test',{name:WIZ.name,preset:pr.id,protocol:pr.protocol,base_url:WIZ.endpoint||pr.default_endpoint,api_key:WIZ.key,model:WIZ.model});WIZ.result=r;WIZ.tested=!!r.success;
+if(r.success&&r.models&&r.models.length){WIZ.models=r.models;if(!WIZ.model&&r.models[0])WIZ.model=r.models[0].id;}
+if(r.success&&(!r.models||!r.models.length)){WIZ.manual=true;}
+}catch(e){WIZ.result={success:false,error:{code:'REQUEST_FAILED',message:String(e).slice(0,200)}};WIZ.tested=false;}
+WIZ.testing=false;aiWizardRender();}
+function aiTestResultHtml(r){if(r.success){return `<div class="alert alert-success"><b>✓ Connection successful</b><div class="small">Provider: ${esc(r.provider.name)} · Authentication: valid · Model: ${esc(r.model.selected||'—')} (${r.model.available?'available':'unverified'}) · Latency: ${r.connection.latency_ms} ms · Models discovered: ${r.models.length}</div></div>`;}
+const e=r.error||{};return `<div class="alert alert-danger"><b>✕ Connection failed</b><div class="small">${esc(e.message||'failed')}${e.code?' · HTTP/code: '+esc(e.code):''}${e.suggested_action?'<br>Suggested action: '+esc(e.suggested_action):''}</div></div>`;}
+async function aiWizardSave(){const nm=$('#wname');if(nm&&nm.value.trim())WIZ.name=nm.value.trim();const wm=$('#wmodel');if(wm&&wm.value.trim())WIZ.model=wm.value.trim();try{const r=await post('/api/v1/ai/providers/db',{name:WIZ.name,preset:WIZ.preset.id,protocol:WIZ.preset.protocol,base_url:WIZ.endpoint||WIZ.preset.default_endpoint,api_key:WIZ.key,model:WIZ.model});aiModalClose();toast('Provider saved');load();}catch(e){toast('Save failed: '+String(e).slice(0,200))}}
+async function aiRowTest(id){const b=$('#t'+id);if(b){b.disabled=true;b.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Testing…';}
+try{const r=await post(`/api/v1/ai/providers/db/${id}/test`,{});toast(r.success?`✓ Connected (${r.connection.latency_ms} ms)`:`✕ ${((r.error||{}).message||'failed')}`)}catch(e){toast('✕ '+String(e).slice(0,200))}
+load();}
+async function aiToggle(id,en){await post(`/api/v1/ai/providers/db/${id}/${en?'enable':'disable'}`,{});load();}
+async function aiDelete(id,name){if(!confirm(`Delete provider "${name}"? The stored credential will be removed.`))return;try{await api(`/api/v1/ai/providers/db/${id}`,{method:'DELETE'});toast('Deleted');}catch(e){toast(String(e).slice(0,200))}load();}
+async function aiEditOpen(id){let p;try{p=await api(`/api/v1/ai/providers/db/${id}`)}catch(e){toast(String(e).slice(0,200));return}
+window._aiEdit={id,changeKey:false,models:p.model?[p.model]:[],manual:false};
+aiModal(`<h3>Edit provider</h3><label class="form-label">Provider (read-only)</label><input class="form-control" value="${esc(p.preset||p.protocol||'')}" readonly>
+<label class="form-label mt-2">API key</label><div id="ekeywrap"><input class="form-control" value="••••••••••••••••" readonly><button class="btn btn-sm mt-1" onclick="aiEditKey()">Change API key</button></div>
+<label class="form-label mt-2">Model</label><div class="d-flex gap-2"><select id="emodel" class="form-select" aria-label="model">${window._aiEdit.models.map(m=>`<option ${m===p.model?'selected':''}>${esc(m)}</option>`).join('')}</select><button class="btn btn-sm" id="ediscover" onclick="aiEditDiscover(${id})">Discover</button></div><div id="eres" class="text-muted small mt-1"></div>
+<div class="btn-list mt-3"><button class="btn" id="etest" onclick="aiEditTest(${id})">Test connection</button><button class="btn btn-primary" onclick="aiEditSave(${id})">Save changes</button><button class="btn" onclick="aiModalClose()">Cancel</button></div><div id="esaveres" class="mt-2"></div>`);}
+function aiEditKey(){window._aiEdit.changeKey=true;$('#ekeywrap').innerHTML='<input id="ekey" type="password" class="form-control" placeholder="new API key" autocomplete="new-password" aria-label="new api key">';}
+async function aiEditDiscover(id){const b=$('#ediscover');b.disabled=true;b.textContent='Discovering…';try{const r=await post(`/api/v1/ai/providers/db/${id}/models`,{});const sel=$('#emodel');
+if(r.models&&r.models.length){window._aiEdit.models=r.models.map(m=>m.id);sel.innerHTML=r.models.map(m=>`<option>${esc(m.id)}</option>`).join('');$('#eres').textContent=r.models.length+' models discovered';}
+else{$('#eres').textContent=(r.note||((r.error||{}).message)||'Manual entry — discovery not supported');const inp=document.createElement('input');inp.id='emodel';inp.className='form-control';inp.value=sel.value;sel.replaceWith(inp);}}catch(e){$('#eres').textContent=String(e).slice(0,200)}b.disabled=false;b.textContent='Discover';}
+async function aiEditTest(id){const b=$('#etest');b.disabled=true;b.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Testing…';
+const body={};const m=$('#emodel');if(m)body.model=m.value.trim();const k=$('#ekey');if(k&&k.value)body.api_key=k.value;
+try{if(body.model||body.api_key)await post(`/api/v1/ai/providers/db/${id}`,body);}catch(e){}
+let r;try{r=await post(`/api/v1/ai/providers/db/${id}/test`,{});}catch(e){r={success:false,error:{message:String(e).slice(0,200)}}}
+$('#esaveres').innerHTML=aiTestResultHtml(r);b.disabled=false;b.textContent='Test connection';}
+async function aiEditSave(id){const body={};const m=$('#emodel');if(m)body.model=m.value.trim();const k=$('#ekey');if(k&&k.value)body.api_key=k.value;
+try{await post(`/api/v1/ai/providers/db/${id}`,body);aiModalClose();toast('Saved');load();}catch(e){toast('Save failed: '+String(e).slice(0,200))}}
 async function mkResearch(e){e.preventDefault();const p=await post('/api/v1/research/plan',{question:val('q')});document.querySelector('#rp').textContent=JSON.stringify(p,null,2).slice(0,2000);const r=await post('/api/v1/research/runs',{question:val('q'),plan:p});document.querySelector('#rr').textContent='run #'+r.id+' planned — collect evidence, then finish via API';}
 init();
 </script>

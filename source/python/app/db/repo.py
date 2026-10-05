@@ -172,19 +172,28 @@ class Repo:
                     s.commit()
             finally:
                 pass
-            # All AI provider slots exist as (disabled) DB rows so every API
-            # is configurable from Settings/UI with zero code changes.
-            # Secrets are added later via API/UI and stored encrypted.
+            # Provider catalog lives in ai/presets.py (backend-driven) and is
+            # offered only inside the Add-Provider flow — the list page shows
+            # configured providers only. One-time cleanup of the old
+            # auto-seeded placeholder rows (no key, never tested, disabled):
+            # they contain no secrets and were never user-touched.
             from ..models.entities import AIProvider
-            _slots = [("openai", "https://api.openai.com/v1", "chat", "gpt-4o-mini"),
-                      ("anthropic", "https://api.anthropic.com", "anthropic",
-                       "claude-3-5-haiku-latest"),
-                      ("google", "https://generativelanguage.googleapis.com", "google",
-                       "gemini-2.0-flash")]
-            for _name, _base, _proto, _model in _slots:
-                if s.query(AIProvider).filter_by(name=_name).count() == 0:
-                    s.add(AIProvider(name=_name, base_url=_base, api_key_enc="",
-                                     model=_model, protocol=_proto, enabled=False))
+            _legacy = {("openai", "https://api.openai.com/v1", "chat", "gpt-4o-mini"),
+                       ("anthropic", "https://api.anthropic.com", "anthropic",
+                        "claude-3-5-haiku-latest"),
+                       ("google", "https://generativelanguage.googleapis.com", "google",
+                        "gemini-2.0-flash")}
+            try:
+                for _ph in s.query(AIProvider).filter(
+                        AIProvider.name.in_(["openai", "anthropic", "google"])).all():
+                    sig = (_ph.name, _ph.base_url or "",
+                           getattr(_ph, "protocol", "chat") or "chat", _ph.model or "")
+                    if sig in _legacy and not (_ph.api_key_enc or "") \
+                            and not bool(_ph.enabled) and not (_ph.last_tested_at or 0):
+                        s.delete(_ph)
+                s.commit()
+            except Exception:
+                pass
             s.commit()
             s.close()
         except Exception:
@@ -983,19 +992,33 @@ def _h_feedsubs(row):
             "keywords": row.keywords or []}
 
 
+_STATUS_FIELDS = ("last_tested_at", "last_test_status",
+                   "last_test_latency_ms", "last_test_error")
+
+
 def _m_aiproviders(item):
     from ..models.entities import AIProvider
-    return AIProvider, {"name": item.get("name", ""), "base_url": item.get("base_url", ""),
-                        "api_key_enc": item.get("api_key_enc", ""),
-                        "model": item.get("model", ""),
-                        "protocol": item.get("protocol", "chat") or "chat",
-                        "enabled": bool(item.get("enabled", True))}
+    cols = {"name": item.get("name", ""), "base_url": item.get("base_url", ""),
+            "api_key_enc": item.get("api_key_enc", ""),
+            "model": item.get("model", ""),
+            "protocol": item.get("protocol", "chat") or "chat",
+            "preset": item.get("preset", "") or "",
+            "enabled": bool(item.get("enabled", True))}
+    for f in _STATUS_FIELDS:
+        cols[f] = item.get(f, 0.0 if f in ("last_tested_at", "last_test_latency_ms")
+                           else ("" if f == "last_test_error" else "untested"))
+    return AIProvider, cols
 
 
 def _h_aiproviders(row):
-    return {"id": row.id, "name": row.name, "base_url": row.base_url,
-            "model": row.model, "protocol": getattr(row, "protocol", "chat") or "chat",
-            "enabled": bool(row.enabled)}
+    out = {"id": row.id, "name": row.name, "base_url": row.base_url,
+           "model": row.model, "protocol": getattr(row, "protocol", "chat") or "chat",
+           "preset": getattr(row, "preset", "") or "",
+           "enabled": bool(row.enabled)}
+    for f in _STATUS_FIELDS:
+        out[f] = getattr(row, f, 0.0 if f in ("last_tested_at", "last_test_latency_ms")
+                         else ("" if f == "last_test_error" else "untested"))
+    return out
 
 
 def _m_entity_history(item):

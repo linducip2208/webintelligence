@@ -357,30 +357,106 @@ def _redis_ok():
         return False
 
 
+@router.get("/api/v1/ai/provider-presets", tags=["admin"])
+def ai_provider_presets():
+    """Backend-driven catalog for the Add-Provider flow (single source of
+    truth; the UI renders from this, nothing is duplicated in frontend)."""
+    from ...ai.presets import list_presets
+    return {"presets": list_presets()}
+
+
+def _public_provider(p: dict) -> dict:
+    """Provider row safe for API responses: never includes key material."""
+    return {k: v for k, v in p.items() if k != "api_key_enc"}
+
+
+def _validate_endpoint(base_url: str, preset_id: str = ""):
+    """SSRF validation for provider endpoints. Loopback is allowed ONLY for
+    local presets (Ollama); everything else must be public HTTPS/DNS-safe."""
+    from ...core.ssrf import validate_url, SSRFError
+    from ...ai.presets import get_preset
+    import os as _o
+    if not base_url or len(base_url) > 2048:
+        raise HTTPException(400, "base_url required")
+    trust = [x.strip() for x in _o.getenv("TRUSTED_EGRESS_CIDRS", "").split(",") if x.strip()]
+    preset = get_preset(preset_id or "") if preset_id else None
+    if preset and preset.get("local"):
+        trust = trust + ["127.0.0.0/8", "::1/128"]
+    try:
+        validate_url(base_url, trust or None)
+    except SSRFError as e:
+        raise HTTPException(400, f"endpoint rejected: {e}")
+
+
+def _record_test(p: dict, result: dict):
+    """Persist non-secret test metadata only (status/latency/code)."""
+    import time as _t
+    conn = result.get("connection", {})
+    err = result.get("error", {})
+    p["last_tested_at"] = _t.time()
+    p["last_test_status"] = "passed" if result.get("success") else "failed"
+    p["last_test_latency_ms"] = conn.get("latency_ms", 0)
+    p["last_test_error"] = err.get("code", "") if err else ""
+    try:
+        repo.sync("ai_providers", p)
+    except Exception:
+        pass
+
+
+def _run_test(base_url: str, protocol: str, api_key: str, model: str,
+              name: str = "") -> dict:
+    """Real backend test: build adapter -> connect -> auth -> discover ->
+    verify model -> structured result. Secrets never leave the server."""
+    from ...ai.factory import build_provider as _bp
+    from ...ai import diagnose as _dg
+    try:
+        prov = _bp(protocol, base_url, api_key or "", model or "")
+    except Exception as e:  # noqa: BLE001
+        code, msg = _dg.normalize_error(f"build failed: {e}")
+        return {"success": False, "provider": {"name": name, "protocol": protocol},
+                "connection": {"authenticated": False, "latency_ms": 0},
+                "model": {"selected": model or "", "available": False},
+                "models": [], "error": {"code": code, "message": msg}}
+    return _dg.test_provider(prov, name, model or "")
+
+
 @router.post("/api/v1/ai/providers/db", tags=["admin"])
 def ai_provider_create(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...core.crypto import encrypt
+    from ...ai.presets import valid_protocol
     email, _, _ = _need(authorization, "configure")
     if not spec.get("name") or not spec.get("base_url"):
         raise HTTPException(400, "name and base_url required")
     if any(x.get("name") == spec["name"] for x in STORE["ai_providers"]):
         raise HTTPException(409, "provider exists")
     proto = (spec.get("protocol", "chat") or "chat").lower()
-    if proto not in ("chat", "responses", "anthropic", "google"):
+    if not valid_protocol(proto):
         raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
-    item = {"id": len(STORE["ai_providers"]) + 1, "name": spec["name"],
+    _validate_endpoint(spec["base_url"], spec.get("preset", ""))
+    item = {"id": max([x.get("id", 0) for x in STORE["ai_providers"]] + [0]) + 1,
+            "name": spec["name"], "preset": spec.get("preset", ""),
             "base_url": spec["base_url"], "protocol": proto,
             "api_key_enc": encrypt(spec.get("api_key", "")),
-            "model": spec.get("model", ""), "enabled": True}
+            "model": spec.get("model", ""), "enabled": True,
+            "last_tested_at": 0.0, "last_test_status": "untested",
+            "last_test_latency_ms": 0.0, "last_test_error": ""}
     STORE["ai_providers"].append(item)
     _audit(email, "ai.provider.create", item["name"])
-    return {k: v for k, v in item.items() if k != "api_key_enc"}
+    return _public_provider(item)
 
 
 @router.get("/api/v1/ai/providers/db", tags=["admin"])
 def ai_provider_list():
-    return {"items": [{k: v for k, v in x.items() if k != "api_key_enc"}
-                      for x in STORE["ai_providers"]]}
+    # Configured providers only; key material never leaves the server.
+    return {"items": [_public_provider(x) for x in STORE["ai_providers"]]}
+
+
+@router.get("/api/v1/ai/providers/db/{pid}", tags=["admin"])
+def ai_provider_detail(pid: int):
+    p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
+    if not p:
+        raise HTTPException(404, "not found")
+    return _public_provider(p)
 
 
 @router.post("/api/v1/ai/providers/db/{pid}/disable", tags=["admin"])
@@ -409,56 +485,153 @@ def ai_provider_enable(pid: int, authorization: str = Header(""), x_api_key: str
 
 @router.post("/api/v1/ai/providers/db/{pid}/test", tags=["admin"])
 def ai_provider_test(pid: int, authorization: str = Header(""), x_api_key: str = Header("")):
-    """Live credential check for one DB provider: success -> ok:true,
-    otherwise ok:false with the concrete reason (never echoes the key)."""
+    """Live test of a SAVED provider: decrypt server-side, real connect +
+    auth + discovery + model verify. Structured result, key never returned."""
     from ...core.crypto import decrypt
-    from ...ai.factory import build_provider as _bp
     email, _, _ = _need(authorization, "configure")
     p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
     if not p:
         raise HTTPException(404, "not found")
     try:
         key = decrypt(p.get("api_key_enc", ""))
-    except Exception as e:
-        return {"ok": False, "reason": f"key-unreadable: {e}"[:200]}
+    except Exception as e:  # noqa: BLE001
+        from ...ai import diagnose as _dg
+        code, msg = _dg.normalize_error(f"key unreadable: {e}")
+        return {"success": False, "provider": {"name": p.get("name", "")},
+                "connection": {"authenticated": False, "latency_ms": 0},
+                "model": {"selected": p.get("model", ""), "available": False},
+                "models": [], "error": {"code": code, "message": msg}}
     if not key:
-        return {"ok": False, "reason": "no-key-saved"}
+        return {"success": False, "provider": {"name": p.get("name", "")},
+                "connection": {"authenticated": False, "latency_ms": 0},
+                "model": {"selected": p.get("model", ""), "available": False},
+                "models": [],
+                "error": {"code": "INVALID_CONFIGURATION",
+                          "message": "No API key saved for this provider.",
+                          "suggested_action": "Set the API key, then test again."}}
+    _validate_endpoint(p.get("base_url", ""), p.get("preset", ""))
+    result = _run_test(p.get("base_url", ""), p.get("protocol", "chat"),
+                       key, p.get("model", ""), p.get("name", ""))
+    _record_test(p, result)
+    _audit(email, "ai.provider.test", f"{p['name']}:{result.get('success')}")
+    return result
+
+
+@router.post("/api/v1/ai/providers/db/test", tags=["admin"])
+def ai_provider_test_unsaved(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Live test of an UNSAVED configuration (Add flow): nothing persisted,
+    key used once server-side and discarded. Same structured result."""
+    from ...ai.presets import valid_protocol
+    _, _, _ = _need(authorization, "configure")
+    base_url, protocol = spec.get("base_url", ""), (spec.get("protocol", "chat") or "chat").lower()
+    if not valid_protocol(protocol):
+        raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
+    _validate_endpoint(base_url, spec.get("preset", ""))
+    return _run_test(base_url, protocol, spec.get("api_key", ""),
+                     spec.get("model", ""), spec.get("name", "unsaved"))
+
+
+@router.post("/api/v1/ai/providers/db/models", tags=["admin"])
+def ai_provider_discover_unsaved(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Model discovery for an unsaved configuration (nothing persisted)."""
+    from ...ai.factory import build_provider as _bp
+    from ...ai import diagnose as _dg
+    from ...ai.presets import valid_protocol
+    _, _, _ = _need(authorization, "configure")
+    protocol = (spec.get("protocol", "chat") or "chat").lower()
+    if not valid_protocol(protocol):
+        raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
+    _validate_endpoint(spec.get("base_url", ""), spec.get("preset", ""))
+    try:
+        prov = _bp(protocol, spec.get("base_url", ""), spec.get("api_key", ""),
+                   spec.get("model", ""))
+        return _dg.discover(prov)
+    except Exception as e:  # noqa: BLE001
+        code, msg = _dg.normalize_error(e)
+        return {"models": [], "discovery": False, "manual_entry": True,
+                "error": {"code": code, "message": msg}}
+
+
+@router.post("/api/v1/ai/providers/db/{pid}/models", tags=["admin"])
+def ai_provider_discover_saved(pid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Model discovery for a saved provider (key decrypted server-side)."""
+    from ...core.crypto import decrypt
+    from ...ai.factory import build_provider as _bp
+    from ...ai import diagnose as _dg
+    _, _, _ = _need(authorization, "configure")
+    p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
+    if not p:
+        raise HTTPException(404, "not found")
+    try:
+        key = decrypt(p.get("api_key_enc", ""))
+    except Exception as e:  # noqa: BLE001
+        code, msg = _dg.normalize_error(f"key unreadable: {e}")
+        return {"models": [], "discovery": False, "manual_entry": True,
+                "error": {"code": code, "message": msg}}
     try:
         prov = _bp(p.get("protocol", "chat"), p.get("base_url", ""), key,
                    p.get("model", ""))
-    except Exception as e:
-        return {"ok": False, "reason": f"build-failed: {e}"[:200]}
-    try:
-        out = prov.health_check()
-    except Exception as e:
-        return {"ok": False, "reason": str(e)[:200]}
-    _audit(email, "ai.provider.test", f"{p['name']}:{out.get('ok')}")
-    return out
+        return _dg.discover(prov)
+    except Exception as e:  # noqa: BLE001
+        code, msg = _dg.normalize_error(e)
+        return {"models": [], "discovery": False, "manual_entry": True,
+                "error": {"code": code, "message": msg}}
 
 
 @router.post("/api/v1/ai/providers/db/{pid}", tags=["admin"])
 def ai_provider_update(pid: int, spec: dict, authorization: str = Header(""),
                        x_api_key: str = Header("")):
-    """Update base_url/protocol/model/api_key (key re-encrypted at rest)."""
+    return _ai_provider_apply(pid, spec, authorization, x_api_key)
+
+
+@router.put("/api/v1/ai/providers/db/{pid}", tags=["admin"])
+def ai_provider_replace(pid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    return _ai_provider_apply(pid, spec, authorization, x_api_key)
+
+
+def _ai_provider_apply(pid: int, spec: dict, authorization: str, x_api_key: str):
+    """Update base_url/protocol/model/api_key/preset/enabled (key
+    re-encrypted at rest, never returned)."""
     from ...core.crypto import encrypt
+    from ...ai.presets import valid_protocol
     email, _, _ = _need(authorization, "configure")
     p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
     if not p:
         raise HTTPException(404, "not found")
     if "base_url" in spec:
+        _validate_endpoint(spec["base_url"], spec.get("preset", p.get("preset", "")))
         p["base_url"] = spec["base_url"]
     if "model" in spec:
         p["model"] = spec["model"]
     if "protocol" in spec:
         proto = (spec["protocol"] or "chat").lower()
-        if proto not in ("chat", "responses", "anthropic", "google"):
+        if not valid_protocol(proto):
             raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
         p["protocol"] = proto
+    if "preset" in spec:
+        p["preset"] = spec["preset"]
+    if "enabled" in spec:
+        p["enabled"] = bool(spec["enabled"])
     if "api_key" in spec:
         p["api_key_enc"] = encrypt(spec["api_key"])
     repo.sync("ai_providers", p)
     _audit(email, "ai.provider.update", p["name"])
-    return {k: v for k, v in p.items() if k != "api_key_enc"}
+    return _public_provider(p)
+
+
+@router.delete("/api/v1/ai/providers/db/{pid}", tags=["admin"])
+def ai_provider_delete(pid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _need(authorization, "configure")
+    p = next((x for x in STORE["ai_providers"] if x.get("id") == pid), None)
+    if not p:
+        raise HTTPException(404, "not found")
+    STORE["ai_providers"][:] = [x for x in STORE["ai_providers"] if x.get("id") != pid]
+    try:
+        repo.delete("ai_providers", pid)
+    except Exception:
+        pass
+    _audit(email, "ai.provider.delete", p["name"])
+    return {"ok": True}
 
 
 
