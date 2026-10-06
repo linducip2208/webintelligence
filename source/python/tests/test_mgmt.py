@@ -257,6 +257,171 @@ def test_rbac_custom_resolution():
     assert set(R.ACTIONS) >= {"read", "collect", "research", "alert", "ai", "configure", "users"}
 
 
+def test_granular_permissions_logout_reset_channels_collectors():
+    from app.services import rbac as R
+    assert R.GRANULAR["targets.scan"] == "collect"
+    assert R.GRANULAR["roles.manage"] == "configure"
+    assert R.GRANULAR.get("nope") is None
+    c = _c()
+    r = c.post("/api/v1/roles", json={"name": "scanner", "permissions": ["targets.scan",
+                                                                        "scans.view"]}).json()
+    assert r["permissions"] == ["collect", "read"]
+    assert c.delete("/api/v1/roles/scanner").json() == {"ok": True}
+    out = c.post("/api/v1/auth/logout", json={}).json()
+    assert out == {"ok": True}
+    assert c.post("/api/v1/users/admin@local/reset-password").status_code == 409
+    reg = c.get("/api/v1/collectors").json()["collectors"]
+    kinds = {x["kind"] for x in reg}
+    assert {"binary", "playwright", "python"} <= kinds
+    assert all({"name", "enabled", "healthy", "capabilities"} <= set(x) for x in reg)
+    w = c.post("/api/v1/webhooks", json={"url": "https://example.com/slack",
+                                         "channel": "slack"}).json()
+    assert c.get(f"/api/v1/webhooks/{w['id']}").json()["channel"] == "slack"
+    assert c.post("/api/v1/webhooks", json={"url": "https://example.com/x",
+                                            "channel": "irc"}).status_code == 400
+    assert c.put(f"/api/v1/webhooks/{w['id']}", json={"channel": "bogus"}).status_code == 400
+    assert c.delete(f"/api/v1/webhooks/{w['id']}").json() == {"ok": True}
+    from app.services import webhooks as WH
+    assert WH.CHANNELS == ("generic", "slack", "discord")
+    assert WH.format_payload("slack", "ev", {"a": 1}) == {
+        "text": '[WebIntel:ev] {"a": 1}'}
+    assert WH.format_payload("discord", "ev", {"a": 1})["content"].startswith("**WebIntel:ev**")
+    hdrs = c.get("/api/v1/projects", headers={}).headers
+    assert hdrs.get("x-content-type-options") == "nosniff"
+    assert hdrs.get("x-frame-options") == "SAMEORIGIN"
+    assert hdrs.get("referrer-policy") == "same-origin"
+
+
+def test_recon_attack_surface_offline_shapes():
+    from app.services import recon as RC
+    assert RC.rdap_lookup("notadomain") == {"ok": False, "error": "not a domain"}
+    assert RC.whois_lookup("") == {"ok": False, "error": "not a domain"}
+    assert RC.reverse_dns([]) == {}
+    assert RC.dns_records("")["error"] == "no host"
+    p = c_post_job_profile()
+    assert p in ("quick", "standard", "deep")
+
+
+def test_evidence_verify_data_quality_views_collectors():
+    c = _c()
+    ev = c.post("/api/v1/evidence", json={"source": "t", "url": "",
+                                          "content_hash": "h"}).json()
+    out = c.post(f"/api/v1/evidence/{ev['id']}/verify").json()
+    assert out == {"verified": False, "reason": "no source URL stored"}
+    assert c.post("/api/v1/evidence/999999/verify").status_code == 404
+    dq = c.get("/api/v1/admin/data-quality").json()
+    assert "issues" in dq and "total" in dq
+    assert c.post("/api/v1/admin/data-quality/fix", json={"kind": "nope"}).status_code == 400
+    fx = c.post("/api/v1/admin/data-quality/fix", json={"kind": "orphan_relationships"}).json()
+    assert fx == {"ok": True, "fixed": 0}
+    cols = c.get("/api/v1/collectors").json()["collectors"]
+    assert {x["kind"] for x in cols} >= {"binary", "playwright", "python"}
+    inv = c.post("/api/v1/investigations", json={"title": "V"}).json()
+    assert c.post(f"/api/v1/investigations/{inv['id']}/views",
+                  json={"name": "", "node_ids": []}).status_code == 400
+    v = c.post(f"/api/v1/investigations/{inv['id']}/views",
+               json={"name": "v1", "node_ids": [1, 2]}).json()
+    assert v["views"]["v1"]["node_ids"] == [1, 2]
+    assert c.get(f"/api/v1/investigations/{inv['id']}").json()["data"]["views"]["v1"]["node_ids"] == [1, 2]
+    assert c.delete(f"/api/v1/investigations/{inv['id']}/views/v1").json() == {"ok": True}
+    assert c.delete(f"/api/v1/investigations/{inv['id']}/views/v1").status_code == 404
+    assert c.delete(f"/api/v1/investigations/{inv['id']}").json() == {"ok": True}
+
+
+def c_post_job_profile():
+    from fastapi.testclient import TestClient
+    import app.main as M
+    cc = TestClient(M.app)
+    pr = cc.post("/api/v1/projects", json={"name": "PROF"}).json()
+    j = cc.post("/api/v1/jobs", json={"project_id": pr["id"], "target_id": 0,
+                                      "url": "https://example.com/prof",
+                                      "strategy": "AUTO", "profile": "bogus"}).json()
+    assert j["profile"] == "standard"  # invalid coerced, never crashes
+    j2 = cc.post("/api/v1/jobs", json={"project_id": pr["id"], "target_id": 0,
+                                       "url": "https://example.com/prof2",
+                                       "strategy": "AUTO", "profile": "quick"}).json()
+    assert j2["profile"] == "quick"
+    cc.delete(f"/api/v1/jobs/{j['job_id']}")
+    cc.delete(f"/api/v1/jobs/{j2['job_id']}")
+    cc.delete(f"/api/v1/projects/{pr['id']}")
+    return j2["profile"]
+
+
+def test_transforms_and_timeline():
+    from app.services import transforms as T
+    c = _c()
+    assert c.get("/api/v1/transforms").json()["transforms"]
+    assert c.post("/api/v1/transforms/run", json={"name": "nope", "value": "x"}).status_code == 400
+    assert c.post("/api/v1/transforms/run", json={"name": "email_to_domain",
+                                                 "value": "bad"}).status_code == 400
+    out = c.post("/api/v1/transforms/run", json={"name": "email_to_domain",
+                                                 "value": "a@Example.COM"}).json()
+    assert out == {"ok": True, "results": [{"value": "example.com", "kind": "domain",
+                                            "evidence": "email-domain"}], "count": 1}
+    p = c.post("/api/v1/projects", json={"name": "TR"}).json()
+    t1 = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "t1.example",
+                                         "url": "https://example.com/t1"}).json()
+    t2 = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "t2.example",
+                                         "url": "https://example.com/t2"}).json()
+    from app.main import STORE as _S
+    for t in _S["targets"]:
+        if t["id"] in (t1["id"], t2["id"]):
+            t["recon"] = {"ok": True, "dns": {"ok": True, "ips": ["9.9.9.10"]},
+                          "tls": {"ok": False}, "http": {"ok": True, "tech": []}}
+    r = c.post("/api/v1/transforms/run", json={"name": "domain_to_ips",
+                                               "value": "t1.example"}).json()
+    assert r["results"] == [{"value": "9.9.9.10", "kind": "ip", "evidence": f"target:{t1['id']}"}]
+    r2 = c.post("/api/v1/transforms/run", json={"name": "ip_to_domains",
+                                                "value": "9.9.9.10"}).json()
+    assert sorted(x["value"] for x in r2["results"]) == ["t1.example", "t2.example"]
+    assert c.post("/api/v1/transforms/run", json={"name": "domain_to_tech",
+                                                  "value": "t1.example"}).json()["results"] == []
+    tl = c.get("/api/v1/timeline?size=50").json()
+    assert tl["total"] >= 0 and all("kind" in e and "at" in e for e in tl["items"])
+    tl2 = c.get("/api/v1/timeline?types=event,finding&size=5").json()
+    assert all(e["kind"] in ("event", "finding") for e in tl2["items"])
+    assert T.TRANSFORMS and all({"name", "input", "output"} <= set(t) for t in T.TRANSFORMS)
+    assert c.delete(f"/api/v1/targets/{t1['id']}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/targets/{t2['id']}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/projects/{p['id']}").json() == {"ok": True}
+
+
+def test_stix_export_import_roundtrip():
+    from app.services import stix as SX
+    c = _c()
+    e1 = c.post("/api/v1/graph/nodes", json={"kind": "company", "key": "acme",
+                                             "name": "Acme"}).json()
+    e2 = c.post("/api/v1/graph/nodes", json={"kind": "domain", "key": "acme.com",
+                                             "name": "acme.com"}).json()
+    assert c.post("/api/v1/graph/edges", json={"src": e1["id"], "dst": e2["id"],
+                                               "rel": "OWNS"}).status_code == 200
+    f = c.post("/api/v1/findings", json={"kind": "obs", "title": "STIX f",
+                                         "entities": []}).json()
+    c.post("/api/v1/entities/resolve", json={"candidate": {"name": "Zed Corp",
+                                                          "domain": "zed.example"}})
+    c.post("/api/v1/entities/resolve", json={"candidate": {"name": "Yolanda",
+                                                          "domain": "yol.example"}})
+    out = c.post("/api/v1/stix/export", json={}).json()
+    b, stats = out["bundle"], out["stats"]
+    assert b["type"] == "bundle" and stats["entities"] >= 2 and stats["relationships"] >= 1
+    assert c.post("/api/v1/stix/validate", json={"bundle": b}).json() == {"valid": True, "errors": []}
+    assert c.post("/api/v1/stix/validate", json={"bundle": {"type": "nope"}}).json()["valid"] is False
+    back = c.post("/api/v1/stix/import", json={"bundle": b, "source": "t"}).json()
+    assert back["ok"] is True and back["created"]["evidence"] == 1
+    rpt = c.post("/api/v1/stix/import", json={"bundle": {"type": "bundle", "objects": []}})
+    assert rpt.status_code == 400
+    m = c.get("/api/v1/misp/export").json()
+    assert m["Event"]["info"] and isinstance(m["Event"]["Attribute"], list)
+    mi = c.post("/api/v1/misp/import", json={"event": {"Event": {
+        "info": "t", "Attribute": [{"type": "domain", "value": "evil.example",
+                                    "to_ids": True}],
+        "Galaxy": [{"GalaxyCluster": [{"value": "APT-X"}]}]}}}).json()
+    assert mi["attributes"] >= 2  # domain + galaxy actor
+    mi2 = c.post("/api/v1/misp/import", json={"event": {"Event": {
+        "info": "t2", "Attribute": [{"type": "domain", "value": "evil.example"}]}}}).json()
+    assert mi2["attributes"] == 0  # dedupe, no silent duplicates
+
+
 def test_recon_unit_shapes():
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer

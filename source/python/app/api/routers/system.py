@@ -43,6 +43,44 @@ def login(creds: dict):
     return {"token": tok.issue(creds["email"], _secret()), "email": creds["email"]}
 
 
+@router.post("/api/v1/auth/logout")
+def logout(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Bearer tokens are stateless HMAC: logout discards the client token
+    and records the event. API keys are revoked via apikeys/{id}/revoke."""
+    email, _, _ = _ctx(authorization, x_api_key)
+    _audit(email, "auth.logout", "ok")
+    return {"ok": True}
+
+
+@router.post("/api/v1/users/{addr}/reset-password", tags=["admin"])
+def reset_password(addr: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Admin-initiated reset: sets a random password, returned ONCE for
+    out-of-band delivery. No email infrastructure required on-server."""
+    import secrets as _s
+    email, _, _ = _need(authorization, "configure")
+    if addr == "admin@local":
+        raise HTTPException(409, "built-in account: change via server console")
+    try:
+        from ...models.entities import User
+        from ...core.security import hash_password
+        s = repo._session()
+        u = s.query(User).filter_by(email=addr).first()
+        if not u:
+            s.close()
+            raise HTTPException(404, "user not found")
+        temp = "wi-" + _s.token_urlsafe(12)
+        u.password_hash = hash_password(temp)
+        s.commit()
+        s.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"reset failed: {e}"[:200])
+    _audit(email, "user.reset-password", addr)
+    return {"ok": True, "temp_password": temp,
+            "warning": "shown once — deliver out-of-band, user should ask admin for rotation"}
+
+
 @router.get("/api/v1/auth/providers", tags=["admin"])
 def auth_providers():
     from ...auth.oidc import from_env
@@ -355,6 +393,122 @@ def _redis_ok():
         return bool(redis_status()["ok"])
     except Exception:
         return False
+
+
+@router.get("/api/v1/collectors", tags=["admin"])
+def collector_registry():
+    """Live collector/plugin registry: every collection path with health,
+    capabilities, version, and enablement — the plugin SDK surface."""
+    import os as _o
+    from ...services import connectors as _c
+    cols = []
+    gobin = None
+    for cand in ("build/linux/collector", "build/windows/collector.exe",
+                 "source/go/collector"):
+        if _o.path.exists(cand) or _o.path.exists("/app/" + cand):
+            gobin = cand
+            break
+    try:
+        from ...browser.worker import pool_status
+        brow = pool_status()
+    except Exception as e:  # noqa: BLE001
+        brow = {"installed": False, "error": str(e)[:160]}
+    try:
+        depth = None
+        from ..shared import get_redis as _gr
+        r = _gr()
+        if r is not None:
+            depth = int(r.llen("webintel:queue:jobs") or 0)
+    except Exception:
+        depth = None
+    cols.append({"name": "go-collector", "kind": "binary",
+                 "description": "High-concurrency HTTP/API collector (Go). Posts to /results.",
+                 "version": "1.0", "enabled": True, "healthy": gobin is not None,
+                 "last_run": "", "binary": gobin or "not built (go build ./...)",
+                 "capabilities": ["http", "api", "concurrent", "retries", "rate-limit"],
+                 "queue_depth": depth})
+    cols.append({"name": "browser", "kind": "playwright",
+                 "description": "Headless browser pool for JS-rendered pages.",
+                 "version": "1.0", "enabled": bool(brow.get("installed", False)),
+                 "healthy": bool(brow.get("pool") or brow.get("installed")),
+                 "last_run": "", "capabilities": ["render", "screenshot", "metadata"],
+                 "pool": {k: v for k, v in brow.items() if k != "error"},
+                 "error": brow.get("error", "")})
+    cols.append({"name": "pipeline-inline", "kind": "python",
+                 "description": "Inline pipeline: fetch→validate→normalize→recon→alerts.",
+                 "version": "1.0", "enabled": True, "healthy": True, "last_run": "",
+                 "capabilities": ["http", "prices", "changes", "recon", "alerts"]})
+    for c in STORE["connectors"]:
+        h = c.get("health", {}) if isinstance(c.get("health"), dict) else {}
+        cols.append({"name": c.get("name", ""), "kind": "connector",
+                     "description": f"{c.get('category', '')} connector",
+                     "version": c.get("version", "1"),
+                     "enabled": bool(c.get("enabled", True)),
+                     "healthy": bool(h.get("ok", False)), "last_run": h.get("last_run", ""),
+                     "capabilities": ((c.get("manifest") or {}).get("capabilities", []) or []),
+                     "connector_id": c.get("id")})
+    return {"collectors": cols}
+
+
+@router.get("/api/v1/admin/data-quality", tags=["admin"])
+def data_quality(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Detect duplicates, orphans, missing provenance, stale data, broken refs."""
+    _, org, _ = _ctx(authorization, x_api_key)
+    issues = []
+    seen_fp, dup_docs = set(), []
+    for d in STORE["documents"]:
+        if d.get("org", 1) != org:
+            continue
+        if d.get("fingerprint") in seen_fp:
+            dup_docs.append(d.get("id"))
+        else:
+            seen_fp.add(d.get("fingerprint"))
+    if dup_docs:
+        issues.append({"kind": "duplicate_documents", "count": len(dup_docs),
+                       "ids": dup_docs[:50], "fixable": False,
+                       "note": "same fingerprint ingested twice; review before dedupe"})
+    node_ids = {n["id"] for n in STORE["nodes"] if n.get("org", 1) == org}
+    orphans = [e["id"] for e in STORE["edges"]
+               if e.get("org", 1) == org and
+               (e.get("src") not in node_ids or e.get("dst") not in node_ids)]
+    if orphans:
+        issues.append({"kind": "orphan_relationships", "count": len(orphans),
+                       "ids": orphans[:50], "fixable": True,
+                       "note": "edges pointing to missing nodes"})
+    noprove = [e["id"] for e in STORE["evidence"]
+               if e.get("org", 1) == org and not (e.get("url") or e.get("snippet"))]
+    if noprove:
+        issues.append({"kind": "evidence_without_provenance", "count": len(noprove),
+                       "ids": noprove[:50], "fixable": False,
+                       "note": "evidence with neither URL nor snippet"})
+    import time as _t
+    stale = [t["id"] for t in STORE["targets"]
+             if t.get("org", 1) == org and (t.get("attempts", 0) or 0) == 0]
+    if stale:
+        issues.append({"kind": "never_scanned_targets", "count": len(stale),
+                       "ids": stale[:50], "fixable": False,
+                       "note": "targets with zero collection attempts"})
+    return {"issues": issues, "total": sum(i["count"] for i in issues)}
+
+
+@router.post("/api/v1/admin/data-quality/fix", tags=["admin"])
+def data_quality_fix(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Apply safe automatic fixes only (orphan edges). Destructive or
+    ambiguous fixes are reported, never executed silently."""
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    kind = spec.get("kind", "")
+    fixed = 0
+    if kind == "orphan_relationships":
+        node_ids = {n["id"] for n in STORE["nodes"] if n.get("org", 1) == org}
+        before = len(STORE["edges"])
+        STORE["edges"][:] = [e for e in STORE["edges"]
+                             if e.get("org", 1) != org or
+                             (e.get("src") in node_ids and e.get("dst") in node_ids)]
+        fixed = before - len(STORE["edges"])
+    else:
+        raise HTTPException(400, "kind must be orphan_relationships")
+    _audit(email, "data-quality.fix", f"{kind}:{fixed}")
+    return {"ok": True, "fixed": fixed}
 
 
 @router.get("/api/v1/ai/provider-presets", tags=["admin"])

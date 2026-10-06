@@ -250,6 +250,7 @@ class Webhook(Base):
     url = Column(Text)
     secret = Column(String(256), default="")
     enabled = Column(Boolean, default=True)
+    channel = Column(String(16), default="generic")  # generic|slack|discord
     created_at = Column(DateTime, server_default=func.now())
 
 

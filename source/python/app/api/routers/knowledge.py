@@ -655,6 +655,36 @@ def list_documents(page: int = 1, size: int = 20,
     return paginate(_visible_by_org(STORE["documents"], org), page, size)
 
 
+@router.post("/api/v1/evidence/{eid}/verify", tags=["knowledge"])
+def verify_evidence(eid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Re-fetch the evidence source URL and compare content hash.
+    Honest result: match/mismatch/unverifiable (no stored body to compare)."""
+    import hashlib as _h
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    ev = next((x for x in STORE["evidence"] if x.get("id") == eid), None)
+    if not ev or _visible_by_org([ev], org) != [ev]:
+        raise HTTPException(404, "evidence not found")
+    url = (ev.get("url") or "").strip()
+    if not url:
+        return {"verified": False, "reason": "no source URL stored"}
+    try:
+        from ...services import pipeline as _pipe
+        import os as _o
+        trust = [x.strip() for x in _o.getenv("TRUSTED_EGRESS_CIDRS", "").split(",") if x.strip()]
+        f = _pipe.fetch_direct(url, timeout_s=20, trusted_cidrs=trust or None)
+    except Exception as e:  # noqa: BLE001
+        return {"verified": False, "reason": f"fetch failed: {e}"[:200]}
+    if not f.get("ok"):
+        return {"verified": False, "reason": f.get("error", "fetch failed")}
+    current = _h.sha256(f.get("body", b"")).hexdigest()[:32]
+    stored = (ev.get("content_hash") or "")[:32]
+    match = bool(stored) and current == stored
+    _audit(email, "evidence.verify", f"{eid}:{match}")
+    return {"verified": match, "stored_hash": stored, "current_hash": current,
+            "detail": "hashes match" if match else
+                      ("source content changed since capture" if stored else "no stored hash")}
+
+
 @router.delete("/api/v1/documents/{did}", tags=["knowledge"])
 def delete_document(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
     email, org, _ = _need(authorization, "configure", x_api_key)
@@ -665,6 +695,131 @@ def delete_document(did: int, authorization: str = Header(""), x_api_key: str = 
     _audit(email, "document.delete", str(did))
     return {"ok": True}
 
+
+
+# ---- transformations (pivot over local data) ----
+@router.get("/api/v1/transforms", tags=["knowledge"])
+def transform_catalog():
+    from ...services import transforms as _t
+    return {"transforms": _t.TRANSFORMS}
+
+
+@router.post("/api/v1/transforms/run", tags=["knowledge"])
+def transform_run(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import transforms as _t
+    email, org, _ = _need(authorization, "research", x_api_key)
+    out = _t.run(STORE, spec.get("name", ""), spec.get("value", ""), org)
+    if not out.get("ok"):
+        raise HTTPException(400, out.get("error", "transform failed"))
+    _audit(email, "transform.run", f"{spec.get('name')}:{len(out['results'])}")
+    return out
+
+
+# ---- unified timeline ----
+@router.get("/api/v1/timeline", tags=["knowledge"])
+def timeline(types: str = "", since: float = 0, until: float = 0, q: str = "",
+             size: int = 100, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Chronological intelligence timeline across collections."""
+    import time as _t
+    _, org, _ = _ctx(authorization, x_api_key)
+    want = {t.strip() for t in types.split(",") if t.strip()} or None
+    until = until or _t.time() + 1
+    evs = []
+
+    def ts(v, *keys):
+        for k in keys:
+            x = v.get(k)
+            if isinstance(x, (int, float)) and x:
+                return x
+        ca = v.get("created_at")
+        if isinstance(ca, str):
+            try:
+                import datetime as _dt
+                return _dt.datetime.fromisoformat(ca).timestamp()
+            except Exception:
+                return 0
+        return 0
+
+    def keep(kind, at, title, ref):
+        if want and kind not in want:
+            return
+        if not (since <= at <= until):
+            return
+        if q and q.lower() not in f"{title} {ref}".lower():
+            return
+        evs.append({"kind": kind, "at": at, "title": title[:200], "ref": ref})
+
+    for j in STORE["jobs"]:
+        if j.get("org", 1) != org:
+            continue
+        keep("scan", ts(j, "finished_at", "created_at"), f"scan {j.get('status')}", j.get("url", ""))
+    for f in STORE["findings"]:
+        if f.get("org", 1) == org:
+            keep("finding", ts(f), f.get("title", ""), f"finding:{f.get('id')}")
+    for a in STORE["alerts"]:
+        keep("alert", ts(a), f"[{a.get('rule')}] {a.get('message', '')}"[:200],
+             f"alert:{a.get('id')}")
+    for e in STORE["events"]:
+        if e.get("org", 1) == org:
+            keep("event", ts(e, "observed_at"), f"{e.get('type')}: {e.get('entity_key', '')}",
+                 f"event:{e.get('id')}")
+    for c in STORE["changes"]:
+        keep("change", ts(c, "at"), f"{c.get('kind')} on target {c.get('target_id')}", "")
+    for ev in STORE["evidence"]:
+        if ev.get("org", 1) == org:
+            keep("evidence", ts(ev), f"{ev.get('source')}: {(ev.get('url') or ev.get('snippet', ''))[:120]}", "")
+    evs.sort(key=lambda x: x["at"], reverse=True)
+    return {"items": evs[:max(1, min(size, 500))], "total": len(evs)}
+
+
+# ---- STIX 2.1 / MISP interop ----
+@router.post("/api/v1/stix/validate", tags=["intel"])
+def stix_validate(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import stix as _sx
+    _, _, _ = _ctx(authorization, x_api_key)
+    errs = _sx.validate_bundle(spec.get("bundle", {}))
+    return {"valid": not errs, "errors": errs}
+
+
+@router.post("/api/v1/stix/export", tags=["intel"])
+def stix_export(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import stix as _sx
+    email, org, _ = _need(authorization, "research", x_api_key)
+    kinds = spec.get("kinds") or ("entities", "relationships", "findings", "indicators")
+    bundle, stats = _sx.export_bundle(STORE, org,
+                                     spec.get("identity", "WebIntelligence"), tuple(kinds))
+    _audit(email, "stix.export", str(len(bundle["objects"])))
+    return {"bundle": bundle, "stats": stats}
+
+
+@router.post("/api/v1/stix/import", tags=["intel"])
+def stix_import(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import stix as _sx
+    email, org, _ = _need(authorization, "research", x_api_key)
+    out = _sx.import_bundle(STORE, spec.get("bundle", {}), org,
+                            spec.get("source", "stix-import"))
+    if not out.get("ok"):
+        raise HTTPException(400, "; ".join(out.get("errors", ["invalid bundle"])))
+    _audit(email, "stix.import", str(out["created"]))
+    return out
+
+
+@router.get("/api/v1/misp/export", tags=["intel"])
+def misp_export(authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import stix as _sx
+    email, org, _ = _need(authorization, "research", x_api_key)
+    ev = _sx.to_misp_event(STORE, org)
+    _audit(email, "misp.export", str(len(ev["Event"]["Attribute"])))
+    return ev
+
+
+@router.post("/api/v1/misp/import", tags=["intel"])
+def misp_import(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import stix as _sx
+    email, org, _ = _need(authorization, "research", x_api_key)
+    out = _sx.from_misp_event(STORE, spec.get("event", {}), org)
+    _audit(email, "misp.import", str(out))
+    return out
 
 
 @router.get("/api/v1/graph/path", tags=["knowledge"])

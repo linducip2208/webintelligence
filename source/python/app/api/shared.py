@@ -236,6 +236,7 @@ def _ctx(authorization: str = "", x_api_key: str = ""):
 
 def _need(authorization: str, action: str, x_api_key: str = ""):
     from ..services import rbac as _rbac
+    action = _rbac.GRANULAR.get(action, action)
     email, org, role = _ctx(authorization, x_api_key)
     if email.startswith("apikey:"):
         import hashlib as _h

@@ -21,6 +21,7 @@ class JobIn(BaseModel):
     url: str
     strategy: str = "AUTO"
     region: str = ""
+    profile: str = "standard"
 
 
 class AlertRuleIn(BaseModel):

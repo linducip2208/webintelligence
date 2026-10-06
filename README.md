@@ -112,6 +112,15 @@ API surface: **143 versioned paths under `/api/v1`** (verified against `contract
 | Version, liveness, readiness, Prometheus metrics | `GET /api/version`, `/healthz`, `/readyz`, `/metrics` |
 | Persistence / security / reliability / deployment / CLI / backup-restore / PII masking | see Overview; `source/python/cli.py`, `deploy/` |
 
+#### 10. Investigations, STIX/MISP, risk, recon
+| Feature | Key endpoints |
+|---|---|
+| Investigations + cases (lifecycle, notes/tasks/members/links, tabbed detail, reports) | `POST / GET /api/v1/investigations`, `/cases` (+`/{id}`, notes/tasks/links/views) |
+| STIX 2.1 bundle export/validate/import, MISP event export/import | `POST /api/v1/stix/*`, `GET / POST /api/v1/misp/*` |
+| Explainable risk 0–100 (factors + evidence) | `GET /api/v1/risk/target/{id}`, `/risk/entity/{id}` |
+| Recon per scan (DNS/TLS/tech/robots; RDAP/WHOIS on deep) + infra-correlation findings | pipeline `recon`, `services/infracorr.py` |
+| Pivot transforms, global timeline, graph lists, saved views | `POST /api/v1/transforms/run`, `GET /api/v1/timeline`, `/graph/nodes`, `/graph/edges` |
+
 ### Quick start (Windows dev / Linux same, minus service files)
 ```bat
 cd source\python
@@ -243,6 +252,15 @@ Permukaan API: **143 path berversi di bawah `/api/v1`** (terverifikasi terhadap 
 | Versi, liveness, readiness, metrik Prometheus | `GET /api/version`, `/healthz`, `/readyz`, `/metrics` |
 | Persistensi / keamanan / reliabilitas / deployment / CLI / backup-restore / masking PII | lihat Ringkasan; `source/python/cli.py`, `deploy/` |
 
+#### 10. Investigasi, STIX/MISP, risiko, recon
+| Fitur | Endpoint utama |
+|---|---|
+| Investigasi + kasus (lifecycle, catatan/task/anggota/link, detail bertab, laporan) | `POST / GET /api/v1/investigations`, `/cases` (+`/{id}`, notes/tasks/links/views) |
+| STIX 2.1 ekspor/validasi/impor bundle, MISP ekspor/impor event | `POST /api/v1/stix/*`, `GET / POST /api/v1/misp/*` |
+| Risiko 0–100 yang bisa dijelaskan (faktor + evidence) | `GET /api/v1/risk/target/{id}`, `/risk/entity/{id}` |
+| Recon per scan (DNS/TLS/teknologi/robots; RDAP/WHOIS di deep) + temuan korelasi infra | pipeline `recon`, `services/infracorr.py` |
+| Transformasi pivot, timeline global, daftar graph, saved views | `POST /api/v1/transforms/run`, `GET /api/v1/timeline`, `/graph/nodes`, `/graph/edges` |
+
 ### Mulai cepat
 ```bat
 cd source\python
@@ -373,6 +391,15 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 | i18n (الإنجليزية، الإندونيسية) | `GET /api/v1/i18n?lang=en\|id` |
 | الإصدار، الحيوية، الجاهزية، مقاييس بروميثيوس | `GET /api/version`، `/healthz`، `/readyz`، `/metrics` |
 | الثبات / الأمان / الموثوقية / النشر / CLI / النسخ الاحتياطي / إخفاء PII | انظر النظرة العامة؛ `source/python/cli.py`، `deploy/` |
+
+#### 10. التحقيقات وSTIX/MISP والمخاطر والاستطلاع
+| الميزة | نقاط النهاية الرئيسية |
+|---|---|
+| تحقيقات + قضايا (دورة حياة، ملاحظات/مهام/أعضاء/روابط، تفصيل مبوب، تقارير) | `POST / GET /api/v1/investigations`، `/cases` |
+| STIX 2.1 تصدير/تحقق/استيراد، MISP تصدير/استيراد | `POST /api/v1/stix/*`، `GET / POST /api/v1/misp/*` |
+| مخاطر 0–100 قابلة للتفسير (عوامل + أدلة) | `GET /api/v1/risk/target/{id}`، `/risk/entity/{id}` |
+| استطلاع لكل فحص (DNS/TLS/تقنيات/robots؛ RDAP/WHOIS في deep) + ترابط البنية | pipeline `recon`، `services/infracorr.py` |
+| تحويلات pivot، خط زمني شامل، قوائم الرسم، عروض محفوظة | `POST /api/v1/transforms/run`، `GET /api/v1/timeline` |
 
 ### بداية سريعة
 ```bat

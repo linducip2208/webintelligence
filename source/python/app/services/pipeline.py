@@ -28,6 +28,11 @@ def _trusted():
     return [x.strip() for x in os.getenv("TRUSTED_EGRESS_CIDRS", "").split(",") if x.strip()]
 
 
+SEC_HEADERS = ("strict-transport-security", "content-security-policy",
+               "x-frame-options", "x-content-type-options", "referrer-policy",
+               "permissions-policy", "server", "x-powered-by")
+
+
 def fetch_direct(url: str, timeout_s: int = 30, trusted_cidrs: list = None) -> dict:
     validate_url(url, trusted_cidrs if trusted_cidrs is not None else _trusted())
     t0 = time.time()
@@ -36,11 +41,19 @@ def fetch_direct(url: str, timeout_s: int = 30, trusted_cidrs: list = None) -> d
         with urllib.request.urlopen(req, timeout=timeout_s) as r:
             body = r.read(MAX_BODY + 1)
             ms = (time.time() - t0) * 1000
+            hdrs = {}
+            try:
+                for k, v in r.headers.items():
+                    if k.lower() in SEC_HEADERS and len(hdrs) < 24:
+                        hdrs[k] = str(v)[:300]
+            except Exception:
+                pass
             return {"ok": True, "http_status": r.status,
                     "content_type": r.headers.get("Content-Type", ""),
+                    "headers": hdrs,
                     "url": r.geturl(), "body": body, "latency_ms": round(ms, 2)}
     except Exception as e:
-        return {"ok": False, "http_status": 0, "content_type": "",
+        return {"ok": False, "http_status": 0, "content_type": "", "headers": {},
                 "url": url, "body": b"", "latency_ms": round((time.time() - t0) * 1000, 2),
                 "error": str(e)[:300]}
 
@@ -102,11 +115,19 @@ def run_job(job: dict, target: dict, last_prices: list, policy: dec.Policy,
     cost = costeng.estimate(strategy)
     prof = tgt.record_attempt(dict(target.get("profile", {})), strategy, ok,
                               fetched["latency_ms"], cost)
-    try:
-        recon = _recon.recon_target(job.get("url", ""), body, timeout_s=min(timeout_s, 10),
-                                    trusted_cidrs=trusted_cidrs)
-    except Exception:
-        recon = {"ok": False, "error": "recon crashed"}
+    scan_profile = str(job.get("profile", target.get("scan_profile", "standard")) or "standard")
+    if scan_profile not in ("quick", "standard", "deep"):
+        scan_profile = "standard"
+    recon = {"ok": False, "skipped": True, "profile": scan_profile}
+    if ok and scan_profile != "quick":
+        try:
+            recon = _recon.recon_target(
+                job.get("url", ""), body, timeout_s=min(timeout_s, 10),
+                trusted_cidrs=trusted_cidrs, headers=fetched.get("headers", {}),
+                deep=(scan_profile == "deep"))
+            recon["profile"] = scan_profile
+        except Exception:
+            recon = {"ok": False, "error": "recon crashed", "profile": scan_profile}
     ms = round((time.time() - t0) * 1000, 2)
     return {
         "job_id": job.get("job_id"), "status": "success" if ok else "failed",
@@ -115,7 +136,7 @@ def run_job(job: dict, target: dict, last_prices: list, policy: dec.Policy,
         "latency_ms": fetched["latency_ms"], "duration_ms": ms,
         "diagnostics": diag, "quality": q, "prices": prices,
         "change": change_kind, "alerts": alerts, "cost": cost,
-        "target_profile": prof, "recon": recon,
+        "target_profile": prof, "recon": recon, "scan_profile": scan_profile,
     }
 
 

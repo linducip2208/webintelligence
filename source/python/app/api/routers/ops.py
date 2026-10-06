@@ -162,7 +162,7 @@ def _valid_role_name(name: str) -> str:
 
 @router.post("/api/v1/roles", tags=["admin"])
 def create_role(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    from ...services.rbac import MATRIX, ACTIONS
+    from ...services.rbac import MATRIX, ACTIONS, GRANULAR
     email, org, _ = _need(authorization, "configure", x_api_key)
     name = _valid_role_name(spec.get("name", ""))
     if name in MATRIX:
@@ -170,13 +170,17 @@ def create_role(spec: dict, authorization: str = Header(""), x_api_key: str = He
     perms = spec.get("permissions", [])
     if not isinstance(perms, list) or not perms:
         raise HTTPException(400, "permissions must be a non-empty list")
-    bad = [p for p in perms if p not in ACTIONS]
-    if bad:
-        raise HTTPException(400, f"unknown permissions: {bad} (one of {list(ACTIONS)})")
+    coarse = []
+    for p in perms:
+        c = GRANULAR.get(p, p)
+        if c not in ACTIONS:
+            raise HTTPException(400, f"unknown permission: {p}")
+        if c not in coarse:
+            coarse.append(c)
     if any(r.get("name") == name and r.get("org_id") == org for r in STORE.get("roles", [])):
         raise HTTPException(409, "role exists")
     item = {"id": max([r.get("id", 0) for r in STORE.get("roles", [])] + [0]) + 1,
-            "org_id": org, "name": name, "permissions": sorted(set(perms))}
+            "org_id": org, "name": name, "permissions": sorted(coarse)}
     STORE.setdefault("roles", []).append(item)
     _audit(email, "role.create", f"{name}:{','.join(item['permissions'])}")
     return item
@@ -195,10 +199,15 @@ def update_role(name: str, spec: dict, authorization: str = Header(""), x_api_ke
     perms = spec.get("permissions", [])
     if not isinstance(perms, list) or not perms:
         raise HTTPException(400, "permissions must be a non-empty list")
-    bad = [p for p in perms if p not in ACTIONS]
-    if bad:
-        raise HTTPException(400, f"unknown permissions: {bad}")
-    r["permissions"] = sorted(set(perms))
+    from ...services.rbac import ACTIONS as _ACTIONS, GRANULAR as _GR
+    coarse = []
+    for p in perms:
+        c = _GR.get(p, p)
+        if c not in _ACTIONS:
+            raise HTTPException(400, f"unknown permission: {p}")
+        if c not in coarse:
+            coarse.append(c)
+    r["permissions"] = sorted(coarse)
     repo.sync("roles", r)
     _audit(email, "role.update", name)
     return r
@@ -634,6 +643,8 @@ def create_webhook(spec: dict, authorization: str = Header(""), x_api_key: str =
     from ...core.crypto import encrypt
     email, org, _ = _need(authorization, "configure", x_api_key)
     item = {"id": len(STORE["webhooks"]) + 1, "org": org, "enabled": True, **spec}
+    if item.get("channel", "generic") not in ("generic", "slack", "discord"):
+        raise HTTPException(400, "channel must be generic|slack|discord")
     if item.get("secret"):
         item["secret"] = encrypt(item["secret"])
     STORE["webhooks"].append(item)
@@ -668,6 +679,10 @@ def update_webhook(wid: int, spec: dict, authorization: str = Header(""), x_api_
         w["event_types"] = [str(e)[:80] for e in spec["event_types"]][:20]
     if "enabled" in spec:
         w["enabled"] = bool(spec["enabled"])
+    if "channel" in spec:
+        if spec["channel"] not in ("generic", "slack", "discord"):
+            raise HTTPException(400, "channel must be generic|slack|discord")
+        w["channel"] = spec["channel"]
     if "secret" in spec and spec["secret"] and spec["secret"] != "***":
         w["secret"] = encrypt(spec["secret"])
     repo.sync("webhooks", w)
@@ -719,7 +734,8 @@ def webhook_test(wid: int, authorization: str = Header(""), x_api_key: str = Hea
               if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not w:
         raise HTTPException(404, "not found/disabled")
-    out = _wh.deliver(w["url"], "ping", {"webhook_id": wid}, decrypt(w.get("secret", "")))
+    out = _wh.deliver(w["url"], "ping", {"webhook_id": wid}, decrypt(w.get("secret", "")),
+                      channel=w.get("channel", "generic"))
     STORE["deliveries"].append({"id": len(STORE["deliveries"]) + 1, "webhook_id": wid,
                                 "event": "ping", "status": "ok" if out["ok"] else "failed",
                                 "attempts": out.get("attempts", 0),
@@ -745,7 +761,8 @@ def webhook_replay(did: int, authorization: str = Header(""), x_api_key: str = H
     w = next((x for x in STORE["webhooks"] if x["id"] == d["webhook_id"]), None)
     if not w:
         raise HTTPException(404, "webhook gone")
-    out = _wh.deliver(w["url"], d["event"], {"replay_of": did}, decrypt(w.get("secret", "")))
+    out = _wh.deliver(w["url"], d["event"], {"replay_of": did}, decrypt(w.get("secret", "")),
+                      channel=w.get("channel", "generic"))
     d.update({"status": "ok" if out["ok"] else "failed",
               "attempts": d.get("attempts", 0) + out.get("attempts", 0)})
     repo.sync("deliveries", d)

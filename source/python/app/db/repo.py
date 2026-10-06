@@ -489,6 +489,7 @@ def _m_jobs(item):
                            "org_id": item.get("org", 1) or 1,
                            "idempotency_key": item.get("job_id", "") + "-idem",
                            "plan": item.get("plan", {}),
+                           "profile": item.get("profile", "standard") or "standard",
                            "estimated_cost": item.get("estimated_cost", 0.0),
                            "actual_cost": item.get("actual_cost", 0.0) or 0.0,
                            "retries": item.get("retries", 0)}
@@ -498,6 +499,7 @@ def _h_jobs(row):
     d = {"job_id": row.job_uid, "trace_id": row.trace_id, "project_id": row.project_id,
          "target_id": row.target_id, "url": row.url, "strategy": row.strategy,
          "org": getattr(row, "org_id", 1) or 1,
+         "profile": getattr(row, "profile", "standard") or "standard",
          "status": row.status, "plan": row.plan or {},
          "estimated_cost": row.estimated_cost or 0.0, "retries": row.retries or 0}
     if row.actual_cost:
@@ -730,6 +732,8 @@ def _m_investigations(item):
             "evidence_ids": list(item.get("evidence_ids", []) or []),
             "notes": list(item.get("notes", []) or []),
             "tasks": list(item.get("tasks", []) or [])}
+    if "data" in item:
+        cols["data"] = item.get("data") or {}
     return Investigation, cols
 
 
@@ -744,7 +748,8 @@ def _h_investigations(row):
             "entity_ids": list(row.entity_ids or []),
             "finding_ids": list(row.finding_ids or []),
             "evidence_ids": list(row.evidence_ids or []),
-            "notes": list(row.notes or []), "tasks": list(row.tasks or [])}
+            "notes": list(row.notes or []), "tasks": list(row.tasks or []),
+            "data": dict(getattr(row, "data", None) or {})}
 
 
 def _m_cases(item):
@@ -763,6 +768,9 @@ def _m_cases(item):
                   "alert_ids": list(item.get("alert_ids", []) or []),
                   "notes": list(item.get("notes", []) or []),
                   "tasks": list(item.get("tasks", []) or [])}
+    if "data" in item:
+        cols["data"] = item.get("data") or {}
+    return Case, cols
 
 
 def _h_cases(row):
@@ -776,7 +784,8 @@ def _h_cases(row):
             "finding_ids": list(row.finding_ids or []),
             "evidence_ids": list(row.evidence_ids or []),
             "alert_ids": list(row.alert_ids or []),
-            "notes": list(row.notes or []), "tasks": list(row.tasks or [])}
+            "notes": list(row.notes or []), "tasks": list(row.tasks or []),
+            "data": dict(getattr(row, "data", None) or {})}
 
 
 def _m_apikeys(item):
@@ -1053,12 +1062,15 @@ def _m_webhooks(item):
     from ..models.universal import Webhook
     return Webhook, {"org_id": item.get("org", 1), "event_types": item.get("event_types", []),
                      "url": item.get("url", ""), "secret": item.get("secret", ""),
+                     "channel": item.get("channel", "generic") or "generic",
                      "enabled": bool(item.get("enabled", True))}
 
 
 def _h_webhooks(row):
     return {"id": row.id, "org": row.org_id, "event_types": row.event_types or [],
-            "url": row.url, "secret": row.secret or "", "enabled": bool(row.enabled)}
+            "url": row.url, "secret": row.secret or "",
+            "channel": getattr(row, "channel", "generic") or "generic",
+            "enabled": bool(row.enabled)}
 
 
 def _m_deliveries(item):

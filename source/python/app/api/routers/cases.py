@@ -200,6 +200,39 @@ def investigation_member_add(iid: int, spec: dict, authorization: str = Header("
     return {"ok": True, "member_emails": members}
 
 
+@router.post("/api/v1/investigations/{iid}/views")
+def investigation_view_save(iid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Save a named graph view (node id set) on the investigation."""
+    email, org, _ = _need(authorization, "research", x_api_key)
+    inv = _one("investigations", iid, org)
+    name = (spec.get("name") or "").strip()[:120]
+    if not name:
+        raise HTTPException(400, "name required")
+    try:
+        nodes = [int(x) for x in (spec.get("node_ids") or [])][:200]
+    except (TypeError, ValueError):
+        raise HTTPException(400, "node_ids must be integers")
+    data = inv.setdefault("data", {})
+    views = data.setdefault("views", {})
+    views[name] = {"node_ids": nodes, "by": email, "at": time.time()}
+    repo.sync("investigations", inv)
+    _audit(email, "investigation.view.save", f"{iid}:{name}"[:160])
+    return {"ok": True, "views": views}
+
+
+@router.delete("/api/v1/investigations/{iid}/views/{name}")
+def investigation_view_delete(iid: int, name: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "research", x_api_key)
+    inv = _one("investigations", iid, org)
+    views = (inv.get("data") or {}).get("views", {})
+    if name not in views:
+        raise HTTPException(404, "view not found")
+    del views[name]
+    repo.sync("investigations", inv)
+    _audit(email, "investigation.view.delete", f"{iid}:{name}"[:160])
+    return {"ok": True}
+
+
 # ---- cases ----
 @router.post("/api/v1/cases")
 def create_case(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):

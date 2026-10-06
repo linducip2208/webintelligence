@@ -52,6 +52,7 @@ def create_job(j: JobIn, authorization: str = Header(""), x_api_key: str = Heade
            "project_id": j.project_id, "target_id": j.target_id, "url": j.url,
            "strategy": j.strategy, "plan": plan, "status": "queued",
            "created_at": time.time(), "org": org,
+           "profile": j.profile if j.profile in ("quick", "standard", "deep") else "standard",
            "estimated_cost": costeng.estimate(plan["plan"][0] if plan["plan"] else "DIRECT_HTTP")}
     STORE["jobs"].append(job)
     _audit(email, "job.create", job["job_id"])

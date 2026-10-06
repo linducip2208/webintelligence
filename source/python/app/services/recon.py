@@ -99,7 +99,7 @@ def _fetch_text(url, timeout=8, cap=100_000, trusted=None):
         return r.read(cap + 1)[:cap]
 
 
-def http_meta(url, body, timeout=8, trusted=None):
+def http_meta(url, body, timeout=8, trusted=None, headers=None):
     """Title/tech/links from the fetched body + robots.txt presence."""
     out = {"ok": False, "error": ""}
     try:
@@ -147,15 +147,23 @@ def http_meta(url, body, timeout=8, trusted=None):
                forms=len(re.findall(r"<form[\s>]", text, re.I)),
                scripts=len(re.findall(r"<script[\s>]", text, re.I)),
                robots_txt=robots, sitemap_hint=sitemap,
+               security_headers={k.lower(): v for k, v in (headers or {}).items()},
+               missing_security_headers=[h for h in
+                   ("strict-transport-security", "content-security-policy",
+                    "x-frame-options", "x-content-type-options",
+                    "referrer-policy")
+                   if h not in {k.lower() for k in (headers or {})}],
                content_hash=hashlib.sha256((body or b"")[:1_000_000]).hexdigest()[:32])
     return out
 
 
-def recon_target(url, body=b"", timeout_s=8, trusted_cidrs=None):
-    """Full passive recon for one target URL. Never raises."""
+def recon_target(url, body=b"", timeout_s=8, trusted_cidrs=None,
+                 headers=None, deep=False):
+    """Full passive recon for one target URL. Never raises.
+    deep=True adds reverse-DNS + RDAP + WHOIS (scan profile 'deep')."""
     t0 = time.time()
     host = _host_of(url)
-    out = {"host": host, "at": t0, "ok": True, "latency_ms": 0}
+    out = {"host": host, "at": t0, "ok": True, "latency_ms": 0, "deep": bool(deep)}
     try:
         validate_url(url, trusted_cidrs)
     except Exception as e:
@@ -166,6 +174,86 @@ def recon_target(url, body=b"", timeout_s=8, trusted_cidrs=None):
         out["tls"] = tls_info(host, 443, min(timeout_s, 8))
     else:
         out["tls"] = {"ok": False, "error": "plain http, no TLS"}
-    out["http"] = http_meta(url, body, min(timeout_s, 8), trusted_cidrs)
+    out["http"] = http_meta(url, body, min(timeout_s, 8), trusted_cidrs, headers)
+    if deep and host and "." in host:
+        out["ptr"] = reverse_dns((out["dns"] or {}).get("ips", []))
+        out["rdap"] = rdap_lookup(host)
+        out["whois"] = whois_lookup(host)
     out["latency_ms"] = round((time.time() - t0) * 1000, 2)
+    return out
+
+
+def reverse_dns(ips, timeout=4):
+    """PTR records for a few IPs. Best-effort, short timeout each."""
+    out = {}
+    import socket as _s
+    old = _s.getdefaulttimeout()
+    for ip in (ips or [])[:3]:
+        try:
+            _s.setdefaulttimeout(timeout)
+            out[ip] = _s.gethostbyaddr(ip)[0]
+        except Exception:
+            out[ip] = ""
+    try:
+        _s.setdefaulttimeout(old)
+    except Exception:
+        pass
+    return out
+
+
+def rdap_lookup(domain, timeout=10):
+    """RDAP via public rdap.org proxy (optional external; honest errors)."""
+    out = {"ok": False, "error": ""}
+    if not domain or "." not in str(domain):
+        out["error"] = "not a domain"
+        return out
+    try:
+        import urllib.request as _u
+        import json as _j
+        req = _u.Request(f"https://rdap.org/domain/{domain}",
+                         headers={"User-Agent": "Mozilla/5.0 WebIntel/1.0",
+                                  "Accept": "application/rdap+json"})
+        with _u.urlopen(req, timeout=timeout) as r:
+            d = _j.loads(r.read(100_000).decode("utf-8", "ignore") or "{}")
+        by_role = {}
+        for e in d.get("entities", []) or []:
+            roles = e.get("roles") or [""]
+            by_role[roles[0]] = e
+        reg = by_role.get("registrar", {}) or {}
+        out.update(ok=True, registrar=str(reg.get("handle", "")),
+                   status=[s for s in d.get("status", [])][:10],
+                   nameservers=[n.get("ldhName", "") for n in d.get("nameservers", [])][:10],
+                   raw_events=[{"action": e.get("eventAction"), "date": e.get("eventDate")}
+                               for e in d.get("events", [])][:10])
+    except Exception as e:
+        out["error"] = str(e)[:160]
+    return out
+
+
+def whois_lookup(domain, timeout=8):
+    """Minimal port-43 WHOIS via whois.iana.org referral (best-effort)."""
+    out = {"ok": False, "error": ""}
+    if not domain or "." not in str(domain):
+        out["error"] = "not a domain"
+        return out
+    try:
+        import socket as _s
+        with _s.create_connection(("whois.iana.org", 43), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            sock.sendall((str(domain) + "\r\n").encode())
+            raw = b""
+            while len(raw) < 8192:
+                chunk = sock.recv(2048)
+                if not chunk:
+                    break
+                raw += chunk
+        text = raw.decode("utf-8", "ignore")
+        ref = ""
+        for line in text.splitlines():
+            if line.lower().startswith("refer:"):
+                ref = line.split(":", 1)[1].strip()
+                break
+        out.update(ok=True, refer=ref, excerpt=text[:2000])
+    except Exception as e:
+        out["error"] = str(e)[:160]
     return out
