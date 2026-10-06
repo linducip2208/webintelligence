@@ -11,14 +11,20 @@ function esc(s){return String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;'
 function toast(m){const box=$('#toasts');if(!box)return;const d=document.createElement('div');d.className='toast';d.textContent=m;box.appendChild(d);setTimeout(()=>d.remove(),4500);}
 function fmtDT(v){if(v==null||v==='')return'—';let t=null;if(typeof v==='number'){t=v>1e12?v:v*1000;}else{const ms=Date.parse(v);if(!isNaN(ms))t=ms;else return String(v).slice(0,19);}try{const s=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t));return s.replace(',','')+' WIB';}catch(e){return new Date(t).toLocaleString();}}
 function ago(v){if(!v)return'—';let t=typeof v==='number'?(v>1e12?v:v*1000):new Date(v).getTime();if(isNaN(t))return'—';const s=Math.max(0,(Date.now()-t)/1000);if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+/* Semantic badges: Tabler tinted badges, always icon-dot + text label (never color alone). */
+const SEVMAP={critical:'red',high:'orange',medium:'yellow',low:'green',info:'cyan',informational:'cyan'};
 function badge(status){const m=String(status||'').toLowerCase();
-const ok=['success','done','active','enabled','up','healthy','passed','connected','published','resolved','ok'];
-const bad=['failed','error','down','disabled','paused','cancelled'];
-const warn=['queued','running','planned','pending','running...','unverified','needs_review'];
-if(ok.includes(m))return `<span class="status ok">${esc(status)}</span>`;
-if(bad.includes(m))return `<span class="status err">${esc(status)}</span>`;
-if(warn.includes(m))return `<span class="status warn">${esc(status)}</span>`;
-return `<span class="status">${esc(status||'—')}</span>`;}
+if(SEVMAP[m])return `<span class="badge bg-${SEVMAP[m]}-lt"><span class="bi">●</span>${esc(status)}</span>`;
+const ok=['success','done','active','enabled','up','healthy','passed','connected','published','resolved','confirmed','ready','ok','open'];
+const bad=['failed','error','down','disabled','paused','cancelled','false_positive','dismissed'];
+const warn2=['queued','running','planned','pending','planned...','running...','unverified','needs_review','generating','acked','acknowledged','draft'];
+const intel=['investigating','accepted','reviewing','personal','threat','finding'];
+if(ok.includes(m))return `<span class="badge bg-green-lt"><span class="bi">●</span>${esc(status)}</span>`;
+if(bad.includes(m))return `<span class="badge bg-red-lt"><span class="bi">●</span>${esc(status)}</span>`;
+if(warn2.includes(m))return `<span class="badge bg-azure-lt"><span class="bi spin-pulse">●</span>${esc(status)}</span>`;
+if(intel.includes(m))return `<span class="badge bg-purple-lt"><span class="bi">●</span>${esc(status)}</span>`;
+return `<span class="badge bg-blue-lt">${esc(status||'—')}</span>`;}
+function sevClass(s){s=String(s||'info').toLowerCase();return 'sev-'+(SEVMAP[s]?s:'info');}
 /* ---- modal ---- */
 function openModal(html){let m=$('#modal-root');if(!m){m=document.createElement('div');m.id='modal-root';document.body.appendChild(m);}
 m.innerHTML=`<div style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:2rem 1rem" onclick="if(event.target===this)closeModal()"><div class="card" style="width:100%;max-width:680px" role="dialog" aria-modal="true"><div class="card-body">${html}</div></div></div>`;

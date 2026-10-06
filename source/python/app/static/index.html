@@ -18,19 +18,29 @@ document.documentElement.setAttribute('data-wi-theme',t);
 var s=localStorage.getItem('wi-side')||'expanded';
 if(s==='folded')document.documentElement.setAttribute('data-wi-side','folded');
 if((localStorage.getItem('wi-nav')||'sticky')==='static')document.documentElement.setAttribute('data-wi-nav','static');
+var ac=localStorage.getItem('wi-accent')||'blue';
+if(ac!=='blue')document.documentElement.setAttribute('data-accent',ac);
 }catch(e){document.documentElement.setAttribute('data-bs-theme','light');}})();
 </script>
 <link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
 <style>
 /* ---- Web Intelligence design tokens (Tabler variables first) ---- */
 :root{
---wi-primary:#206bc4;--wi-radius:.6rem;
+--wi-primary:#206bc4;--wi-radius:.6rem;--wi-on-primary:#fff;
 --wi-surface:var(--tblr-bg-surface);--wi-surface-2:var(--tblr-bg-surface-secondary);
 --wi-border:var(--tblr-border-color);--wi-text:var(--tblr-body-color);--wi-muted:var(--tblr-muted);
 --wi-ok:#2fb344;--wi-warn:#e79b13;--wi-err:#d63939;--wi-info:#206bc4;
 --wi-side-w:16rem;--wi-side-fold:4.25rem;
 --wi-shadow:0 .125rem .5rem rgba(0,0,0,.06);
+--wi-shadow-hover:0 .35rem 1rem rgba(0,0,0,.10);
 }
+html[data-accent="azure"]{--wi-primary:#0e8bd4}
+html[data-accent="indigo"]{--wi-primary:#4263eb}
+html[data-accent="purple"]{--wi-primary:#6d28d9}
+html[data-accent="cyan"]{--wi-primary:#0c9aa6}
+html[data-accent="teal"]{--wi-primary:#0ca678}
+[data-bs-theme="light"] body{background:#f1f4f9;color-scheme:light}
+[data-bs-theme="dark"] body{color-scheme:dark}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem}
 .card{box-shadow:var(--wi-shadow)}
 .card .v{font-size:1.6rem;font-weight:700}
@@ -39,6 +49,48 @@ if((localStorage.getItem('wi-nav')||'sticky')==='static')document.documentElemen
 .status{font-size:.72rem;padding:.15rem .6rem;border-radius:99px;background:var(--wi-border);white-space:nowrap}
 .ok{background:#0f3d26;color:#fff}.err{background:#4a1620;color:#fff}.warn{background:#4a3416;color:#fff}
 [data-bs-theme="light"] .ok{background:#dff3e3;color:#0f5132}[data-bs-theme="light"] .err{background:#fbe4e4;color:#a11919}[data-bs-theme="light"] .warn{background:#fbf0d9;color:#8a5a00}
+/* ---- visual system: KPI icon blocks, hero, severity accents, timeline, cards ---- */
+.kpi-ic{width:2.75rem;height:2.75rem;border-radius:.65rem;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.kpi-ic svg{width:1.4rem;height:1.4rem}
+.kpi-card{transition:transform .12s ease,box-shadow .12s ease}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--wi-shadow-hover)}
+.kpi-card .v a{color:inherit;text-decoration:none}
+.hero{position:relative;overflow:hidden;background:linear-gradient(120deg,rgba(32,107,196,.12),rgba(109,40,217,.10) 55%,transparent 80%)}
+[data-bs-theme="dark"] .hero{background:linear-gradient(120deg,rgba(32,107,196,.24),rgba(109,40,217,.16) 55%,transparent 85%)}
+.hero-visual{position:absolute;inset-inline-end:-10px;top:0;bottom:0;width:46%;opacity:.5;pointer-events:none}
+[data-bs-theme="dark"] .hero-visual{opacity:.65}
+@media(max-width:767px){.hero-visual{display:none}}
+#gsearch{transition:box-shadow .12s ease,border-color .12s ease}
+#gsearch:focus{border-color:var(--wi-primary);box-shadow:0 0 0 .22rem rgba(32,107,196,.16)}
+.search-hero{font-size:1rem;padding:.65rem 1rem;border-radius:.65rem}
+.sev{border-inline-start:3px solid transparent;border-radius:.25rem}
+.sev-critical{border-inline-start-color:var(--tblr-red)}.sev-high{border-inline-start-color:var(--tblr-orange)}
+.sev-medium{border-inline-start-color:var(--tblr-yellow)}.sev-low{border-inline-start-color:var(--tblr-green)}
+.sev-info{border-inline-start-color:var(--tblr-cyan)}
+.table-hover tbody tr{transition:background .1s ease}
+.tl{position:relative;padding-inline-start:1.4rem}
+.tl::before{content:"";position:absolute;inset-inline-start:.34rem;top:.6rem;bottom:.2rem;width:2px;background:var(--wi-border)}
+.tl-ev{position:relative;padding-bottom:.7rem}
+.tl-dot{position:absolute;inset-inline-start:-1.4rem;top:.15rem;width:.8rem;height:.8rem;border-radius:50%;border:2px solid var(--wi-surface);box-shadow:0 0 0 1px var(--wi-border)}
+.dot-blue{background:var(--tblr-blue)}.dot-cyan{background:var(--tblr-cyan)}.dot-purple{background:var(--tblr-purple)}
+.dot-orange{background:var(--tblr-orange)}.dot-red{background:var(--tblr-red)}.dot-green{background:var(--tblr-green)}
+.dot-yellow{background:var(--tblr-yellow)}.dot-gray{background:var(--tblr-muted)}
+.empty-art{width:3rem;height:3rem;margin:0 auto .6rem;opacity:.85}
+.empty-art svg{width:100%;height:100%}
+.lift{transition:transform .12s ease,box-shadow .12s ease}
+.lift:hover{transform:translateY(-2px);box-shadow:var(--wi-shadow-hover)}
+.risk-num{font-size:2.6rem;font-weight:800;line-height:1}
+.graph-preview svg{width:100%;height:auto;max-height:220px}
+.login-bg{background:linear-gradient(135deg,#162c5b 0%,#206bc4 48%,#6d28d9 100%);border-radius:.75rem}
+.login-card{box-shadow:0 1rem 2.5rem rgba(10,30,80,.35)}
+.type-ic{width:2rem;height:2rem;border-radius:.5rem;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.type-ic svg{width:1.1rem;height:1.1rem}
+.row-card{border:1px solid var(--wi-border);border-radius:var(--wi-radius);padding:.55rem .7rem;margin-bottom:.45rem;background:var(--wi-surface);transition:box-shadow .12s ease,transform .12s ease}
+.row-card:hover{box-shadow:var(--wi-shadow-hover)}
+.badge .bi{margin-inline-end:.25rem}
+.spin-pulse{animation:wi-pulse 1.6s ease-in-out infinite}
+@keyframes wi-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){.kpi-card,.lift,.row-card,#gsearch{transition:none}.spin-pulse{animation:none}.kpi-card:hover,.lift:hover{transform:none}}
 form.inline{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
 form.inline input,form.inline select{max-width:220px}
 #toasts{position:fixed;right:1rem;bottom:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:1050}
@@ -66,12 +118,12 @@ html[data-wi-side="folded"] .navbar-vertical:hover .nav-link{justify-content:fle
 @media(min-width:992px){.page-wrapper{margin-inline-start:0}}
 pre{white-space:pre-wrap}
 #mnav{display:none}
-.skip-link{position:absolute;inset-inline-start:-9999px;top:0;background:var(--wi-primary);color:#fff;padding:.5rem 1rem;z-index:3000;border-radius:0 0 .5rem 0}
+.skip-link{position:absolute;inset-inline-start:-9999px;top:0;background:var(--wi-primary);color:var(--wi-on-primary);padding:.5rem 1rem;z-index:3000;border-radius:0 0 .5rem 0}
 .skip-link:focus{inset-inline-start:0}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--wi-primary);outline-offset:2px}
 .wiz-steps{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
 .wiz-step{font-size:.75rem;padding:.2rem .7rem;border-radius:99px;border:1px solid var(--wi-border)}
-.wiz-step.on{background:var(--wi-primary);color:#fff;border-color:var(--wi-primary)}
+.wiz-step.on{background:var(--wi-primary);color:var(--wi-on-primary);border-color:var(--wi-primary)}
 .type-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem}
 .type-card{border:1px solid var(--wi-border);border-radius:var(--wi-radius);padding:.8rem;cursor:pointer;background:transparent;color:inherit;text-align:start}
 .type-card[aria-pressed="true"]{border-color:var(--wi-primary);box-shadow:0 0 0 1px var(--wi-primary)}
@@ -93,8 +145,8 @@ html[data-wi-nav="static"] .topbar-sticky{position:static}
 <aside class="navbar navbar-vertical navbar-expand-lg" id="sidebar" aria-label="Primary" data-bs-navbar-theme="default">
 <div class="container-fluid">
 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-expanded="false" aria-controls="sidebar-menu">☰</button>
-<h1 class="navbar-brand mb-0"><span aria-hidden="true">◉</span> <span class="brand-txt">WEB INTELLIGENCE</span></h1>
-<div class="navbar-text text-muted small brand-txt" data-i18n="tagline">Intelligence &amp; Investigation Platform</div>
+<h1 class="navbar-brand mb-0"><span class="brand-mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32"><defs><linearGradient id="wlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#206bc4"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs><circle cx="16" cy="16" r="13" fill="url(#wlg)"/><circle cx="16" cy="16" r="5" fill="#fff"/><circle cx="23" cy="9" r="2.4" fill="#22d3ee"/></svg></span> <span class="brand-txt">WEB INTELLIGENCE</span></h1>
+<div class="navbar-text text-muted small brand-txt" data-i18n="tagline">Investigate • Connect • Decide</div>
 <div class="text-muted small brand-txt">v2.13 · <span data-i18n="live">live data only</span></div>
 <nav aria-label="Primary navigation"><div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100" role="list"></div></div></nav>
 <div class="navbar-footer mt-auto pt-2 border-top">
