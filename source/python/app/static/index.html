@@ -1,59 +1,95 @@
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="dark" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Universal Intelligence Platform</title>
+<meta name="description" content="Web Intelligence — Intelligence & Investigation Platform">
+<title>Web Intelligence — Intelligence &amp; Investigation Platform</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23206bc4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3C/svg%3E">
 <link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
 <style>
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem}
 .card .v{font-size:1.6rem;font-weight:700}
-.empty{padding:1.5rem;text-align:center;color:var(--tblr-muted)}
+.empty{padding:1.8rem 1.2rem;text-align:center;color:var(--tblr-muted)}
+.empty h3{margin-bottom:.35rem}
 .status{font-size:.72rem;padding:.15rem .6rem;border-radius:99px;background:var(--tblr-border-color);white-space:nowrap}
 .ok{background:#0f3d26;color:#fff}.err{background:#4a1620;color:#fff}.warn{background:#4a3416;color:#fff}
 form.inline{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
 form.inline input,form.inline select{max-width:220px}
 #toasts{position:fixed;right:1rem;bottom:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:1050}
-.toast{background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:.6rem;padding:.6rem .9rem;font-size:.85rem;max-width:340px}
+.toast{background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:.6rem;padding:.6rem .9rem;font-size:.85rem;max-width:360px}
 .navbar-vertical .nav-link{cursor:pointer}
 .navbar-vertical .nav-link.active{background:var(--tblr-active-bg,#1b2942)}
+.navbar-vertical .nav-section-title{padding:1rem 1rem .25rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--tblr-muted)}
+.nav-link-icon{display:inline-flex;width:1.35rem;margin-inline-end:.5rem;vertical-align:-3px}
+.nav-link-icon svg{width:18px;height:18px}
 pre{white-space:pre-wrap}
 #mnav{display:none}
-@media(max-width:991px){.navbar-vertical{display:none;position:fixed;top:0;bottom:0;left:0;width:270px;z-index:1045;overflow-y:auto;box-shadow:0 0 2rem rgba(0,0,0,.5)}.navbar-vertical.open{display:block}.navbar-vertical.open #sidebar-menu{display:block}#mnav{display:inline-block}}
+.skip-link{position:absolute;inset-inline-start:-9999px;top:0;background:#206bc4;color:#fff;padding:.5rem 1rem;z-index:3000;border-radius:0 0 .5rem 0}
+.skip-link:focus{inset-inline-start:0}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #206bc4;outline-offset:2px}
+.wiz-steps{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+.wiz-step{font-size:.75rem;padding:.2rem .7rem;border-radius:99px;border:1px solid var(--tblr-border-color)}
+.wiz-step.on{background:#206bc4;color:#fff;border-color:#206bc4}
+.type-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem}
+.type-card{border:1px solid var(--tblr-border-color);border-radius:.6rem;padding:.8rem;cursor:pointer;background:transparent;color:inherit;text-align:start}
+.type-card[aria-pressed="true"]{border-color:#206bc4;box-shadow:0 0 0 1px #206bc4}
+.hero{background:linear-gradient(135deg,rgba(32,107,196,.22),transparent 60%);border:1px solid var(--tblr-border-color);border-radius:.75rem;padding:1.4rem}
+.search-results{position:absolute;top:100%;inset-inline-start:0;inset-inline-end:0;z-index:1200;max-height:60vh;overflow:auto}
+@media(max-width:991px){.navbar-vertical{display:none;position:fixed;top:0;bottom:0;inset-inline-start:0;width:280px;z-index:1045;overflow-y:auto;box-shadow:0 0 2rem rgba(0,0,0,.5)}.navbar-vertical.open{display:block}.navbar-vertical.open #sidebar-menu{display:block}#mnav{display:inline-block}}
+[dir="rtl"] .me-auto{margin-inline-end:auto}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content" data-i18n="skip">Skip to main content</a>
 <div class="page">
-<aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+<aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark" aria-label="Primary">
 <div class="container-fluid">
-<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">☰</button>
-<h1 class="navbar-brand">Universal Intel</h1>
-<div class="navbar-text text-muted small">v2.11 · live data only</div>
+<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-expanded="false" aria-controls="sidebar-menu">☰</button>
+<h1 class="navbar-brand mb-0">WEB INTELLIGENCE</h1>
+<div class="navbar-text text-muted small" data-i18n="tagline">Intelligence &amp; Investigation Platform</div>
+<div class="text-muted small">v2.12 · <span data-i18n="live">live data only</span></div>
+<nav aria-label="Primary navigation"><div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100" role="list"></div></div></nav>
+<div class="navbar-footer mt-auto pt-2 border-top">
 <div class="d-flex gap-2 my-2">
-<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select>
-<button class="btn btn-icon btn-sm" onclick="toggleTheme()" title="dark/light">◐</button>
+<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)" aria-label="Language"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select>
+<button class="btn btn-icon btn-sm" onclick="toggleTheme()" title="dark / light" aria-label="Toggle theme">◐</button>
 </div>
-<div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100"></div></div>
 <div class="mt-2" id="userchip"><span class="text-muted small">anonymous</span></div>
 <div class="d-flex gap-2 mt-2"><button class="btn btn-sm flex-fill" onclick="loginForm()">Login</button><button class="btn btn-sm flex-fill" onclick="doLogout()">Logout</button></div>
 </div>
+</div>
 </aside>
 <div class="page-wrapper">
+<header class="navbar navbar-expand-md d-print-none" aria-label="Top bar">
+<div class="container-xl">
+<button id="mnav" class="btn btn-icon" onclick="document.querySelector('.navbar-vertical').classList.toggle('open')" aria-label="Open navigation menu">☰</button>
+<nav class="text-muted small" id="crumbs" aria-label="Breadcrumb"></nav>
+<div class="ms-auto d-flex gap-2 align-items-center position-relative" role="search">
+<input id="gsearch" class="form-control form-control-sm" style="min-width:220px" placeholder="Search domains, IPs, companies, emails…" aria-label="Global search" autocomplete="off" oninput="gSearchInput(this.value)" onkeydown="gSearchKey(event)">
+<div id="gresults" class="search-results card" style="display:none"><div class="card-body p-2" id="gresults-body"></div></div>
+<span id="sysdot" class="status" title="system status">●</span>
+<button class="btn btn-sm" onclick="opToggle()" aria-label="Open operations panel">Operations <span id="opsbadge" class="badge bg-primary" style="display:none"></span></button>
+</div>
+</div>
+</header>
 <div class="page-header d-print-none"><div class="container-xl">
 <div class="row g-2 align-items-center">
 <div class="col"><h2 class="page-title" id="title">Dashboard</h2><div id="sub" class="text-muted small"></div></div>
 <div class="col-auto ms-auto d-print-none"><div class="btn-list">
-<button id="mnav" class="btn" onclick="document.querySelector('.navbar-vertical').classList.toggle('open')" aria-label="menu">☰</button><button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank">📖 Docs</a><button class="btn" onclick="opToggle()" aria-label="operations">Operations <span id="opsbadge" class="badge bg-primary" style="display:none"></span></button><span id="actions"></span>
+<button class="btn btn-primary" onclick="go('new-investigation')" id="cta-new">+ New Investigation</button>
+<button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank" rel="noopener">Docs</a><span id="actions"></span>
 </div></div>
 </div></div></div>
-<div class="page-body"><div class="container-xl">
-<div id="content"><div class="card"><div class="card-body"><div class="placeholder-glow"><span class="placeholder col-7"></span><span class="placeholder col-4"></span><span class="placeholder col-6"></span></div><div class="text-muted small mt-2" id="bootmsg">Starting…</div></div></div></div>
-</div></div>
+<main id="main-content" class="page-body" tabindex="-1"><div class="container-xl">
+<div id="content" aria-live="polite"><div class="card"><div class="card-body"><div class="placeholder-glow" aria-hidden="true"><span class="placeholder col-7"></span><span class="placeholder col-4"></span><span class="placeholder col-6"></span></div><div class="text-muted small mt-2" id="bootmsg">Starting…</div></div></div></div>
+</div></main>
+<footer class="footer footer-transparent d-print-none"><div class="container-xl"><div class="text-muted small">Web Intelligence · Intelligence &amp; Investigation Platform · <span id="foot-ver"></span></div></div></footer>
 </div>
 </div>
-<div id="opsdrawer" style="display:none;position:fixed;top:0;bottom:0;right:0;width:340px;max-width:92vw;z-index:1500;background:var(--tblr-bg-surface);border-left:1px solid var(--tblr-border-color);overflow:auto;padding:1rem" role="complementary" aria-label="operations"><div class="d-flex align-items-center mb-2"><h3 class="m-0">Operations</h3><button class="btn btn-sm ms-auto" onclick="opToggle(false)">Close</button></div><div id="opslist"></div><button class="btn btn-sm mt-2" onclick="opRefresh()">Refresh</button></div>
-<div id="toasts"></div>
+<div id="opsdrawer" style="display:none;position:fixed;top:0;bottom:0;right:0;width:360px;max-width:94vw;z-index:1500;background:var(--tblr-bg-surface);border-left:1px solid var(--tblr-border-color);overflow:auto;padding:1rem" role="complementary" aria-label="Operations panel"><div class="d-flex align-items-center mb-2"><h3 class="m-0">Operations</h3><button class="btn btn-sm ms-auto" onclick="opToggle(false)">Close</button></div><div id="opslist"></div><button class="btn btn-sm mt-2" onclick="opRefresh()">Refresh</button></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="modal-root"></div>
 <script src="/static/vendor/tabler/tabler.min.js"></script>
 <script src="/static/js/app.js"></script>
 <script src="/static/js/views.js"></script>

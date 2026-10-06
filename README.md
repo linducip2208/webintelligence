@@ -1,9 +1,13 @@
-# Universal Intelligence Platform v2.11.0
+# Web Intelligence v2.12.0 — Intelligence & Investigation Platform
 
 > 🌐 **Languages:** [English](#-english) · [Indonesia](#-bahasa-indonesia) · [العربية](#-العربية)
 >
-> Dashboard UI: `English / Indonesia` — switcher in sidebar, served by `GET /api/v1/i18n?lang=en|id`.
+> Dashboard UI: `English / Indonesia / العربية` — switcher in sidebar, served by `GET /api/v1/i18n?lang=en|id|ar` with full RTL layout (`dir="rtl"`).
 > (Trilingual EN/ID/AR applies to this README documentation only.)
+
+Workflow: **Search / Investigate → Collect → Normalize → Resolve entities → Connect relationships → Analyze graph → Correlate → Assess risk → Review findings → Preserve evidence → Build case → Report → Monitor / Alert / Watchlist.**
+
+Primary navigation: **Dashboard · Investigate (New Investigation, Investigations, Cases, Global Search, Entities, Intelligence Graph, Timeline) · Discover (Targets, Attack Surface, Reconnaissance, Collectors, Data Sources, Connectors) · Intelligence (Findings, Indicators, Risk Analysis, Threat Intelligence, Intelligence Feed) · Monitor (Watchlists, Alerts, Workflows) · Evidence (Evidence, Documents, Reports) · Integrations (STIX/MISP, External APIs, Security Tools, AI Providers) · Administration (Users & Roles, Settings, Audit Log, System Health).** All UI assets are local Tabler — no CDN, works offline; timestamps render in Asia/Jakarta (WIB).
 
 DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT.
 

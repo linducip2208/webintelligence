@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WebIntel Docs — Panduan Pemakaian</title>
+<title>Web Intelligence Docs — Panduan Pemakaian</title>
 <link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
 <style>
 body{scroll-behavior:smooth}
@@ -24,7 +24,7 @@ section{scroll-margin-top:1rem}
 <div class="page">
 <div class="container-xl py-4">
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-<div><h1 class="m-0">📖 WebIntel Docs</h1><div class="text-muted small">Universal Intelligence Platform v2.11.0 · <span data-t="tag">Panduan pemakaian lengkap &amp; terstruktur</span></div></div>
+<div><h1 class="m-0">📖 Web Intelligence Docs</h1><div class="text-muted small">Web Intelligence v2.12.0 · <span data-t="tag">Panduan pemakaian lengkap &amp; terstruktur</span></div></div>
 <div class="ms-auto d-flex gap-2">
 <select id="lang" class="form-select form-select-sm" style="width:auto" onchange="setLang(this.value)"><option value="id">Indonesia</option><option value="en">English</option></select>
 <a class="btn btn-sm" href="/" data-t="dash">Dashboard</a>
@@ -37,7 +37,7 @@ section{scroll-margin-top:1rem}
 
 <section id="intro"><div class="card"><div class="card-body">
 <h2 data-t="s1t">1. Pengenalan</h2>
-<div data-t="s1b"><p><b>Universal Intelligence Platform (WebIntel)</b> adalah aplikasi monitoring &amp; intelijen data web: mengambil data publik dari website/API/dokumen, lalu mengubahnya menjadi informasi siap pakai — pantauan harga, pergerakan kompetitor, berita, perubahan situs, knowledge graph, sampai laporan eksekutif.</p>
+<div data-t="s1b"><p><b>Web Intelligence</b> adalah aplikasi monitoring &amp; intelijen data web: mengambil data publik dari website/API/dokumen, lalu mengubahnya menjadi informasi siap pakai — pantauan harga, pergerakan kompetitor, berita, perubahan situs, knowledge graph, sampai laporan eksekutif.</p>
 <p>Alur kerja: <code class="inline">DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT</code>. Prinsip penting: <b>dashboard hanya menampilkan data nyata</b> — tidak ada angka dummy. Kalau masih kosong, berarti belum ada aktivitas koleksi.</p></div>
 </div></div></section>
 
@@ -194,7 +194,7 @@ curl http://127.0.0.1:8000/api/v1/projects -H "X-API-Key: wi_xxxx"</pre></div>
 <script>
 let LANG=localStorage.getItem('wi-lang')||'id';
 const EN={tag:'Complete & structured usage guide',dash:'Dashboard',
-s1t:'1. Introduction',s1b:'<p><b>Universal Intelligence Platform (WebIntel)</b> is a web data monitoring & intelligence app: it collects public data from websites/APIs/documents and turns it into ready insight — price tracking, competitor moves, news, site changes, knowledge graphs, executive reports.</p><p>Pipeline: <code class=\"inline\">DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT</code>. Key rule: <b>the dashboard shows real data only</b> — no dummy numbers. If it is empty, no collection has run yet.</p>',
+s1t:'1. Introduction',s1b:'<p><b>Web Intelligence</b> is a web data monitoring & intelligence app: it collects public data from websites/APIs/documents and turns it into ready insight — price tracking, competitor moves, news, site changes, knowledge graphs, executive reports.</p><p>Pipeline: <code class=\"inline\">DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT</code>. Key rule: <b>the dashboard shows real data only</b> — no dummy numbers. If it is empty, no collection has run yet.</p>',
 s2t:'2. Requirements',s2b:'<table class=\"doc\"><tr><th>Component</th><th>Requirement</th></tr><tr><td>OS</td><td>Windows (dev, e.g. Laragon) / Linux (aaPanel production)</td></tr><tr><td>Python</td><td>3.12+ (packages: <code class=\"inline\">source/python/requirements.txt</code>; pin <code class=\"inline\">bcrypt==4.0.1</code>)</td></tr><tr><td>Database</td><td><b>MySQL 8.4</b> (primary). Without MySQL the app auto-falls back to SQLite file <code class=\"inline\">data/webintel.db</code>, then memory</td></tr><tr><td>Redis</td><td>Optional (queue & rate limits; in-memory without it)</td></tr><tr><td>Go 1.21+</td><td>Optional, only to build the Go collector</td></tr><tr><td>Live credentials (optional)</td><td>Bright Data (<code class=\"inline\">BRIGHTDATA_API_KEY</code>) for large-scale crawling; AI provider (<code class=\"inline\">MUSE_SPARK_API_KEY</code> etc.) for AI features</td></tr></table>',
 s3t:'3. Installation & Running',s3b:'<div class=\"step\"><span class=\"n\">1</span><b>Prepare MySQL</b> (e.g. Laragon, root without password):<pre>mysql -u root -e \"CREATE DATABASE IF NOT EXISTS webintel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS \'webintel\'@\'%\' IDENTIFIED BY \'CHANGE_PASSWORD\'; GRANT ALL PRIVILEGES ON webintel.* TO \'webintel\'@\'%\'; FLUSH PRIVILEGES;\"</pre></div><div class=\"step\"><span class=\"n\">2</span><b>Install Python deps</b>:<pre>cd source\\python\npip install -r requirements.txt\npip install \"bcrypt==4.0.1\"</pre></div><div class=\"step\"><span class=\"n\">3</span><b>Set DB connection</b> (PowerShell, once — saved permanently):<pre>setx DATABASE_URL \"mysql+pymysql://webintel:CHANGE_PASSWORD@127.0.0.1:3306/webintel\"</pre>Reopen the terminal afterwards.</div><div class=\"step\"><span class=\"n\">4</span><b>Run the server</b>:<pre>cd source\\python\npython -m uvicorn app.main:app --port 8000</pre></div><div class=\"step\"><span class=\"n\">5</span><b>Open</b>: Dashboard <code class=\"inline\">http://127.0.0.1:8000/</code> · This guide <code class=\"inline\">/docs</code> · Swagger <code class=\"inline\">/api-docs</code>. Health: <code class=\"inline\">GET /readyz</code> — expect <code class=\"inline\">database: backend=mysql</code>.</div><div class=\"step\"><span class=\"n\">6</span><b>Go collector (optional)</b>:<pre>cd source\\go\\collector\ngo test ./...\ngo build -o ..\\..\\..\\build\\linux\\collector .\\cmd\\collector</pre></div>',
 s4t:'4. Core Concepts',s4b:'<table class=\"doc\"><tr><th>Concept</th><th>Meaning</th></tr><tr><td><b>Project</b></td><td>Work container (e.g. “Shop Monitoring”). All data isolated per org/project.</td></tr><tr><td><b>Target</b></td><td>Monitored site/URL inside a project, with a learning profile: best strategy, avg success/latency.</td></tr><tr><td><b>Job</b></td><td>One fetch task for a URL. Create then <b>Run</b>; results (prices, changes…) land automatically.</td></tr><tr><td><b>Strategy</b></td><td>Escalation order: <code class=\"inline\">DIRECT → API → BROWSER → OWN_PROXY → BRIGHT_DATA</code>. Auto-selected; test via <code class=\"inline\">POST /api/v1/strategy/decide</code>.</td></tr><tr><td><b>Evidence</b></td><td>Every claim/finding must cite evidence (raw documents) — no sourceless intel.</td></tr></table>',
