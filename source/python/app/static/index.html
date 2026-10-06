@@ -1,75 +1,138 @@
 <!doctype html>
-<html lang="en" data-bs-theme="dark" dir="ltr">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Web Intelligence — Intelligence & Investigation Platform">
+<meta property="og:title" content="Web Intelligence">
+<meta property="og:description" content="Investigate domains, infrastructure, organizations, identities, relationships and security intelligence from one workspace.">
 <title>Web Intelligence — Intelligence &amp; Investigation Platform</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23206bc4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3C/svg%3E">
+<script>
+/* Pre-paint theme + sidebar init: no flash. light default, dark + system supported. */
+(function(){try{
+var t=localStorage.getItem('wi-theme')||'light';
+var eff=t==='system'?((window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'):t;
+document.documentElement.setAttribute('data-bs-theme',eff);
+document.documentElement.setAttribute('data-wi-theme',t);
+var s=localStorage.getItem('wi-side')||'expanded';
+if(s==='folded')document.documentElement.setAttribute('data-wi-side','folded');
+}catch(e){document.documentElement.setAttribute('data-bs-theme','light');}})();
+</script>
 <link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
 <style>
+/* ---- Web Intelligence design tokens (Tabler variables first) ---- */
+:root{
+--wi-primary:#206bc4;--wi-radius:.6rem;
+--wi-surface:var(--tblr-bg-surface);--wi-surface-2:var(--tblr-bg-surface-secondary);
+--wi-border:var(--tblr-border-color);--wi-text:var(--tblr-body-color);--wi-muted:var(--tblr-muted);
+--wi-ok:#2fb344;--wi-warn:#e79b13;--wi-err:#d63939;--wi-info:#206bc4;
+--wi-side-w:16rem;--wi-side-fold:4.25rem;
+--wi-shadow:0 .125rem .5rem rgba(0,0,0,.06);
+}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem}
+.card{box-shadow:var(--wi-shadow)}
 .card .v{font-size:1.6rem;font-weight:700}
-.empty{padding:1.8rem 1.2rem;text-align:center;color:var(--tblr-muted)}
+.empty{padding:1.8rem 1.2rem;text-align:center;color:var(--wi-muted)}
 .empty h3{margin-bottom:.35rem}
-.status{font-size:.72rem;padding:.15rem .6rem;border-radius:99px;background:var(--tblr-border-color);white-space:nowrap}
+.status{font-size:.72rem;padding:.15rem .6rem;border-radius:99px;background:var(--wi-border);white-space:nowrap}
 .ok{background:#0f3d26;color:#fff}.err{background:#4a1620;color:#fff}.warn{background:#4a3416;color:#fff}
+[data-bs-theme="light"] .ok{background:#dff3e3;color:#0f5132}[data-bs-theme="light"] .err{background:#fbe4e4;color:#a11919}[data-bs-theme="light"] .warn{background:#fbf0d9;color:#8a5a00}
 form.inline{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
 form.inline input,form.inline select{max-width:220px}
 #toasts{position:fixed;right:1rem;bottom:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:1050}
-.toast{background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:.6rem;padding:.6rem .9rem;font-size:.85rem;max-width:360px}
-.navbar-vertical .nav-link{cursor:pointer}
-.navbar-vertical .nav-link.active{background:var(--tblr-active-bg,#1b2942)}
-.navbar-vertical .nav-section-title{padding:1rem 1rem .25rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--tblr-muted)}
-.nav-link-icon{display:inline-flex;width:1.35rem;margin-inline-end:.5rem;vertical-align:-3px}
+.toast{background:var(--wi-surface);border:1px solid var(--wi-border);border-radius:var(--wi-radius);padding:.6rem .9rem;font-size:.85rem;max-width:360px;box-shadow:var(--wi-shadow)}
+/* ---- sidebar: 16rem expanded / icon-only folded / hover-expand ---- */
+.navbar-vertical{width:var(--wi-side-w);transition:width .15s ease}
+html[data-wi-side="folded"] .navbar-vertical{width:var(--wi-side-fold)}
+html[data-wi-side="folded"] .navbar-vertical .nav-link-title span.lbl,
+html[data-wi-side="folded"] .navbar-vertical .brand-txt,
+html[data-wi-side="folded"] .navbar-vertical .nav-section-title,
+html[data-wi-side="folded"] .navbar-vertical .navbar-footer{display:none}
+html[data-wi-side="folded"] .navbar-vertical .nav-link{justify-content:center}
+html[data-wi-side="folded"] .navbar-vertical:hover{width:var(--wi-side-w)}
+html[data-wi-side="folded"] .navbar-vertical:hover .nav-link-title span.lbl,
+html[data-wi-side="folded"] .navbar-vertical:hover .brand-txt,
+html[data-wi-side="folded"] .navbar-vertical:hover .nav-section-title,
+html[data-wi-side="folded"] .navbar-vertical:hover .navbar-footer{display:block}
+html[data-wi-side="folded"] .navbar-vertical:hover .nav-link{justify-content:flex-start}
+.navbar-vertical .nav-link{cursor:pointer;border-inline-start:3px solid transparent}
+.navbar-vertical .nav-link.active{background:var(--tblr-active-bg);border-inline-start-color:var(--wi-primary);font-weight:600}
+.navbar-vertical .nav-section-title{padding:1rem 1rem .25rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--wi-muted)}
+.nav-link-icon{display:inline-flex;width:1.35rem;margin-inline-end:.5rem;vertical-align:-3px;flex:none}
 .nav-link-icon svg{width:18px;height:18px}
+.page-wrapper{margin-inline-start:0}
+@media(min-width:992px){.page-wrapper{margin-inline-start:0}}
 pre{white-space:pre-wrap}
 #mnav{display:none}
-.skip-link{position:absolute;inset-inline-start:-9999px;top:0;background:#206bc4;color:#fff;padding:.5rem 1rem;z-index:3000;border-radius:0 0 .5rem 0}
+.skip-link{position:absolute;inset-inline-start:-9999px;top:0;background:var(--wi-primary);color:#fff;padding:.5rem 1rem;z-index:3000;border-radius:0 0 .5rem 0}
 .skip-link:focus{inset-inline-start:0}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #206bc4;outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--wi-primary);outline-offset:2px}
 .wiz-steps{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
-.wiz-step{font-size:.75rem;padding:.2rem .7rem;border-radius:99px;border:1px solid var(--tblr-border-color)}
-.wiz-step.on{background:#206bc4;color:#fff;border-color:#206bc4}
+.wiz-step{font-size:.75rem;padding:.2rem .7rem;border-radius:99px;border:1px solid var(--wi-border)}
+.wiz-step.on{background:var(--wi-primary);color:#fff;border-color:var(--wi-primary)}
 .type-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem}
-.type-card{border:1px solid var(--tblr-border-color);border-radius:.6rem;padding:.8rem;cursor:pointer;background:transparent;color:inherit;text-align:start}
-.type-card[aria-pressed="true"]{border-color:#206bc4;box-shadow:0 0 0 1px #206bc4}
-.hero{background:linear-gradient(135deg,rgba(32,107,196,.22),transparent 60%);border:1px solid var(--tblr-border-color);border-radius:.75rem;padding:1.4rem}
+.type-card{border:1px solid var(--wi-border);border-radius:var(--wi-radius);padding:.8rem;cursor:pointer;background:transparent;color:inherit;text-align:start}
+.type-card[aria-pressed="true"]{border-color:var(--wi-primary);box-shadow:0 0 0 1px var(--wi-primary)}
+.hero{background:linear-gradient(135deg,rgba(32,107,196,.14),transparent 60%);border:1px solid var(--wi-border);border-radius:.75rem;padding:1.4rem}
+[data-bs-theme="dark"] .hero{background:linear-gradient(135deg,rgba(32,107,196,.22),transparent 60%)}
 .search-results{position:absolute;top:100%;inset-inline-start:0;inset-inline-end:0;z-index:1200;max-height:60vh;overflow:auto}
-@media(max-width:991px){.navbar-vertical{display:none;position:fixed;top:0;bottom:0;inset-inline-start:0;width:280px;z-index:1045;overflow-y:auto;box-shadow:0 0 2rem rgba(0,0,0,.5)}.navbar-vertical.open{display:block}.navbar-vertical.open #sidebar-menu{display:block}#mnav{display:inline-block}}
+.kbd{font-size:.65rem;border:1px solid var(--wi-border);border-bottom-width:2px;border-radius:.3rem;padding:0 .3rem;color:var(--wi-muted)}
+.topbar-sticky{position:sticky;top:0;z-index:1000;background:var(--wi-surface);border-bottom:1px solid var(--wi-border)}
+.riskbar{display:flex;height:.5rem;border-radius:99px;overflow:hidden;background:var(--wi-border)}
+@media(max-width:991px){.navbar-vertical{display:none;position:fixed;top:0;bottom:0;inset-inline-start:0;width:280px;z-index:1045;overflow-y:auto;box-shadow:0 0 2rem rgba(0,0,0,.5)}html[data-wi-side] .navbar-vertical{width:280px}.navbar-vertical.open{display:block}.navbar-vertical.open #sidebar-menu{display:block}html[data-wi-side="folded"] .navbar-vertical .nav-link-title span.lbl,html[data-wi-side="folded"] .navbar-vertical .brand-txt,html[data-wi-side="folded"] .navbar-vertical .nav-section-title,html[data-wi-side="folded"] .navbar-vertical .navbar-footer{display:block}#mnav{display:inline-block}}
+@media(max-width:576px){.table-responsive table{font-size:.82rem}.hero{padding:1rem}.page-title{font-size:1.15rem}}
 [dir="rtl"] .me-auto{margin-inline-end:auto}
 </style>
 </head>
 <body>
 <a class="skip-link" href="#main-content" data-i18n="skip">Skip to main content</a>
 <div class="page">
-<aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark" aria-label="Primary">
+<aside class="navbar navbar-vertical navbar-expand-lg" id="sidebar" aria-label="Primary">
 <div class="container-fluid">
 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-expanded="false" aria-controls="sidebar-menu">☰</button>
-<h1 class="navbar-brand mb-0">WEB INTELLIGENCE</h1>
-<div class="navbar-text text-muted small" data-i18n="tagline">Intelligence &amp; Investigation Platform</div>
-<div class="text-muted small">v2.12 · <span data-i18n="live">live data only</span></div>
+<h1 class="navbar-brand mb-0"><span aria-hidden="true">◉</span> <span class="brand-txt">WEB INTELLIGENCE</span></h1>
+<div class="navbar-text text-muted small brand-txt" data-i18n="tagline">Intelligence &amp; Investigation Platform</div>
+<div class="text-muted small brand-txt">v2.13 · <span data-i18n="live">live data only</span></div>
 <nav aria-label="Primary navigation"><div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100" role="list"></div></div></nav>
 <div class="navbar-footer mt-auto pt-2 border-top">
 <div class="d-flex gap-2 my-2">
 <select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)" aria-label="Language"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select>
-<button class="btn btn-icon btn-sm" onclick="toggleTheme()" title="dark / light" aria-label="Toggle theme">◐</button>
 </div>
 <div class="mt-2" id="userchip"><span class="text-muted small">anonymous</span></div>
-<div class="d-flex gap-2 mt-2"><button class="btn btn-sm flex-fill" onclick="loginForm()">Login</button><button class="btn btn-sm flex-fill" onclick="doLogout()">Logout</button></div>
+<div class="d-flex gap-2 mt-2"><button class="btn btn-sm flex-fill" onclick="go('login')">Login</button><button class="btn btn-sm flex-fill" onclick="doLogout()">Logout</button></div>
 </div>
 </div>
 </aside>
 <div class="page-wrapper">
-<header class="navbar navbar-expand-md d-print-none" aria-label="Top bar">
+<header class="navbar navbar-expand-md d-print-none topbar-sticky" aria-label="Top bar">
 <div class="container-xl">
+<button class="btn btn-icon d-none d-lg-inline-block" onclick="toggleSidebar()" aria-label="Fold or expand sidebar" title="Fold / expand sidebar">☰</button>
 <button id="mnav" class="btn btn-icon" onclick="document.querySelector('.navbar-vertical').classList.toggle('open')" aria-label="Open navigation menu">☰</button>
 <nav class="text-muted small" id="crumbs" aria-label="Breadcrumb"></nav>
 <div class="ms-auto d-flex gap-2 align-items-center position-relative" role="search">
-<input id="gsearch" class="form-control form-control-sm" style="min-width:220px" placeholder="Search domains, IPs, companies, emails…" aria-label="Global search" autocomplete="off" oninput="gSearchInput(this.value)" onkeydown="gSearchKey(event)">
+<div class="input-group input-group-sm" style="min-width:220px;max-width:320px">
+<input id="gsearch" class="form-control" placeholder="Search domains, IPs, emails, people, organizations, indicators…" aria-label="Global search (Ctrl+K)" autocomplete="off" oninput="gSearchInput(this.value)" onkeydown="gSearchKey(event)">
+<span class="input-group-text d-none d-md-inline"><span class="kbd">Ctrl K</span></span>
+</div>
 <div id="gresults" class="search-results card" style="display:none"><div class="card-body p-2" id="gresults-body"></div></div>
+<button class="btn btn-icon btn-sm" onclick="cycleTheme()" id="themebtn" aria-label="Theme: light, dark or system" title="Theme">☀</button>
+<div class="dropdown">
+<button class="btn btn-icon btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-label="Notifications" aria-expanded="false" onclick="notifLoad()">🔔<span id="notifbadge" class="badge bg-red" style="display:none"></span></button>
+<div class="dropdown-menu dropdown-menu-end" style="min-width:300px" id="notifmenu"><div class="p-2 text-muted small">Loading…</div></div>
+</div>
 <span id="sysdot" class="status" title="system status">●</span>
-<button class="btn btn-sm" onclick="opToggle()" aria-label="Open operations panel">Operations <span id="opsbadge" class="badge bg-primary" style="display:none"></span></button>
+<button class="btn btn-sm d-none d-md-inline-block" onclick="opToggle()" aria-label="Open operations panel">Operations <span id="opsbadge" class="badge bg-primary" style="display:none"></span></button>
+<div class="dropdown">
+<button class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-label="User menu" aria-expanded="false" id="usermenubtn">👤</button>
+<div class="dropdown-menu dropdown-menu-end">
+<button class="dropdown-item" onclick="go('settings')">Settings</button>
+<button class="dropdown-item" onclick="go('audit')">Audit log</button>
+<div class="dropdown-divider"></div>
+<button class="dropdown-item" onclick="go('login')">Sign in</button>
+<button class="dropdown-item" onclick="doLogout()">Sign out</button>
+</div>
+</div>
 </div>
 </div>
 </header>
@@ -84,10 +147,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 <main id="main-content" class="page-body" tabindex="-1"><div class="container-xl">
 <div id="content" aria-live="polite"><div class="card"><div class="card-body"><div class="placeholder-glow" aria-hidden="true"><span class="placeholder col-7"></span><span class="placeholder col-4"></span><span class="placeholder col-6"></span></div><div class="text-muted small mt-2" id="bootmsg">Starting…</div></div></div></div>
 </div></main>
-<footer class="footer footer-transparent d-print-none"><div class="container-xl"><div class="text-muted small">Web Intelligence · Intelligence &amp; Investigation Platform · <span id="foot-ver"></span></div></div></footer>
+<footer class="footer footer-transparent d-print-none"><div class="container-xl"><div class="text-muted small">Web Intelligence · Intelligence &amp; Investigation Platform · <span id="foot-ver"></span> · <span id="foot-updated"></span></div></div></footer>
 </div>
 </div>
-<div id="opsdrawer" style="display:none;position:fixed;top:0;bottom:0;right:0;width:360px;max-width:94vw;z-index:1500;background:var(--tblr-bg-surface);border-left:1px solid var(--tblr-border-color);overflow:auto;padding:1rem" role="complementary" aria-label="Operations panel"><div class="d-flex align-items-center mb-2"><h3 class="m-0">Operations</h3><button class="btn btn-sm ms-auto" onclick="opToggle(false)">Close</button></div><div id="opslist"></div><button class="btn btn-sm mt-2" onclick="opRefresh()">Refresh</button></div>
+<div id="opsdrawer" style="display:none;position:fixed;top:0;bottom:0;inset-inline-end:0;width:360px;max-width:94vw;z-index:1500;background:var(--tblr-bg-surface);border-inline-start:1px solid var(--tblr-border-color);overflow:auto;padding:1rem" role="complementary" aria-label="Operations panel"><div class="d-flex align-items-center mb-2"><h3 class="m-0">Operations</h3><button class="btn btn-sm ms-auto" onclick="opToggle(false)">Close</button></div><div id="opslist"></div><button class="btn btn-sm mt-2" onclick="opRefresh()">Refresh</button></div>
 <div id="toasts" aria-live="polite"></div>
 <div id="modal-root"></div>
 <script src="/static/vendor/tabler/tabler.min.js"></script>

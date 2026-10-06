@@ -1,4 +1,4 @@
-# Web Intelligence v2.12.0 — Intelligence & Investigation Platform
+# Web Intelligence v2.13.0 — Intelligence & Investigation Platform
 
 > 🌐 **Languages:** [English](#-english) · [Indonesia](#-bahasa-indonesia) · [العربية](#-العربية)
 >
@@ -8,6 +8,8 @@
 Workflow: **Search / Investigate → Collect → Normalize → Resolve entities → Connect relationships → Analyze graph → Correlate → Assess risk → Review findings → Preserve evidence → Build case → Report → Monitor / Alert / Watchlist.**
 
 Primary navigation: **Dashboard · Investigate (New Investigation, Investigations, Cases, Global Search, Entities, Intelligence Graph, Timeline) · Discover (Targets, Attack Surface, Reconnaissance, Collectors, Data Sources, Connectors) · Intelligence (Findings, Indicators, Risk Analysis, Threat Intelligence, Intelligence Feed) · Monitor (Watchlists, Alerts, Workflows) · Evidence (Evidence, Documents, Reports) · Integrations (STIX/MISP, External APIs, Security Tools, AI Providers) · Administration (Users & Roles, Settings, Audit Log, System Health).** All UI assets are local Tabler — no CDN, works offline; timestamps render in Asia/Jakarta (WIB).
+
+Theme: **light default, dark + system supported**, persisted per browser with pre-paint init (no flash). Sidebar folds to icon-only with hover-expand (state persisted). Global search: `Ctrl+K`/`Cmd+K`, type inference (domain/URL/IPv4/IPv6/email/keyword), grouped results with risk + last seen + source. The 5-step New Investigation wizard resolves the workspace project via API (never silent `project_id=1`) and reports real queued/running/completed/failed states. AI is provider-agnostic (OpenAI-compatible, Anthropic-compatible, Google-compatible, Ollama-style endpoints via presets); AI output is always labeled AI-generated and core functions work without AI.
 
 DATA → INFORMATION → KNOWLEDGE → EVIDENCE → INTELLIGENCE → DECISION SUPPORT.
 
