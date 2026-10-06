@@ -572,6 +572,124 @@ def data_quality_fix(spec: dict, authorization: str = Header(""), x_api_key: str
     return {"ok": True, "fixed": fixed}
 
 
+@router.get("/api/v1/admin/first-run", tags=["admin"])
+def first_run_state():
+    """First-run detection: true when no projects and no targets exist."""
+    np = len(STORE.get("projects", []))
+    nt = len(STORE.get("targets", []))
+    demo = any((p.get("name") or "").startswith("DEMO") for p in STORE.get("projects", []))
+    return {"first_run": np == 0 and nt == 0, "projects": np, "targets": nt,
+            "demo_present": demo}
+
+
+@router.post("/api/v1/admin/demo/seed", tags=["admin"])
+def demo_seed(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Load a clearly-labeled DEMO workspace (Acme). All items carry
+    demo:true and live in one DEMO project. Refuses when already present
+    unless force:true. For evaluation only — purge anytime."""
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    if any((p.get("name") or "").startswith("DEMO") and p.get("org", 1) == org
+           for p in STORE.get("projects", [])) and not spec.get("force"):
+        raise HTTPException(409, "demo workspace exists (use force:true or purge first)")
+    nid = lambda coll: max([x.get("id", 0) for x in STORE.get(coll, [])] + [0]) + 1
+    p = {"id": nid("projects"), "org": org, "name": "DEMO — Acme Workspace",
+         "description": "DEMO DATA for evaluation. Safe to delete via Purge demo data.",
+         "demo": True}
+    STORE["projects"].append(p)
+    tids = {}
+    for domain in ("acme.example", "www.acme.example", "api.acme.example", "mail.acme.example"):
+        t = {"id": nid("targets"), "org": org, "project_id": p["id"], "domain": domain,
+             "url": f"https://{domain}", "source_type": "website",
+             "attempts": 3, "successes": 3, "failures": 0, "demo": True,
+             "recon": {"ok": True, "host": domain, "at": time.time(),
+                       "dns": {"ok": True, "ips": ["203.0.113.10"]},
+                       "tls": {"ok": True, "issuer": {"O": "Demo CA"},
+                               "san": [domain], "cert_key": "demo-cert-1"},
+                       "http": {"ok": True, "title": f"{domain} home",
+                                "tech": ["nginx", "jQuery"],
+                                "links_total": 12, "links_internal": 10,
+                                "links_external": 2, "link_domains": ["cdn.example"],
+                                "forms": 1, "scripts": 3, "robots_txt": True}}}
+        STORE["targets"].append(t)
+        tids[domain] = t["id"]
+    eids = {}
+    for kind, name, dom in (("company", "Acme Corporation", ""), ("domain", "acme.example", "acme.example"),
+                            ("email", "admin@acme.example", ""), ("ip", "203.0.113.10", ""),
+                            ("technology", "nginx", ""), ("vulnerability", "CVE-2024-0001", "")):
+        e = {"id": nid("entities"), "org": org, "kind": kind, "name": name, "domain": dom,
+             "confidence": 80, "demo": True}
+        STORE["entities"].append(e)
+        eids[(kind, name)] = e["id"]
+    nids = {}
+    for kind, key, name in (("company", "acme", "Acme Corporation"),
+                            ("domain", "acme.example", "acme.example"),
+                            ("ip", "203.0.113.10", "203.0.113.10")):
+        n = {"id": nid("nodes"), "org": org, "kind": kind, "key": key, "name": name, "demo": True}
+        STORE["nodes"].append(n)
+        nids[key] = n["id"]
+    for src, dst, rel in (("acme", "acme.example", "OWNS"),
+                          ("acme.example", "203.0.113.10", "RESOLVES_TO")):
+        STORE["edges"].append({"id": nid("edges"), "org": org, "src": nids[src], "dst": nids[dst],
+                                "rel": rel, "confidence": 90, "evidence": ["demo"], "demo": True})
+    ev = {"id": nid("evidence"), "org": org, "source": "demo", "url": "https://acme.example",
+          "content_hash": "demo-evidence-1", "snippet": "Demo evidence record", "confidence": 1.0,
+          "demo": True}
+    STORE["evidence"].append(ev)
+    f1 = {"id": nid("findings"), "org": org, "kind": "demo", "title": "Demo: exposed admin panel",
+          "body": "Demo finding for evaluation.", "confidence": 0.8,
+          "entities": [eids[("company", "Acme Corporation")]], "evidence_ids": [ev["id"]],
+          "severity": "high", "status": "OPEN", "priority": "high", "resolved_at": 0.0, "demo": True}
+    f2 = dict(f1, id=nid("findings") + 1, title="Demo: outdated jQuery (resolved)",
+              severity="medium", status="RESOLVED")
+    STORE["findings"].append(f1)
+    STORE["findings"].append(f2)
+    STORE["watchlists"].append({"id": nid("watchlists"), "org": org, "kind": "keyword",
+                                "value": "acme", "demo": True})
+    STORE["alerts"].append({"id": nid("alerts"), "org": org, "rule": "new_product",
+                            "message": "Demo alert: new asset acme.example",
+                            "channel": "inapp", "project_id": p["id"], "is_read": False,
+                            "severity": "info", "demo": True})
+    inv = {"id": nid("investigations"), "org": org, "title": "DEMO: Acme exposure review",
+           "description": "Demo investigation.", "status": "investigating", "priority": "medium",
+           "owner_email": email, "member_emails": [], "tags": ["demo"],
+           "target_ids": list(tids.values()),
+           "entity_ids": [eids[("company", "Acme Corporation")], eids[("domain", "acme.example")]],
+           "finding_ids": [f1["id"]], "evidence_ids": [ev["id"]],
+           "notes": [{"by": email, "at": time.time(), "text": "Demo note"}], "tasks": [],
+           "demo": True}
+    STORE["investigations"].append(inv)
+    case = {"id": nid("cases"), "org": org, "title": "DEMO: Acme case",
+            "description": "Demo case.", "status": "INVESTIGATING", "priority": "medium",
+            "assignee": email, "member_emails": [], "tags": ["demo"],
+            "investigation_ids": [inv["id"]],
+            "entity_ids": [eids[("company", "Acme Corporation")]],
+            "finding_ids": [f1["id"]], "evidence_ids": [ev["id"]], "alert_ids": [],
+            "notes": [], "tasks": [], "demo": True}
+    STORE["cases"].append(case)
+    repo.sync("projects", p)
+    _audit(email, "demo.seed", f"project:{p['id']}")
+    return {"ok": True, "project_id": p["id"], "demo": True,
+            "counts": {"targets": len(tids), "entities": len(eids), "findings": 2}}
+
+
+@router.post("/api/v1/admin/demo/purge", tags=["admin"])
+def demo_purge(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Delete every demo-tagged record (project-scoped to caller's org)."""
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    removed = {}
+    for coll in ("projects", "targets", "entities", "nodes", "edges", "evidence",
+                 "findings", "watchlists", "alerts", "investigations", "cases",
+                 "schedules", "jobs", "reports", "datasets", "documents"):
+        items = STORE.get(coll, [])
+        keep = [x for x in items
+                if not (x.get("demo") and x.get("org", 1) == org)]
+        if len(keep) != len(items):
+            removed[coll] = len(items) - len(keep)
+            STORE[coll][:] = keep
+    _audit(email, "demo.purge", str(removed))
+    return {"ok": True, "removed": removed}
+
+
 @router.get("/api/v1/ai/provider-presets", tags=["admin"])
 def ai_provider_presets():
     """Backend-driven catalog for the Add-Provider flow (single source of

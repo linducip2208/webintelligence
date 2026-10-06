@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.14.0 — commercial productization
+- Operations center (/operations: scans+workflows+deliveries, filters,
+  result links) + dashboard cards
+- Attack Surface view (domains/IPs/certs/tech/links/risk per target)
+- First-run wizard (project→target→recon) + labeled DEMO workspace
+  (seed/purge) + demo banner
+- Meaningful opportunities (cert-expiry, high findings, critical alerts,
+  new/stale assets — each with why/evidence/action)
+- Professional reports (executive summary, scope, risk, findings,
+  entities, timeline, recommendations in HTML/PDF/Markdown)
+- STIX/MISP export buttons in reports; scan profiles quick/standard/deep;
+  RDAP/WHOIS/reverse-DNS/security-headers recon; collector registry;
+  granular RBAC names; auth logout + password reset + login throttle;
+  webhook channels; portable SQL backup download; mobile drawer nav
+- Mixed-timestamp sort hardening (operations/feed/entitlements)
+
 ## v2.13.1 — button loading UX + dead-handler fix
 - Restored missing `testTarget()` (dead Test button on Targets page)
 - Global `busy()` helper: spinner + live elapsed timer + disable on all

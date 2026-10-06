@@ -821,6 +821,71 @@ def disable_maintenance(mid: int, authorization: str = Header(""), x_api_key: st
     return {"ok": True}
 
 
+# ---- unified operations center ----
+@router.get("/api/v1/operations", tags=["monitoring"])
+def list_operations(kind: str = "", status: str = "", page: int = 1, size: int = 20,
+                    authorization: str = Header(""), x_api_key: str = Header("")):
+    """Unified operations center: scans, workflow runs, deliveries mapped to
+    one queued/running/completed/failed stream with result links."""
+    from ..shared import paginate as _pg
+    _, org, _ = _ctx(authorization, x_api_key)
+    ops = []
+    for j in STORE["jobs"]:
+        if j.get("org", 1) != org:
+            continue
+        st = j.get("status", "queued")
+        ops.append({"id": f"job:{j.get('job_id')}", "kind": "scan",
+                    "title": f"Scan {j.get('url', '')[:80]}",
+                    "status": {"queued": "queued", "running": "running",
+                               "success": "completed", "failed": "failed",
+                               "cancelled": "cancelled"}.get(st, st),
+                    "at": j.get("finished_at") or j.get("created_at") or 0,
+                    "ref": {"job_id": j.get("job_id")},
+                    "detail": f"strategy={j.get('strategy', '')}"})
+    for r in STORE["wfruns"]:
+        wf = next((w for w in STORE["workflows"] if w.get("id") == r.get("workflow_id")), None)
+        if wf is not None and wf.get("org", 1) != org:
+            continue
+        ops.append({"id": f"wfrun:{r.get('id')}", "kind": "workflow",
+                    "title": f"Workflow #{r.get('workflow_id')} run",
+                    "status": {"done": "completed", "running": "running",
+                               "cancelled": "cancelled"}.get(r.get("status"), r.get("status")),
+                    "at": r.get("at", 0), "ref": {"workflow_id": r.get("workflow_id")},
+                    "detail": f"{len(r.get('log', []))} steps"})
+    for d in STORE["deliveries"]:
+        w = next((x for x in STORE["webhooks"] if x.get("id") == d.get("webhook_id")), None)
+        if w is not None and w.get("org", 1) != org:
+            continue
+        ops.append({"id": f"delivery:{d.get('id')}", "kind": "delivery",
+                    "title": f"Webhook delivery: {d.get('event', '')}",
+                    "status": {"ok": "completed", "failed": "failed",
+                               "pending": "queued"}.get(d.get("status"), d.get("status")),
+                    "at": d.get("at", 0), "ref": {"delivery": d.get("id")},
+                    "detail": f"attempts={d.get('attempts', 0)}"})
+    if kind:
+        ops = [o for o in ops if o["kind"] == kind]
+    if status:
+        ops = [o for o in ops if o["status"] == status]
+
+    def _epoch(v):
+        try:
+            if v is None or v == "":
+                return 0
+            if isinstance(v, (int, float)):
+                return float(v)
+            import datetime as _dt
+            s = str(v).strip()
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            d = _dt.datetime.fromisoformat(s)
+            return d.timestamp() if d.tzinfo is None else d.timestamp()
+        except Exception:
+            return 0
+
+    ops.sort(key=lambda o: _epoch(o["at"]), reverse=True)
+    return _pg(ops, page, size)
+
+
 # ---- webhook ingestion source (HMAC + timestamp window + nonce dedupe) ----
 @router.post("/api/v1/ingest/webhook", tags=["sources"])
 def ingest_webhook(spec: dict):

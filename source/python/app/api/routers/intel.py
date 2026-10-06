@@ -30,6 +30,56 @@ from ..shared import (
 router = APIRouter()
 
 # ---- reports ----
+def _report_context(project_name: str, org: int):
+    """Real report context: findings, entities, timeline, risk, recommendations."""
+    from ...services import risk as _risk
+    findings = [f for f in STORE["findings"]
+                if f.get("org", 1) == org and f.get("status") not in ("RESOLVED", "FALSE_POSITIVE")][:20]
+    sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    findings.sort(key=lambda f: sev_rank.get(str(f.get("severity", "info")).lower(), 5))
+    entities = STORE["entities"][:50]
+    kinds = {}
+    for e in entities:
+        kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
+    tl = sorted(
+        [{"at": c.get("at", 0), "text": f"{c.get('kind')} target {c.get('target_id')}"}
+         for c in STORE["changes"][-20:]] +
+        [{"at": a.get("created_at", 0) or 0, "text": f"[{a.get('rule')}] {(a.get('message') or '')[:80]}"}
+         for a in STORE["alerts"][-20:]],
+        key=lambda x: str(x["at"]), reverse=True)[:15]
+    risks = []
+    for t in [x for x in STORE["targets"] if x.get("org", 1) == org][:20]:
+        try:
+            r = _risk.score_target(STORE, t["id"], org)
+            if r.get("score", 0) >= 25:
+                risks.append({"target": t.get("domain"), "score": r["score"], "level": r["level"]})
+        except Exception:
+            continue
+    risks.sort(key=lambda r: -r["score"])
+    recs = []
+    if any(str(f.get("severity", "")).lower() in ("critical", "high") for f in findings):
+        recs.append("Triage critical/high findings immediately (confirm or mark false-positive).")
+    if any(not a.get("acked") for a in STORE["alerts"]):
+        recs.append("Acknowledge open alerts to meet SLA windows.")
+    if risks:
+        recs.append(f"Review top-risk asset {risks[0]['target']} (risk {risks[0]['score']}).")
+    recs.append("Re-run collection on stale targets to keep evidence fresh.")
+    crit = sum(1 for f in findings if str(f.get("severity", "")).lower() == "critical")
+    summary = (f"Project '{project_name or 'all'}': {len(findings)} open findings "
+               f"({crit} critical), {len(entities)} entities tracked, "
+               f"{len(risks)} assets at medium risk or above. "
+               f"Coverage from {len(STORE['jobs'])} collection jobs.")
+    return {"executive_summary": summary,
+            "scope": f"project={project_name or 'all'}",
+            "risk_summary": "; ".join(f"{r['target']}: {r['score']} ({r['level']})"
+                                     for r in risks[:5]) or "no elevated asset risk",
+            "key_findings": [f"{f.get('severity', 'info').upper()}: {f.get('title', '')}"[:200]
+                             for f in findings[:10]],
+            "entities": [f"{k}: {v}" for k, v in sorted(kinds.items())],
+            "timeline": [f"{e['at']}: {e['text']}"[:200] for e in tl],
+            "recommendations": recs}
+
+
 @router.post("/api/v1/reports")
 def build_report(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     email, _org0, _ = _need(authorization, "research", x_api_key)
@@ -49,7 +99,8 @@ def build_report(spec: dict, authorization: str = Header(""), x_api_key: str = H
         except Exception as e:
             analysis["ai_error"] = str(e)[:200]
     rep = build(kind, spec.get("project", ""), prices,
-                [p.get("job_id") for p in STORE["prices"]][:50], str(analysis)[:4000])
+                [p.get("job_id") for p in STORE["prices"]][:50], str(analysis)[:4000],
+                _report_context(spec.get("project", ""), _org0))
     _, _org2, _ = _need(authorization, "research", x_api_key)
     item = {"id": len(STORE["reports"]) + 1, "org": _org2, **rep}
     STORE["reports"].append(item)
@@ -106,7 +157,8 @@ def regenerate_report(rep_id: int, authorization: str = Header(""), x_api_key: s
     prices = [p["price"] for p in STORE["prices"] if not pid or p.get("product_id") == pid]
     analysis = summarize(prices)
     rep = build(src.get("kind", "price"), src.get("project", ""), prices,
-                [p.get("job_id") for p in STORE["prices"]][:50], str(analysis)[:4000])
+                [p.get("job_id") for p in STORE["prices"]][:50], str(analysis)[:4000],
+                _report_context(src.get("project", ""), org))
     item = {"id": len(STORE["reports"]) + 1, "org": org, **rep}
     STORE["reports"].append(item)
     _audit(email, "report.regenerate", f"{rep_id}->{item['id']}")

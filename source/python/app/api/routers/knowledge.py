@@ -279,18 +279,15 @@ def intel_feed(kinds: str = "", limit: int = 50):
 
 
 @router.get("/api/v1/opportunities", tags=["intelligence"])
-def opportunities():
+def opportunities(authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import opportunities as _o
-    by_p = {}
-    for p in STORE["prices"]:
-        by_p.setdefault(p.get("product_id"), []).append(p["price"])
-    out = []
-    for pid, vals in by_p.items():
-        for a in _o.price_anomaly(vals):
-            out.append({"type": "PRICE_ANOMALY", "product_id": pid, **a,
-                        "evidence": [p.get("job_id") for p in STORE["prices"]
-                                     if p.get("product_id") == pid][:5]})
-    return {"items": out}
+    _, org, _ = _ctx(authorization, x_api_key)
+    mine = {"prices": [p for p in STORE["prices"]],
+            "targets": [t for t in STORE["targets"] if t.get("org", 1) == org],
+            "findings": [f for f in STORE["findings"] if f.get("org", 1) == org],
+            "alerts": [a for a in STORE["alerts"]],
+            "jobs": [j for j in STORE["jobs"] if j.get("org", 1) == org]}
+    return {"items": _o.build(mine, org)}
 
 
 @router.post("/api/v1/ask", tags=["intelligence"])

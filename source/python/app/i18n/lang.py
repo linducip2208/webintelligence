@@ -16,7 +16,8 @@ STRINGS = {
    "claims":"Claims","webhooks":"Webhooks","overview":"Overview","collect":"1 · Collect",
    "process":"2 · Process","evidence":"4 · Evidence","act":"6 · Act","system":"System",
    "intelligence":"5 · Intelligence","knowledge":"3 · Knowledge","syssettings":"Settings",
-   "investigations":"Investigations","cases":"Cases","pivot":"Pivot","timeline":"Timeline"},
+   "investigations":"Investigations","cases":"Cases","pivot":"Pivot","timeline":"Timeline",
+   "operations":"Operations","attack-surface":"Attack Surface"},
   "id": {"dashboard":"Dasbor","intelligence":"Intelijen","feed":"Umpan","research":"Riset",
    "sources":"Sumber","entities":"Entitas","knowledge":"Pengetahuan","datasets":"Dataset",
    "monitoring":"Pemantauan","ai":"AI","admin":"Administrasi","findings":"Temuan",
@@ -34,7 +35,8 @@ STRINGS = {
    "claims":"Klaim","webhooks":"Webhook","overview":"Ringkasan","collect":"1 · Kumpul",
    "process":"2 · Olah","evidence":"4 · Bukti","act":"6 · Aksi","system":"Sistem",
    "intelligence":"5 · Intelijen","knowledge":"3 · Pengetahuan","syssettings":"Pengaturan",
-   "investigations":"Investigasi","cases":"Kasus","pivot":"Pivot","timeline":"Linimasa"},
+   "investigations":"Investigasi","cases":"Kasus","pivot":"Pivot","timeline":"Linimasa",
+   "operations":"Operasi","attack-surface":"Permukaan Serangan"},
 }
 def t(lang: str, key: str) -> str:
     return STRINGS.get(lang, STRINGS["en"]).get(key, STRINGS["en"].get(key, key))

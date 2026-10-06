@@ -257,6 +257,47 @@ def test_rbac_custom_resolution():
     assert set(R.ACTIONS) >= {"read", "collect", "research", "alert", "ai", "configure", "users"}
 
 
+def test_operations_and_attack_surface():
+    c = _c()
+    p = c.post("/api/v1/projects", json={"name": "OPS"}).json()
+    t = c.post("/api/v1/targets", json={"project_id": p["id"], "domain": "o.com",
+                                        "url": "https://example.com/o"}).json()
+    j = c.post("/api/v1/jobs", json={"project_id": p["id"], "target_id": t["id"],
+                                     "url": "https://example.com/o"}).json()
+    o = c.get("/api/v1/operations?size=50").json()
+    assert "items" in o and all({"id", "kind", "status", "title"} <= set(i) for i in o["items"])
+    assert c.get("/api/v1/operations?kind=scan").json()["items"]
+    assert c.get("/api/v1/operations?status=queued").json()["items"]
+    a = c.get("/api/v1/attack-surface").json()
+    assert "assets" in a and "totals" in a
+    assert all({"target_id", "domain", "ips", "technologies"} <= set(x) for x in a["assets"])
+    assert any(x["domain"] == "o.com" for x in a["assets"])
+    assert c.delete(f"/api/v1/jobs/{j['job_id']}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/targets/{t['id']}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/projects/{p['id']}").json() == {"ok": True}
+
+
+def test_first_run_and_demo_workspace():
+    c = _c()
+    st = c.get("/api/v1/admin/first-run").json()
+    assert set(st) >= {"first_run", "projects", "targets", "demo_present"}
+    s1 = c.post("/api/v1/admin/demo/seed", json={}).json()
+    assert s1["ok"] is True and s1["demo"] is True
+    assert s1["counts"]["targets"] == 4 and s1["counts"]["entities"] == 6
+    assert c.post("/api/v1/admin/demo/seed", json={}).status_code == 409
+    invs = [i for i in c.get("/api/v1/investigations?size=100").json()["items"]
+            if "DEMO" in (i.get("title") or "")]
+    assert invs and invs[0]["status"] == "investigating"
+    cases = [x for x in c.get("/api/v1/cases?size=100").json()["items"]
+             if "DEMO" in (x.get("title") or "")]
+    assert cases
+    assert c.get("/api/v1/admin/first-run").json()["demo_present"] is True
+    out = c.post("/api/v1/admin/demo/purge", json={}).json()
+    assert out["ok"] is True and out["removed"].get("projects", 0) >= 1
+    assert not any("DEMO" in (i.get("title") or "")
+                   for i in c.get("/api/v1/investigations?size=100").json()["items"])
+
+
 def test_feed_dedupe_group_sort():
     from app.services import feed as F
     tgts = [{"id": 1, "domain": "shop.example"}, {"id": 2, "domain": "news.example"}]

@@ -173,6 +173,47 @@ def update_target(tid: int, spec: dict, authorization: str = Header(""), x_api_k
     return t
 
 
+@router.get("/api/v1/attack-surface", tags=["sources"])
+def attack_surface(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Attack surface from stored recon snapshots: per-target domains, IPs,
+    certificates, technologies, links + org-wide totals. Real data only."""
+    from ...services import risk as _risk
+    _, org, _ = _ctx(authorization, x_api_key)
+    assets, totals = [], {"domains": set(), "ips": set(), "certs": set(),
+                          "tech": set(), "urls": 0}
+    for t in [x for x in STORE["targets"] if x.get("org", 1) == org][:200]:
+        r = t.get("recon") or {}
+        dns, tls, http = r.get("dns") or {}, r.get("tls") or {}, r.get("http") or {}
+        doms = sorted({t.get("domain", "")} | set(http.get("link_domains", []) or []))[:60]
+        ips = (dns.get("ips", []) or [])[:10]
+        cert = f"{(tls.get('issuer') or {})} / {len(tls.get('san', []) or [])} SAN" if tls.get("ok") else ""
+        tech = (http.get("tech", []) or [])[:12]
+        totals["domains"] |= set(doms)
+        totals["ips"] |= set(ips)
+        if tls.get("cert_key"):
+            totals["certs"].add(tls["cert_key"])
+        totals["tech"] |= set(tech)
+        totals["urls"] += int(http.get("links_total", 0) or 0)
+        risk = None
+        try:
+            risk = _risk.score_target(STORE, t["id"], org)
+            risk = {"score": risk.get("score"), "level": risk.get("level")}
+        except Exception:
+            risk = None
+        assets.append({"target_id": t["id"], "domain": t.get("domain", ""),
+                       "has_recon": bool(r.get("ok") or dns or http),
+                       "domains": doms, "ips": ips, "certificate": cert,
+                       "technologies": tech,
+                       "links": {"total": http.get("links_total", 0),
+                                 "internal": http.get("links_internal", 0),
+                                 "external": http.get("links_external", 0)},
+                       "forms": http.get("forms", 0), "scripts": http.get("scripts", 0),
+                       "missing_headers": (http.get("missing_security_headers", []) or [])[:8],
+                       "risk": risk})
+    return {"assets": assets,
+            "totals": {k: (len(v) if isinstance(v, set) else v) for k, v in totals.items()}}
+
+
 @router.delete("/api/v1/targets/{tid}")
 def delete_target(tid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     email, org, _ = _need(authorization, "configure", x_api_key)
