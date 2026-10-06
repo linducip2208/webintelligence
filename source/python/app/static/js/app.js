@@ -53,10 +53,12 @@ function downloadCSV(name,rows,cols){const q=v=>`"${String(v??'').replace(/"/g,'
 const csv=[cols.join(',')].concat(rows.map(r=>cols.map(c=>q(typeof c==='string'?r[c]:c(r))).join(','))).join('\n');
 const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);}
 function downloadJSON(name,obj){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(obj,null,1)],{type:'application/json'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);}
-function barChart(rows,{w=560,h=120}={}){if(!rows.length)return '<div class="empty">No data.</div>';
+const SEV_COLORS={critical:'#e5484d',high:'#f76b15',medium:'#ffb224',low:'#46a758',info:'#8e8e93'};
+function barChart(rows,{w=560,h=120,colors=null}={}){if(!rows.length)return '<div class="empty">No data.</div>';
 const mx=Math.max(...rows.map(r=>r[1]),1);const bw=Math.max(2,(w-40)/rows.length);
 const bars=rows.map(([l,v],i)=>{const bh=Math.max(2,(h-30)*v/mx);const x=40+i*bw;
-return `<rect x="${x.toFixed(1)}" y="${(h-20-bh).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${bh.toFixed(1)}" fill="#206bc4"><title>${esc(l)}: ${v}</title></rect>`;}).join('');
+const fill=(colors&&(colors[l]||colors[String(l).toLowerCase()]))||'#206bc4';
+return `<rect x="${x.toFixed(1)}" y="${(h-20-bh).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}"><title>${esc(l)}: ${v}</title></rect>`;}).join('');
 return `<svg viewBox="0 0 ${w} ${h}" style="width:100%" role="img">${bars}<line x1="40" y1="${h-20}" x2="${w}" y2="${h-20}" stroke="currentColor" opacity=".3"/></svg>`;}
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
 function shortId(id){return esc(String(id||'').slice(0,8));}

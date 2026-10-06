@@ -616,10 +616,10 @@ const byDay={};jobs.forEach(j=>{let t=j.created_at;if(typeof t==='string'){t=Dat
 const el1=$('#chJobs');if(el1)el1.innerHTML=barChart(days.map(k=>[k.slice(5),byDay[k]||0]));
 const alerts=(await api('/api/v1/alerts?size=100')).items||[];
 const bySev={};alerts.forEach(a=>{const s=(a.severity||'info');bySev[s]=(bySev[s]||0)+1;});
-const el2=$('#chAlerts');if(el2)el2.innerHTML=barChart(Object.entries(bySev));
+const el2=$('#chAlerts');if(el2)el2.innerHTML=barChart(Object.entries(bySev),{colors:SEV_COLORS});
 const fnd=(await api('/api/v1/findings?size=100')).items||[];
 const byF={};fnd.forEach(f=>{const s=(f.severity||'info');byF[s]=(byF[s]||0)+1;});
-const el3=$('#chFind');if(el3)el3.innerHTML=barChart(Object.entries(byF));
+const el3=$('#chFind');if(el3)el3.innerHTML=barChart(Object.entries(byF),{colors:SEV_COLORS});
 }catch(e){}}
 /*__APPEND__*/
 init();

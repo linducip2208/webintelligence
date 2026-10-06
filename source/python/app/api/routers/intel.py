@@ -614,7 +614,8 @@ def feed_personal(authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import feed as _f
     email, _, _ = _ctx(authorization, x_api_key)
     mine = [s for s in STORE["feed_subs"] if s.get("owner") == email]
-    items = _f.build(STORE["events"], STORE["findings"], STORE["changes"], STORE["alerts"])
+    items = _f.build(STORE["events"], STORE["findings"], STORE["changes"], STORE["alerts"],
+                   None, 200, STORE["targets"])
     return {"items": _f.subscribed(items, mine)}
 
 

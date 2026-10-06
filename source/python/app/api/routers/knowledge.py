@@ -274,7 +274,8 @@ def findings_bulk(spec: dict, authorization: str = Header(""), x_api_key: str = 
 def intel_feed(kinds: str = "", limit: int = 50):
     from ...services import feed as _f
     return {"items": _f.build(STORE["events"], STORE["findings"], STORE["changes"],
-                             STORE["alerts"], kinds.split(",") if kinds else None, limit)}
+                             STORE["alerts"], kinds.split(",") if kinds else None, limit,
+                             STORE["targets"])}
 
 
 @router.get("/api/v1/opportunities", tags=["intelligence"])

@@ -257,6 +257,22 @@ def test_rbac_custom_resolution():
     assert set(R.ACTIONS) >= {"read", "collect", "research", "alert", "ai", "configure", "users"}
 
 
+def test_feed_dedupe_group_sort():
+    from app.services import feed as F
+    tgts = [{"id": 1, "domain": "shop.example"}, {"id": 2, "domain": "news.example"}]
+    changes = [{"id": 1, "kind": "NEW", "target_id": 1, "at": 1000},
+               {"id": 2, "kind": "NEW", "target_id": 1, "at": 2000},
+               {"id": 3, "kind": "NEW", "target_id": 2, "at": 1500},
+               {"id": 4, "kind": "CHANGED", "target_id": 1, "at": "2026-10-06T10:00:00"}]
+    items = F.build([], [], changes, [], None, 50, tgts)
+    assert len(items) == 3  # dup collapsed
+    first = next(i for i in items if i["kind"] == "PRODUCT_LAUNCH" and "shop.example" in i["title"])
+    assert "(2×)" in first["title"] and first["repeats"] == 2
+    assert [i["at"] for i in items] == sorted([i["at"] for i in items], reverse=True)
+    assert F.build([], [], [], []) == []
+    assert F._epoch("garbage") == 0 and F._epoch(None) == 0
+
+
 def test_backup_download_and_login_throttle(monkeypatch):
     c = _c()
     r = c.post("/api/v1/admin/backup", json={})
