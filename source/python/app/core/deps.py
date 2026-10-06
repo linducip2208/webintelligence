@@ -12,7 +12,9 @@ def get_redis():
         import redis as redislib
         from .config import settings
 
-        r = redislib.Redis.from_url(settings.redis_url, socket_timeout=3)
+        # protocol=2: RESP2 for old servers (Laragon redis 5.x speaks no RESP3);
+        # harmless on new servers. Without it redis-py 8 sends HELLO and fails.
+        r = redislib.Redis.from_url(settings.redis_url, socket_timeout=3, protocol=2)
         r.ping()
         _REDIS["client"] = r
         return r

@@ -32,7 +32,7 @@ router = APIRouter()
 # ---- reports ----
 @router.post("/api/v1/reports")
 def build_report(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "research", x_api_key)
+    email, _org0, _ = _need(authorization, "research", x_api_key)
     from ...reports.builder import build
     from ...intelligence.market import summarize
 
@@ -53,6 +53,7 @@ def build_report(spec: dict, authorization: str = Header(""), x_api_key: str = H
     _, _org2, _ = _need(authorization, "research", x_api_key)
     item = {"id": len(STORE["reports"]) + 1, "org": _org2, **rep}
     STORE["reports"].append(item)
+    _audit(email, "report.create", str(item["id"]))
     return item
 
 
@@ -61,6 +62,55 @@ def list_reports(page: int = 1, size: int = 20,
                  authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization, x_api_key)
     return paginate(_visible_by_org(STORE["reports"], org), page, size)
+
+
+def _org_alert(aid: int, org: int):
+    a = next((x for x in STORE["alerts"] if x.get("id") == aid), None)
+    if not a:
+        return None
+    if _visible_by_org([a], org, "project") != [a]:
+        return None
+    return a
+
+
+@router.get("/api/v1/reports/{rep_id}")
+def get_report(rep_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    r = next((x for x in STORE["reports"] if x.get("id") == rep_id), None)
+    if not r or _visible_by_org([r], org) != [r]:
+        raise HTTPException(404, "report not found")
+    return r
+
+
+@router.delete("/api/v1/reports/{rep_id}")
+def delete_report(rep_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    r = next((x for x in STORE["reports"] if x.get("id") == rep_id), None)
+    if not r or _visible_by_org([r], org) != [r]:
+        raise HTTPException(404, "report not found")
+    STORE["reports"][:] = [x for x in STORE["reports"] if x.get("id") != rep_id]
+    _audit(email, "report.delete", str(rep_id))
+    return {"ok": True}
+
+
+@router.post("/api/v1/reports/{rep_id}/regenerate")
+def regenerate_report(rep_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Regenerate: rebuild the same report kind/project from current data."""
+    from ...reports.builder import build
+    from ...intelligence.market import summarize
+    email, org, _ = _need(authorization, "research", x_api_key)
+    src = next((x for x in STORE["reports"] if x.get("id") == rep_id), None)
+    if not src or _visible_by_org([src], org) != [src]:
+        raise HTTPException(404, "report not found")
+    pid = src.get("product_id", 0)
+    prices = [p["price"] for p in STORE["prices"] if not pid or p.get("product_id") == pid]
+    analysis = summarize(prices)
+    rep = build(src.get("kind", "price"), src.get("project", ""), prices,
+                [p.get("job_id") for p in STORE["prices"]][:50], str(analysis)[:4000])
+    item = {"id": len(STORE["reports"]) + 1, "org": org, **rep}
+    STORE["reports"].append(item)
+    _audit(email, "report.regenerate", f"{rep_id}->{item['id']}")
+    return item
 
 
 
@@ -91,11 +141,12 @@ def classify_change(old_hash: str = None, new_hash: str = None,
 @router.post("/api/v1/alerts")
 def create_alert(a: AlertRuleIn, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import alertlife as _al
-    _need(authorization, "alert", x_api_key)
+    email, _, _ = _need(authorization, "alert", x_api_key)
     item = build_alert(a.rule, a.message, a.project_id, a.channel) | {
         "id": len(STORE["alerts"]) + 1, "severity": "info",
         "sla_due": _al.sla_due("info")}
     STORE["alerts"].append(item)
+    _audit(email, "alert.create", f"{item['rule']}:{item['id']}")
     return item
 
 
@@ -178,7 +229,7 @@ def intel_news(spec: dict):
 # ---- entities ----
 @router.post("/api/v1/entities/resolve")
 def entity_resolve(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "collect", x_api_key)
+    email, _, _ = _need(authorization, "collect", x_api_key)
     from ...services.entity_resolution import score, decide
     cand = spec.get("candidate", {})
     best, best_s = None, -1.0
@@ -190,6 +241,7 @@ def entity_resolve(spec: dict, authorization: str = Header(""), x_api_key: str =
     if verdict == "NEW":
         item = {"id": len(STORE["entities"]) + 1, **cand}
         STORE["entities"].append(item)
+        _audit(email, "entity.resolve.new", str(item["id"]))
         return {"verdict": "NEW", "entity": item, "score": 0.0}
     if verdict == "LINK":
         best.pop("_review", None)
@@ -207,8 +259,8 @@ def list_entities(page: int = 1, size: int = 20):
 
 @router.post("/api/v1/alerts/{alert_id}/ack", tags=["alerts"])
 def alert_ack(alert_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, _, _ = _need(authorization, "alert", x_api_key)
-    a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
+    email, org, _ = _need(authorization, "alert", x_api_key)
+    a = _org_alert(alert_id, org)
     if not a:
         raise HTTPException(404, "alert not found")
     a["acked"] = True
@@ -220,8 +272,8 @@ def alert_ack(alert_id: int, authorization: str = Header(""), x_api_key: str = H
 
 @router.post("/api/v1/alerts/{alert_id}/resolve", tags=["alerts"])
 def alert_resolve(alert_id: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, _, _ = _need(authorization, "alert", x_api_key)
-    a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
+    email, org, _ = _need(authorization, "alert", x_api_key)
+    a = _org_alert(alert_id, org)
     if not a:
         raise HTTPException(404, "alert not found")
     a["resolved"] = True
@@ -234,13 +286,13 @@ def alert_resolve(alert_id: int, spec: dict, authorization: str = Header(""), x_
 
 @router.post("/api/v1/alerts/bulk", tags=["alerts"])
 def alerts_bulk(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, _, _ = _need(authorization, "alert", x_api_key)
+    email, org, _ = _need(authorization, "alert", x_api_key)
     action = spec.get("action", "ack")
     if action not in ("ack", "resolve", "read"):
         raise HTTPException(400, "action must be ack|resolve|read")
     n = 0
     for aid in spec.get("ids", [])[:500]:
-        a = next((x for x in STORE["alerts"] if x.get("id") == aid), None)
+        a = _org_alert(aid, org)
         if not a:
             continue
         if action == "ack":
@@ -262,9 +314,10 @@ def costs_summary():
 
 @router.post("/api/v1/costs/budget")
 def set_budget(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "configure", x_api_key)
+    email, _, _ = _need(authorization, "configure", x_api_key)
     STORE["budgets"][str(spec.get("project_id", 1))] = float(spec.get("limit", 0))
     repo.set_budget(spec.get("project_id", 1), float(spec.get("limit", 0)))
+    _audit(email, "budget.set", f"{spec.get('project_id', 1)}:{spec.get('limit', 0)}")
     return {"ok": True, "budgets": STORE["budgets"]}
 
 
@@ -281,10 +334,11 @@ def budget_check(project_id: int = 1):
 # ---- ML registry ----
 @router.post("/api/v1/ml/register")
 def ml_register(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "configure", x_api_key)
+    email, _, _ = _need(authorization, "configure", x_api_key)
     from ...analytics.ml import register
     register(spec.get("name", "model"), spec.get("version", "v1"),
              spec.get("metrics", {}))
+    _audit(email, "ml.register", f"{spec.get('name', 'model')}:{spec.get('version', 'v1')}")
     return {"ok": True}
 
 
@@ -298,7 +352,7 @@ def ml_models():
 # ---- alert delivery ----
 @router.post("/api/v1/alerts/{alert_id}/send")
 def alert_send(alert_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "alert", x_api_key)
+    email, org, _ = _need(authorization, "alert", x_api_key)
     a = next((x for x in STORE["alerts"] if x.get("id") == alert_id), None)
     if not a:
         raise HTTPException(404, "alert not found")
@@ -317,9 +371,13 @@ def alert_send(alert_id: int, authorization: str = Header(""), x_api_key: str = 
                              headers={"Content-Type": "application/json"})
             with _u.urlopen(req, timeout=10) as r:
                 a["delivered"] = True
+                repo.sync("alerts", a)
+                _audit(email, "alert.send", f"{alert_id}:webhook:{r.status}")
                 return {"delivered": True, "status": r.status}
         except Exception as e:
             a["delivery_error"] = str(e)[:200]
+            repo.sync("alerts", a)
+            _audit(email, "alert.send.failed", f"{alert_id}:{str(e)[:80]}")
             return {"delivered": False, "error": str(e)[:200]}
     if channel == "email":
         host = os.getenv("SMTP_HOST", "")
@@ -339,11 +397,17 @@ def alert_send(alert_id: int, authorization: str = Header(""), x_api_key: str = 
                     s.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASS", ""))
                 s.send_message(msg)
             a["delivered"] = True
+            repo.sync("alerts", a)
+            _audit(email, "alert.send", f"{alert_id}:email")
             return {"delivered": True}
         except Exception as e:
             a["delivery_error"] = str(e)[:200]
+            repo.sync("alerts", a)
+            _audit(email, "alert.send.failed", f"{alert_id}:{str(e)[:80]}")
             return {"delivered": False, "error": str(e)[:200]}
     a["is_read"] = False
+    repo.sync("alerts", a)
+    _audit(email, "alert.send", f"{alert_id}:inapp")
     return {"delivered": True, "channel": "inapp"}
 
 
@@ -514,7 +578,7 @@ def target_reliability(target_id: int = 0):
 @router.post("/api/v1/correlate/prices", tags=["intelligence"])
 def correlate_prices(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import correlate as _c
-    _need(authorization, "research", x_api_key)
+    email, _, _ = _need(authorization, "research", x_api_key)
     out = _c.correlate_price_sources(spec.get("series_by_source", {}))
     saved = []
     if spec.get("save"):
@@ -523,6 +587,7 @@ def correlate_prices(spec: dict, authorization: str = Header(""), x_api_key: str
             f["id"] = len(STORE["findings"]) + 1
             STORE["findings"].append(f)
             saved.append(f["id"])
+        _audit(email, "correlate.save", str(saved)[:200])
     return {"correlations": out, "saved_findings": saved}
 
 
@@ -540,6 +605,7 @@ def feed_subscribe(spec: dict, authorization: str = Header(""), x_api_key: str =
     email, _, _ = _ctx(authorization, x_api_key)
     sub = {"id": len(STORE["feed_subs"]) + 1, "owner": email, **spec}
     STORE["feed_subs"].append(sub)
+    _audit(email, "feed.subscribe", str(sub["id"]))
     return sub
 
 
@@ -558,7 +624,7 @@ def feed_personal(authorization: str = Header(""), x_api_key: str = Header("")):
 def alert_check(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import alertguard as _ag
     from ...services import alertlife as _al
-    _, org, _ = _need(authorization, "alert", x_api_key)
+    email, org, _ = _need(authorization, "alert", x_api_key)
     out = _ag.check_threshold(spec.get("value", 0), spec.get("op", "gt"), spec.get("threshold", 0))
     if out.get("fired"):
         win = _al.suppressed(STORE.get("maintenance", []), spec.get("rule", "threshold"), org)
@@ -574,6 +640,7 @@ def alert_check(spec: dict, authorization: str = Header(""), x_api_key: str = He
                 "sla_due": _al.sla_due(spec.get("severity", "info"))}
         STORE["alerts"].append(item)
         out["alert_id"] = item["id"]
+        _audit(email, "alert.check.fire", f"{item['rule']}:{item['id']}")
     return out
 
 
@@ -584,5 +651,15 @@ def alert_incidents(authorization: str = Header(""), x_api_key: str = Header("")
     mine = [a for a in STORE["alerts"]
             if (lambda o: o is None or o == org)(_porg(a.get("project_id")))]
     return {"incidents": _al.incidents(mine)}
+
+
+# NOTE: detail route sits after /incidents and /bulk so literals win.
+@router.get("/api/v1/alerts/{alert_id}", tags=["alerts"])
+def get_alert(alert_id: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    a = _org_alert(alert_id, org)
+    if not a:
+        raise HTTPException(404, "alert not found")
+    return a
 
 

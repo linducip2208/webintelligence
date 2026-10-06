@@ -24,21 +24,24 @@ router = APIRouter()
 @router.post("/api/v1/graph/nodes", tags=["knowledge"])
 def graph_node(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import graph as _g
-    _, org, _ = _need(authorization, "collect", x_api_key)
-    return _g.add_node(STORE["nodes"], spec.get("kind", "company"),
-                      spec.get("key", ""), spec.get("name", ""), org)
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    node = _g.add_node(STORE["nodes"], spec.get("kind", "company"),
+                       spec.get("key", ""), spec.get("name", ""), org)
+    _audit(email, "graph.node.add", str(node.get("id")))
+    return node
 
 
 @router.post("/api/v1/graph/edges", tags=["knowledge"])
 def graph_edge(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import graph as _g
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     edge = _g.add_edge(STORE["edges"], spec.get("src"), spec.get("dst"),
                        spec.get("rel", "RELATED"), spec.get("confidence", 1.0),
                        spec.get("evidence", []), spec.get("at"), org)
     for e in STORE["edges"]:
         if e.get("valid_to"):
             repo.sync("edges", e)
+    _audit(email, "graph.edge.add", str(edge.get("id")))
     return edge
 
 
@@ -64,7 +67,7 @@ def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "",
 def create_event(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     import hashlib as _h
     import time as _t
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     key = _h.sha256(f"{spec.get('type')}|{spec.get('entity_key', '')}|{spec.get('severity', 'info')}".encode()).hexdigest()[:32]
     now = _t.time()
     dup = next((e for e in STORE["events"]
@@ -74,6 +77,7 @@ def create_event(spec: dict, authorization: str = Header(""), x_api_key: str = H
     item = {"id": len(STORE["events"]) + 1, "org": org, "dedup_key": key, "_ts": now, **spec}
     STORE["events"].append(item)
     _fire_watchlists(item)
+    _audit(email, "event.create", f"{item['id']}:{spec.get('type', '')}"[:120])
     return item
 
 
@@ -92,13 +96,14 @@ def list_events(page: int = 1, size: int = 20, type: str = "", severity: str = "
 @router.post("/api/v1/evidence", tags=["knowledge"])
 def create_evidence(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import evidence as _e
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["evidence"]) + 1, "org": org,
             **_e.make_evidence(spec.get("source", ""), spec.get("url", ""),
                                spec.get("content_hash", ""), spec.get("snippet", ""),
                                spec.get("selector", ""), spec.get("method", ""),
                                spec.get("confidence", 1.0))}
     STORE["evidence"].append(item)
+    _audit(email, "evidence.create", str(item["id"]))
     return item
 
 
@@ -111,10 +116,11 @@ def list_evidence(page: int = 1, size: int = 20,
 
 @router.post("/api/v1/claims", tags=["knowledge"])
 def create_claim(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["claims"]) + 1, "org": org, "status": "UNVERIFIED",
             "confidence": 0.0, **spec}
     STORE["claims"].append(item)
+    _audit(email, "claim.create", str(item["id"]))
     return item
 
 
@@ -139,9 +145,10 @@ def check_contradictions(spec: dict):
 
 @router.post("/api/v1/findings", tags=["intelligence"])
 def create_finding(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "research", x_api_key)
+    email, org, _ = _need(authorization, "research", x_api_key)
     item = {"id": len(STORE["findings"]) + 1, "org": org, **spec}
     STORE["findings"].append(item)
+    _audit(email, "finding.create", str(item["id"]))
     return item
 
 
@@ -250,7 +257,7 @@ def _r_bundle(run: dict):
 @router.post("/api/v1/research/runs/{rid}/finish", tags=["research"])
 def research_finish(rid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import research as _r
-    _, org, _ = _need(authorization, "research", x_api_key)
+    email, org, _ = _need(authorization, "research", x_api_key)
     run = next((x for x in STORE["research"]
                 if x["id"] == rid and x.get("org", 1) == org), None)
     if not run:
@@ -260,6 +267,7 @@ def research_finish(rid: int, spec: dict, authorization: str = Header(""), x_api
                 "ai_provider": spec.get("ai_provider", ""), "ai_model": spec.get("ai_model", ""),
                 "finished_at": time.time()})
     repo.sync("research", run)
+    _audit(email, "research.finish", str(rid))
     return {"ok": True, "reproducibility": _r.bundle(run)}
 
 
@@ -314,9 +322,10 @@ def research_export(rid: int, format: str = "json",
 # ---- datasets ----
 @router.post("/api/v1/datasets", tags=["datasets"])
 def create_dataset(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["datasets"]) + 1, "org": org, "status": "draft", **spec}
     STORE["datasets"].append(item)
+    _audit(email, "dataset.create", item.get("name", "")[:120])
     return item
 
 
@@ -326,11 +335,52 @@ def list_datasets(authorization: str = Header(""), x_api_key: str = Header("")):
     return {"items": _visible_by_org(STORE["datasets"], org)}
 
 
+@router.get("/api/v1/datasets/{did}", tags=["datasets"])
+def get_dataset(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    vs = [v for v in STORE["dsversions"] if v.get("dataset_id") == did]
+    return {**d, "versions": [{k: val for k, val in v.items() if k != "rows"} for v in vs],
+            "version_count": len(vs)}
+
+
+@router.put("/api/v1/datasets/{did}", tags=["datasets"])
+def update_dataset(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    for f in ("name", "kind", "status"):
+        if f in spec and spec[f] is not None:
+            d[f] = str(spec[f])[:200]
+    repo.sync("datasets", d)
+    _audit(email, "dataset.update", str(did))
+    return d
+
+
+@router.delete("/api/v1/datasets/{did}", tags=["datasets"])
+def delete_dataset(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
+    STORE["datasets"][:] = [x for x in STORE["datasets"] if x.get("id") != did]
+    STORE["dsversions"][:] = [v for v in STORE["dsversions"] if v.get("dataset_id") != did]
+    _audit(email, "dataset.delete", str(did))
+    return {"ok": True}
+
+
 @router.post("/api/v1/datasets/{did}/import", tags=["datasets"])
 def dataset_import(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import datasets as _d
-    email, _, _ = _need(authorization, "collect", x_api_key)
-    d = next((x for x in STORE["datasets"] if x.get("id") == did), None)
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
     if not d:
         raise HTTPException(404, "dataset not found")
     rows = spec.get("rows", [])
@@ -342,15 +392,21 @@ def dataset_import(did: int, spec: dict, authorization: str = Header(""), x_api_
         raise HTTPException(413, "too many rows (max 10000)")
     v = _d.publish(STORE["dsversions"], did, rows,
                    {"source": "import", "by": email, **spec.get("lineage", {})})
+    _audit(email, "dataset.import", f"{did}:v{v['version']}")
     return v
 
 
 @router.post("/api/v1/datasets/{did}/publish", tags=["datasets"])
 def dataset_publish(did: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import datasets as _d
-    _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
+    if not d:
+        raise HTTPException(404, "dataset not found")
     rows = spec.get("rows", [])
     v = _d.publish(STORE["dsversions"], did, rows, spec.get("lineage", {}))
+    _audit(email, "dataset.publish", f"{did}:v{v['version']}")
     return v
 
 
@@ -427,7 +483,7 @@ def spec_rows(did: int):
 @router.post("/api/v1/documents", tags=["knowledge"])
 def ingest_document(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import documents as _d
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     content = (spec.get("text", "") or "").encode()
     fp = _d.fingerprint(content)
     same = [x for x in STORE["documents"] if x.get("fingerprint") == fp]
@@ -455,6 +511,7 @@ def ingest_document(spec: dict, authorization: str = Header(""), x_api_key: str 
                             {"document": item["id"], "title": item["title"]})
     except Exception:
         pass
+    _audit(email, "document.ingest", f"{item['id']}:{item.get('title', '')[:80]}")
     return item
 
 
@@ -485,6 +542,17 @@ def list_documents(page: int = 1, size: int = 20,
                    authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization, x_api_key)
     return paginate(_visible_by_org(STORE["documents"], org), page, size)
+
+
+@router.delete("/api/v1/documents/{did}", tags=["knowledge"])
+def delete_document(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    d = next((x for x in STORE["documents"] if x.get("id") == did), None)
+    if not d or _visible_by_org([d], org) != [d]:
+        raise HTTPException(404, "document not found")
+    STORE["documents"][:] = [x for x in STORE["documents"] if x.get("id") != did]
+    _audit(email, "document.delete", str(did))
+    return {"ok": True}
 
 
 
@@ -548,12 +616,14 @@ def graph_svg(node: int = 0, depth: int = 1, limit: int = 30, rel: str = "",
 # ---- dataset archive ----
 @router.post("/api/v1/datasets/{did}/archive", tags=["datasets"])
 def dataset_archive(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "collect", x_api_key)
-    d = next((x for x in STORE["datasets"] if x.get("id") == did), None)
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    d = next((x for x in STORE["datasets"]
+              if x.get("id") == did and x.get("org", 1) == org), None)
     if not d:
         raise HTTPException(404, "not found")
     d["status"] = "archived"
     repo.sync("datasets", d)
+    _audit(email, "dataset.archive", str(did))
     return {"ok": True}
 
 

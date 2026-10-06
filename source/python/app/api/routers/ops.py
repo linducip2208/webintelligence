@@ -139,19 +139,211 @@ def apply_vertical(name: str, authorization: str = Header(""), x_api_key: str = 
 
 
 @router.get("/api/v1/roles", tags=["admin"])
-def roles_matrix():
+def roles_matrix(authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services.rbac import MATRIX
-    return {"roles": {k: sorted(v) for k, v in MATRIX.items()}}
+    _, org, _ = _ctx(authorization, x_api_key)
+    custom = [r for r in STORE.get("roles", []) if r.get("org_id") == org]
+    merged = {k: sorted(v) for k, v in MATRIX.items()}
+    for r in custom:
+        merged[r["name"]] = sorted(r.get("permissions", []))
+    return {"roles": merged,
+            "builtin": sorted(MATRIX),
+            "custom": [{k: v for k, v in r.items()} for r in custom]}
+
+
+def _valid_role_name(name: str) -> str:
+    name = (name or "").strip().lower()
+    if not name or len(name) > 64:
+        raise HTTPException(400, "role name required (max 64)")
+    if not all(c.isalnum() or c in "-_" for c in name):
+        raise HTTPException(400, "role name: letters, digits, - _ only")
+    return name
+
+
+@router.post("/api/v1/roles", tags=["admin"])
+def create_role(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services.rbac import MATRIX, ACTIONS
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    name = _valid_role_name(spec.get("name", ""))
+    if name in MATRIX:
+        raise HTTPException(409, "builtin role names are reserved")
+    perms = spec.get("permissions", [])
+    if not isinstance(perms, list) or not perms:
+        raise HTTPException(400, "permissions must be a non-empty list")
+    bad = [p for p in perms if p not in ACTIONS]
+    if bad:
+        raise HTTPException(400, f"unknown permissions: {bad} (one of {list(ACTIONS)})")
+    if any(r.get("name") == name and r.get("org_id") == org for r in STORE.get("roles", [])):
+        raise HTTPException(409, "role exists")
+    item = {"id": max([r.get("id", 0) for r in STORE.get("roles", [])] + [0]) + 1,
+            "org_id": org, "name": name, "permissions": sorted(set(perms))}
+    STORE.setdefault("roles", []).append(item)
+    _audit(email, "role.create", f"{name}:{','.join(item['permissions'])}")
+    return item
+
+
+@router.put("/api/v1/roles/{name}", tags=["admin"])
+def update_role(name: str, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services.rbac import MATRIX, ACTIONS
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    if name in MATRIX:
+        raise HTTPException(403, "builtin roles are read-only")
+    r = next((x for x in STORE.get("roles", [])
+              if x.get("name") == name and x.get("org_id") == org), None)
+    if not r:
+        raise HTTPException(404, "role not found")
+    perms = spec.get("permissions", [])
+    if not isinstance(perms, list) or not perms:
+        raise HTTPException(400, "permissions must be a non-empty list")
+    bad = [p for p in perms if p not in ACTIONS]
+    if bad:
+        raise HTTPException(400, f"unknown permissions: {bad}")
+    r["permissions"] = sorted(set(perms))
+    repo.sync("roles", r)
+    _audit(email, "role.update", name)
+    return r
+
+
+@router.delete("/api/v1/roles/{name}", tags=["admin"])
+def delete_role(name: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services.rbac import MATRIX
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    if name in MATRIX:
+        raise HTTPException(403, "builtin roles cannot be deleted")
+    r = next((x for x in STORE.get("roles", [])
+              if x.get("name") == name and x.get("org_id") == org), None)
+    if not r:
+        raise HTTPException(404, "role not found")
+    assigned = [m["email"] for m in STORE["memberships"]
+                if m.get("org_id") == org and m.get("role") == name]
+    if assigned:
+        raise HTTPException(409, f"role assigned to {len(assigned)} member(s); reassign first")
+    STORE["roles"][:] = [x for x in STORE["roles"] if x.get("id") != r.get("id")]
+    _audit(email, "role.delete", name)
+    return {"ok": True}
+
+
+def _role_assignable(role: str, org: int) -> bool:
+    from ...services.rbac import MATRIX
+    if role in MATRIX:
+        return True
+    return any(r.get("name") == role and r.get("org_id") == org
+               for r in STORE.get("roles", []))
 
 
 @router.post("/api/v1/memberships", tags=["admin"])
 def add_member(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services.rbac import MATRIX
     email, org, _ = _need(authorization, "users")
-    item = {"org_id": spec.get("org_id", org), "email": spec.get("email"),
-            "role": spec.get("role", "viewer")}
+    target_org = spec.get("org_id", org)
+    if target_org != org:
+        raise HTTPException(403, "cross-org denied")
+    if not spec.get("email"):
+        raise HTTPException(400, "email required")
+    role = spec.get("role", "viewer")
+    if not _role_assignable(role, target_org):
+        raise HTTPException(400, f"unknown role {role}")
+    if any(m.get("org_id") == target_org and m.get("email") == spec["email"]
+           for m in STORE["memberships"]):
+        raise HTTPException(409, "member exists")
+    item = {"id": max([m.get("id", 0) for m in STORE["memberships"]] + [0]) + 1,
+            "org_id": target_org, "email": spec["email"], "role": role}
     STORE["memberships"].append(item)
     _audit(email, "member.add", f"{item['email']}->{item['role']}")
     return item
+
+
+@router.get("/api/v1/memberships", tags=["admin"])
+def list_members(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _need(authorization, "users", x_api_key)
+    return {"items": [m for m in STORE["memberships"] if m.get("org_id") == org]}
+
+
+@router.put("/api/v1/memberships/{mid}", tags=["admin"])
+def update_member(mid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services.rbac import MATRIX
+    email, org, _ = _need(authorization, "users")
+    m = next((x for x in STORE["memberships"]
+              if x.get("id") == mid and x.get("org_id") == org), None)
+    if not m:
+        raise HTTPException(404, "member not found")
+    if "id" not in m:
+        m["id"] = max([x.get("id", 0) for x in STORE["memberships"]] + [0]) + 1
+    if "role" in spec:
+        if not _role_assignable(spec["role"], org):
+            raise HTTPException(400, f"unknown role {spec['role']}")
+        if m.get("role") == "owner" and spec["role"] != "owner":
+            owners = [x for x in STORE["memberships"]
+                      if x.get("org_id") == org and x.get("role") == "owner"]
+            if len(owners) <= 1:
+                raise HTTPException(409, "cannot demote the last owner")
+        m["role"] = spec["role"]
+    repo.sync("memberships", m)
+    _audit(email, "member.update", f"{m['email']}->{m['role']}")
+    return m
+
+
+@router.delete("/api/v1/memberships/{mid}", tags=["admin"])
+def remove_member(mid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "users")
+    m = next((x for x in STORE["memberships"]
+              if x.get("id") == mid and x.get("org_id") == org), None)
+    if not m:
+        raise HTTPException(404, "member not found")
+    if m.get("email") == email:
+        raise HTTPException(409, "cannot remove yourself")
+    if m.get("role") == "owner":
+        owners = [x for x in STORE["memberships"]
+                  if x.get("org_id") == org and x.get("role") == "owner"]
+        if len(owners) <= 1:
+            raise HTTPException(409, "cannot remove the last owner")
+    STORE["memberships"][:] = [x for x in STORE["memberships"] if x.get("id") != mid]
+    _audit(email, "member.remove", m["email"])
+    return {"ok": True}
+
+
+@router.post("/api/v1/users/{addr}/disable", tags=["admin"])
+def disable_user(addr: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _need(authorization, "configure")
+    if addr in ("admin@local", email):
+        raise HTTPException(409, "cannot disable built-in/self account")
+    try:
+        from ...models.entities import User
+        s = repo._session()
+        u = s.query(User).filter_by(email=addr).first()
+        if not u:
+            s.close()
+            raise HTTPException(404, "user not found")
+        u.is_active = False
+        s.commit()
+        s.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"disable failed: {e}"[:200])
+    _audit(email, "user.disable", addr)
+    return {"ok": True}
+
+
+@router.post("/api/v1/users/{addr}/enable", tags=["admin"])
+def enable_user(addr: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, _, _ = _need(authorization, "configure")
+    try:
+        from ...models.entities import User
+        s = repo._session()
+        u = s.query(User).filter_by(email=addr).first()
+        if not u:
+            s.close()
+            raise HTTPException(404, "user not found")
+        u.is_active = True
+        s.commit()
+        s.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"enable failed: {e}"[:200])
+    _audit(email, "user.enable", addr)
+    return {"ok": True}
 
 
 @router.post("/api/v1/apikeys", tags=["admin"])
@@ -190,9 +382,10 @@ def revoke_apikey(kid: int, authorization: str = Header(""), x_api_key: str = He
 # ---- watchlists ----
 @router.post("/api/v1/watchlists", tags=["monitoring"])
 def create_watchlist(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["watchlists"]) + 1, "org": org, **spec}
     STORE["watchlists"].append(item)
+    _audit(email, "watchlist.create", f"{item['kind']}:{item.get('value', '')}"[:120])
     return item
 
 
@@ -204,9 +397,27 @@ def list_watchlists(authorization: str = Header(""), x_api_key: str = Header("")
 
 @router.delete("/api/v1/watchlists/{wid}", tags=["monitoring"])
 def delete_watchlist(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "collect", x_api_key)
-    STORE["watchlists"][:] = [w for w in STORE["watchlists"] if w["id"] != wid]
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    w = next((x for x in STORE["watchlists"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not w:
+        raise HTTPException(404, "watchlist not found")
+    STORE["watchlists"][:] = [x for x in STORE["watchlists"] if x.get("id") != wid]
+    _audit(email, "watchlist.delete", str(wid))
     return {"ok": True}
+
+
+@router.put("/api/v1/watchlists/{wid}", tags=["monitoring"])
+def update_watchlist(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    w = next((x for x in STORE["watchlists"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not w:
+        raise HTTPException(404, "watchlist not found")
+    for f in ("kind", "value"):
+        if f in spec and spec[f] is not None:
+            w[f] = str(spec[f])[:500]
+    repo.sync("watchlists", w)
+    _audit(email, "watchlist.update", str(wid))
+    return w
 
 
 @router.post("/api/v1/watchlists/check", tags=["monitoring"])
@@ -252,10 +463,11 @@ def watchlist_evaluate(wid: int, authorization: str = Header(""), x_api_key: str
 # ---- workflows ----
 @router.post("/api/v1/workflows", tags=["monitoring"])
 def create_workflow(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["workflows"]) + 1, "org": org, "enabled": True,
             "version": 1, **{k: v for k, v in spec.items() if k != "version"}}
     STORE["workflows"].append(item)
+    _audit(email, "workflow.create", item.get("name", "")[:120])
     return item
 
 
@@ -284,7 +496,7 @@ def workflow_retry(wid: int, spec: dict, authorization: str = Header(""), x_api_
     """Idempotent retry: same event replays to the same idempotency keys,
     returning the ORIGINAL run when nothing new executes."""
     from ...services import workflows as _w
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     wf = next((x for x in STORE["workflows"]
                if x.get("id") == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not wf:
@@ -304,6 +516,7 @@ def workflow_retry(wid: int, spec: dict, authorization: str = Header(""), x_api_
                "workflow_version": wf.get("version", 1), "context": event,
                "log": effects, "idempotency_key": run_key}
         STORE["wfruns"].append(run)
+        _audit(email, "workflow.retry", f"{wid}:{run['id']}")
         return {"run": run, "effects": effects, "replayed": False}
     return {"run": prior, "effects": [], "replayed": True}
 
@@ -329,10 +542,65 @@ def list_workflows(authorization: str = Header(""), x_api_key: str = Header(""))
     return {"items": _visible_by_org(STORE["workflows"], org)}
 
 
+@router.get("/api/v1/workflows/{wid}", tags=["monitoring"])
+def get_workflow(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    wf = next((x for x in STORE["workflows"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+    runs = [r for r in STORE["wfruns"] if r.get("workflow_id") == wid][-20:]
+    return {**wf, "recent_runs": runs, "run_count": len([r for r in STORE["wfruns"] if r.get("workflow_id") == wid])}
+
+
+@router.get("/api/v1/workflows/{wid}/runs", tags=["monitoring"])
+def workflow_runs(wid: int, page: int = 1, size: int = 20,
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    wf = next((x for x in STORE["workflows"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+    return paginate([r for r in STORE["wfruns"] if r.get("workflow_id") == wid], page, size)
+
+
+@router.delete("/api/v1/workflows/{wid}", tags=["monitoring"])
+def delete_workflow(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    wf = next((x for x in STORE["workflows"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+    STORE["workflows"][:] = [x for x in STORE["workflows"] if x.get("id") != wid]
+    _audit(email, "workflow.delete", str(wid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/workflows/{wid}/enable", tags=["monitoring"])
+def enable_workflow(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    wf = next((x for x in STORE["workflows"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+    wf["enabled"] = True
+    repo.sync("workflows", wf)
+    _audit(email, "workflow.enable", str(wid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/workflows/{wid}/disable", tags=["monitoring"])
+def disable_workflow(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    wf = next((x for x in STORE["workflows"] if x.get("id") == wid and x.get("org", 1) == org), None)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+    wf["enabled"] = False
+    repo.sync("workflows", wf)
+    _audit(email, "workflow.disable", str(wid))
+    return {"ok": True}
+
+
 @router.post("/api/v1/workflows/{wid}/run", tags=["monitoring"])
 def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import workflows as _w
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     wf = next((x for x in STORE["workflows"]
                if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not wf:
@@ -355,6 +623,7 @@ def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_ke
     run = {"id": len(STORE["wfruns"]) + 1, "workflow_id": wid, "status": "done",
            "context": event, "log": log, "idempotency_key": _w.key(wid, "run", event)}
     STORE["wfruns"].append(run)
+    _audit(email, "workflow.run", f"{wid}:{run['id']}")
     return {"run": run, "effects": effects}
 
 
@@ -363,11 +632,12 @@ def workflow_run(wid: int, spec: dict, authorization: str = Header(""), x_api_ke
 @router.post("/api/v1/webhooks", tags=["monitoring"])
 def create_webhook(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...core.crypto import encrypt
-    _, org, _ = _need(authorization, "configure", x_api_key)
+    email, org, _ = _need(authorization, "configure", x_api_key)
     item = {"id": len(STORE["webhooks"]) + 1, "org": org, "enabled": True, **spec}
     if item.get("secret"):
         item["secret"] = encrypt(item["secret"])
     STORE["webhooks"].append(item)
+    _audit(email, "webhook.create", str(item["id"]))
     return {k: v for k, v in item.items() if k != "secret"}
 
 
@@ -378,11 +648,73 @@ def list_webhooks(authorization: str = Header(""), x_api_key: str = Header("")):
                       for w in _visible_by_org(STORE["webhooks"], org)]}
 
 
+def _org_webhook(wid: int, org: int):
+    w = next((x for x in STORE["webhooks"] if x.get("id") == wid), None)
+    if not w or _visible_by_org([w], org) != [w]:
+        return None
+    return w
+
+
+@router.put("/api/v1/webhooks/{wid}", tags=["monitoring"])
+def update_webhook(wid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...core.crypto import encrypt
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    w = _org_webhook(wid, org)
+    if not w:
+        raise HTTPException(404, "webhook not found")
+    if "url" in spec and spec["url"]:
+        w["url"] = str(spec["url"])[:2000]
+    if "event_types" in spec and isinstance(spec["event_types"], list):
+        w["event_types"] = [str(e)[:80] for e in spec["event_types"]][:20]
+    if "enabled" in spec:
+        w["enabled"] = bool(spec["enabled"])
+    if "secret" in spec and spec["secret"] and spec["secret"] != "***":
+        w["secret"] = encrypt(spec["secret"])
+    repo.sync("webhooks", w)
+    _audit(email, "webhook.update", str(wid))
+    return {k: v for k, v in w.items() if k != "secret"}
+
+
+@router.delete("/api/v1/webhooks/{wid}", tags=["monitoring"])
+def delete_webhook(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    w = _org_webhook(wid, org)
+    if not w:
+        raise HTTPException(404, "webhook not found")
+    STORE["webhooks"][:] = [x for x in STORE["webhooks"] if x.get("id") != wid]
+    _audit(email, "webhook.delete", str(wid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/webhooks/{wid}/enable", tags=["monitoring"])
+def enable_webhook(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    w = _org_webhook(wid, org)
+    if not w:
+        raise HTTPException(404, "webhook not found")
+    w["enabled"] = True
+    repo.sync("webhooks", w)
+    _audit(email, "webhook.enable", str(wid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/webhooks/{wid}/disable", tags=["monitoring"])
+def disable_webhook(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    w = _org_webhook(wid, org)
+    if not w:
+        raise HTTPException(404, "webhook not found")
+    w["enabled"] = False
+    repo.sync("webhooks", w)
+    _audit(email, "webhook.disable", str(wid))
+    return {"ok": True}
+
+
 @router.post("/api/v1/webhooks/{wid}/test", tags=["monitoring"])
 def webhook_test(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import webhooks as _wh
     from ...core.crypto import decrypt
-    _, org, _ = _need(authorization, "configure", x_api_key)
+    email, org, _ = _need(authorization, "configure", x_api_key)
     w = next((x for x in STORE["webhooks"]
               if x["id"] == wid and x.get("enabled") and x.get("org", 1) == org), None)
     if not w:
@@ -393,6 +725,7 @@ def webhook_test(wid: int, authorization: str = Header(""), x_api_key: str = Hea
                                 "attempts": out.get("attempts", 0),
                                 "last_error": out.get("error", ""),
                                 "response_status": out.get("status", 0)})
+    _audit(email, "webhook.test", f"{wid}:{out.get('ok')}")
     return out
 
 
@@ -405,7 +738,7 @@ def webhook_deliveries(page: int = 1, size: int = 20):
 def webhook_replay(did: int, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import webhooks as _wh
     from ...core.crypto import decrypt
-    _need(authorization, "configure", x_api_key)
+    email, _, _ = _need(authorization, "configure", x_api_key)
     d = next((x for x in STORE["deliveries"] if x["id"] == did), None)
     if not d:
         raise HTTPException(404, "not found")
@@ -416,7 +749,22 @@ def webhook_replay(did: int, authorization: str = Header(""), x_api_key: str = H
     d.update({"status": "ok" if out["ok"] else "failed",
               "attempts": d.get("attempts", 0) + out.get("attempts", 0)})
     repo.sync("deliveries", d)
+    _audit(email, "webhook.replay", f"{did}:{out.get('ok')}")
     return out
+
+
+# NOTE: detail route sits after /deliveries so the literal path wins.
+@router.get("/api/v1/webhooks/{wid}", tags=["monitoring"])
+def get_webhook(wid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    w = _org_webhook(wid, org)
+    if not w:
+        raise HTTPException(404, "webhook not found")
+    d = {k: v for k, v in w.items() if k != "secret"}
+    d["has_secret"] = bool(w.get("secret"))
+    deliveries = [x for x in STORE["deliveries"] if x.get("webhook_id") == wid][-10:]
+    d["recent_deliveries"] = deliveries
+    return d
 
 
 # ---- maintenance windows ----
@@ -488,6 +836,7 @@ def ingest_webhook(spec: dict):
             "entity_key": str(spec.get("payload", {}))[:200], "severity": "info",
             "confidence": 0.8, "evidence": [], "observed_at": now}
     STORE["events"].append(item)
+    _audit("ingest", "ingest.webhook", f"{spec.get('event', '')}:{item['id']}"[:120])
     return {"ok": True, "event_id": item["id"]}
 
 

@@ -244,6 +244,14 @@ def _need(authorization: str, action: str, x_api_key: str = ""):
         if not k or (k.get("scopes") and action not in k["scopes"] and "*" not in k["scopes"]):
             raise HTTPException(403, f"api key lacks scope {action}")
         return (email, org, role)
+    if role not in _rbac.MATRIX:
+        custom = next((r for r in STORE.get("roles", [])
+                       if r.get("name") == role and r.get("org_id") == org), None)
+        if not custom:
+            raise HTTPException(403, f"unknown role {role}")
+        if not _rbac.can(role, action, set(custom.get("permissions", []))):
+            raise HTTPException(403, f"role {role} cannot {action}")
+        return (email, org, role)
     if not _rbac.can(role, action):
         raise HTTPException(403, f"role {role} cannot {action}")
     return (email, org, role)

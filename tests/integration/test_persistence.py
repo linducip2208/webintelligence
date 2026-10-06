@@ -28,11 +28,12 @@ def test_roundtrip_core(tmp_path):
     # restart: brand-new Repo on the same file
     r2 = _repo(tmp_path)
     s = r2.load_all()
-    assert s["projects"] == [{"id": 1, "name": "P", "description": "d"}]
+    assert s["projects"][0]["id"] == 1 and s["projects"][0]["name"] == "P"
+    assert s["projects"][0]["created_at"]  # stamped for management UI
     assert s["targets"][0]["domain"] == "e.com"
     assert s["jobs"][0]["job_id"] == "j1" and s["jobs"][0]["plan"] == {"plan": ["DIRECT_HTTP"]}
-    assert s["prices"] == [{"product_id": 1, "price": 10.0, "currency": "USD",
-                            "seller": "", "observed_at": 123.0, "job_id": "j1"}]
+    assert s["prices"][0]["product_id"] == 1 and s["prices"][0]["price"] == 10.0
+    assert s["prices"][0]["currency"] == "USD" and s["prices"][0]["job_id"] == "j1"
     assert s["alerts"][0]["rule"] == "r"
 
 

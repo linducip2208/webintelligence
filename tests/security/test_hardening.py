@@ -25,7 +25,7 @@ def test_rate_limit_and_body_guard(monkeypatch):
     _BUCKETS.clear()
     try:
         import redis as _r
-        _r.Redis.from_url("redis://127.0.0.1:6379/15", socket_timeout=2).flushdb()
+        _r.Redis.from_url("redis://127.0.0.1:6379/15", socket_timeout=2, protocol=2).flushdb()
     except Exception:
         pass
     c = TestClient(app)

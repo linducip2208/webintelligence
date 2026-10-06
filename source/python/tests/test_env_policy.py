@@ -43,4 +43,7 @@ def test_development_memory_works():
     r = Repo(url="sqlite:///:memory:")
     assert r.available and r.backend == "memory"
     r.add("projects", {"id": 1, "name": "P", "description": ""})
-    assert r.load_all()["projects"] == [{"id": 1, "name": "P", "description": ""}]
+    rows = r.load_all()["projects"]
+    assert len(rows) == 1
+    assert rows[0]["id"] == 1 and rows[0]["name"] == "P" and rows[0]["description"] == ""
+    assert rows[0]["created_at"] and rows[0]["updated_at"]  # stamped for management UI

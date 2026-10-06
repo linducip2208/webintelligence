@@ -14,7 +14,7 @@ SERVER = "redis://127.0.0.1:6379/15"
 
 
 def _cli():
-    return redis.Redis.from_url(SERVER, socket_timeout=3)
+    return redis.Redis.from_url(SERVER, socket_timeout=3, protocol=2)
 
 
 def test_redis_live_available():

@@ -15,7 +15,7 @@ STRINGS = {
   "costs":"Costs","search":"Search","schedules":"Schedules","documents":"Documents",
    "claims":"Claims","webhooks":"Webhooks","overview":"Overview","collect":"1 · Collect",
    "process":"2 · Process","evidence":"4 · Evidence","act":"6 · Act","system":"System",
-   "intelligence":"5 · Intelligence","knowledge":"3 · Knowledge"},
+   "intelligence":"5 · Intelligence","knowledge":"3 · Knowledge","syssettings":"Settings"},
   "id": {"dashboard":"Dasbor","intelligence":"Intelijen","feed":"Umpan","research":"Riset",
    "sources":"Sumber","entities":"Entitas","knowledge":"Pengetahuan","datasets":"Dataset",
    "monitoring":"Pemantauan","ai":"AI","admin":"Administrasi","findings":"Temuan",
@@ -32,7 +32,7 @@ STRINGS = {
    "costs":"Biaya","search":"Pencarian","schedules":"Jadwal","documents":"Dokumen",
    "claims":"Klaim","webhooks":"Webhook","overview":"Ringkasan","collect":"1 · Kumpul",
    "process":"2 · Olah","evidence":"4 · Bukti","act":"6 · Aksi","system":"Sistem",
-   "intelligence":"5 · Intelijen","knowledge":"3 · Pengetahuan"},
+   "intelligence":"5 · Intelijen","knowledge":"3 · Pengetahuan","syssettings":"Pengaturan"},
 }
 def t(lang: str, key: str) -> str:
     return STRINGS.get(lang, STRINGS["en"]).get(key, STRINGS["en"].get(key, key))

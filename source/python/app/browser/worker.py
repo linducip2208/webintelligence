@@ -100,7 +100,7 @@ def main():
         import redis as redislib
         from ..core.config import settings
 
-        r = redislib.Redis.from_url(settings.redis_url)
+        r = redislib.Redis.from_url(settings.redis_url, protocol=2)
     except Exception as e:
         log("browser-worker-no-redis", error=str(e))
         return

@@ -306,7 +306,7 @@ class Repo:
                 s = self._session()
                 for row in s.query(model).all():
                     try:
-                        out[coll].append(hyd(row))
+                        out[coll].append(_hydrate(hyd, row))
                     except Exception:
                         continue
                 s.close()
@@ -374,7 +374,7 @@ class Repo:
             items = []
             for r in rows:
                 try:
-                    items.append(hyd(r))
+                    items.append(_hydrate(hyd, r))
                 except Exception:
                     continue
             s.close()
@@ -430,6 +430,29 @@ def _full(item):
     return json.loads(json.dumps(item, default=str))
 
 
+def _ts(v):
+    try:
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return v
+        return v.isoformat()
+    except Exception:
+        return None
+
+
+def _hydrate(hyd, row):
+    """Hydrate + stamp DB timestamps (management UI needs created/updated
+    on every row; additive only, never overrides mapper fields)."""
+    d = hyd(row)
+    if isinstance(d, dict):
+        if "created_at" not in d:
+            d["created_at"] = _ts(getattr(row, "created_at", None))
+        if hasattr(row, "updated_at") and "updated_at" not in d:
+            d["updated_at"] = _ts(getattr(row, "updated_at", None))
+    return d
+
+
 # Map collection -> (model_factory, columns). Full item preserved in data/payload.
 def _m_projects(item):
     from ..models.entities import Project
@@ -463,6 +486,7 @@ def _m_jobs(item):
                            "project_id": item.get("project_id"), "target_id": item.get("target_id"),
                            "url": item.get("url", ""), "strategy": item.get("strategy", "AUTO"),
                            "status": item.get("status", "queued"),
+                           "org_id": item.get("org", 1) or 1,
                            "idempotency_key": item.get("job_id", "") + "-idem",
                            "plan": item.get("plan", {}),
                            "estimated_cost": item.get("estimated_cost", 0.0),
@@ -473,6 +497,7 @@ def _m_jobs(item):
 def _h_jobs(row):
     d = {"job_id": row.job_uid, "trace_id": row.trace_id, "project_id": row.project_id,
          "target_id": row.target_id, "url": row.url, "strategy": row.strategy,
+         "org": getattr(row, "org_id", 1) or 1,
          "status": row.status, "plan": row.plan or {},
          "estimated_cost": row.estimated_cost or 0.0, "retries": row.retries or 0}
     if row.actual_cost:
@@ -678,7 +703,18 @@ def _m_memberships(item):
 
 
 def _h_memberships(row):
-    return {"org_id": row.org_id, "email": row.email, "role": row.role}
+    return {"id": row.id, "org_id": row.org_id, "email": row.email, "role": row.role}
+
+
+def _m_roles(item):
+    from ..models.universal import Role
+    return Role, {"org_id": item.get("org_id"), "name": item.get("name", ""),
+                  "permissions": list(item.get("permissions", []))}
+
+
+def _h_roles(row):
+    return {"id": row.id, "org_id": row.org_id, "name": row.name,
+            "permissions": list(row.permissions or []), "builtin": False}
 
 
 def _m_apikeys(item):
@@ -1036,7 +1072,7 @@ _MIRRORS = {
     "schedules": _m_schedules, "raw": _m_raw, "changes": _m_changes,
     "alerts": _m_alerts,
     "entities": _m_entities, "audit": _m_audit, "attempts": _m_attempts,
-    "orgs": _m_orgs, "memberships": _m_memberships, "apikeys": _m_apikeys,
+    "orgs": _m_orgs, "memberships": _m_memberships, "roles": _m_roles, "apikeys": _m_apikeys,
     "nodes": _m_nodes, "edges": _m_edges, "events": _m_events,
     "evidence": _m_evidence, "claims": _m_claims, "findings": _m_findings,
     "research": _m_research, "watchlists": _m_watchlists,
@@ -1056,6 +1092,7 @@ _HYDRATE = {
     "changes": (None, _h_changes), "alerts": (None, _h_alerts), "entities": (None, _h_entities),
     "audit": (None, _h_audit), "attempts": (None, _h_attempts),
     "orgs": (None, _h_orgs), "memberships": (None, _h_memberships),
+    "roles": (None, _h_roles),
     "apikeys": (None, _h_apikeys), "nodes": (None, _h_nodes),
     "edges": (None, _h_edges), "events": (None, _h_events),
     "evidence": (None, _h_evidence), "claims": (None, _h_claims),
@@ -1078,7 +1115,7 @@ def _model_for(coll):
                                    Report, Schedule, RawDocument, Change, Alert,
                                    NormalizedEntity, AuditLog, CollectionAttempt,
                                    AIProvider, AIUsage, Review)
-    from ..models.universal import (Organization, Membership, APIKey, GraphNode,
+    from ..models.universal import (Organization, Membership, Role, APIKey, GraphNode,
                                     GraphEdge, Event, Evidence, Claim, Finding,
                                     ResearchRun, Watchlist, Workflow, WorkflowRun,
                                     Dataset, DatasetVersion, Connector, Document,
@@ -1091,7 +1128,7 @@ def _model_for(coll):
             "ai_usage": AIUsage,
             "entities": NormalizedEntity, "audit": AuditLog,
             "attempts": CollectionAttempt, "orgs": Organization,
-            "memberships": Membership, "apikeys": APIKey, "nodes": GraphNode,
+            "memberships": Membership, "roles": Role, "apikeys": APIKey, "nodes": GraphNode,
             "edges": GraphEdge, "events": Event, "evidence": Evidence,
             "claims": Claim, "findings": Finding, "research": ResearchRun,
             "watchlists": Watchlist, "workflows": Workflow,

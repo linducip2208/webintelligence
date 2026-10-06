@@ -31,7 +31,7 @@ class CollectionJob(Base, Timestamp):
     status = Column(String(32), default="queued", index=True); idempotency_key = Column(String(128), unique=True)
     plan = Column(JSON, default=dict); estimated_cost = Column(Float, default=0.0)
     actual_cost = Column(Float, default=0.0); retries = Column(Integer, default=0)
-    finished_at = Column(Float, default=0.0)
+    finished_at = Column(Float, default=0.0); org_id = Column(Integer, default=1, index=True)
 class CollectionAttempt(Base, Timestamp):
     __tablename__ = "collection_attempts"
     id = Column(Integer, primary_key=True); job_id = Column(Integer, ForeignKey("collection_jobs.id"), index=True, nullable=True)

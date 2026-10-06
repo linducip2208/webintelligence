@@ -5,7 +5,13 @@ MATRIX = {
     "analyst": {"read", "collect", "research", "alert", "ai"},
     "viewer": {"read"},
 }
-def can(role: str, action: str) -> bool:
+# Actions assignable to custom roles (owner "*" stays unique to owner).
+ACTIONS = ("read", "collect", "research", "alert", "ai", "configure", "users")
+
+
+def can(role: str, action: str, custom: set = None) -> bool:
+    if custom is not None:
+        return action in custom
     perms = MATRIX.get(role or "", set())
     return "*" in perms or action in perms
 def scope(items: list, org_id: int):

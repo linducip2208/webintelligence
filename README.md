@@ -94,7 +94,8 @@ API surface: **143 versioned paths under `/api/v1`** (verified against `contract
 #### 8. Admin, billing & governance
 | Feature | Key endpoints |
 |---|---|
-| Organizations + white-label branding, memberships, roles (RBAC) | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles` |
+| Organizations + white-label branding, members, builtin + custom roles (RBAC), login disable | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles`, `/users/{email}/disable` |
+| Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export | see `/docs` (Settings view) + `contracts/openapi/openapi.json` (178 paths) |
 | Scoped/expiring API keys + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
 | Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
 | Commercial billing: plans, current plan, usage/quotas (402 on exceed) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
@@ -224,7 +225,8 @@ Permukaan API: **143 path berversi di bawah `/api/v1`** (terverifikasi terhadap 
 #### 8. Admin, billing & tata kelola
 | Fitur | Endpoint utama |
 |---|---|
-| Organisasi + branding white-label, keanggotaan, peran (RBAC) | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles` |
+| Organisasi + branding white-label, anggota, role bawaan + custom (RBAC), disable login | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles`, `/users/{email}/disable` |
+| CRUD manajemen penuh: detail project/target/job/schedule/alert/workflow/webhook/connector/dataset/dokumen, bulk ops, ekspor CSV | lihat `/docs` (view Settings) + `contracts/openapi/openapi.json` (178 path) |
 | API key berskop/kedaluwarsa + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
 | Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
 | Billing komersial: paket, paket aktif, usage/kuota (402 jika lewat) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
@@ -354,7 +356,8 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 #### 8. الإدارة والفوترة والحوكمة
 | الميزة | نقاط النهاية الرئيسية |
 |---|---|
-| المنظمات + branding، العضويات، الأدوار (RBAC) | `POST / GET /api/v1/orgs`، `/orgs/{oid}/branding`، `/memberships`، `/roles` |
+| المنظمات + branding، الأعضاء، أدوار مدمجة + مخصصة (RBAC)، تعطيل الدخول | `POST / GET /api/v1/orgs`، `/orgs/{oid}/branding`، `/memberships`، `/roles`، `/users/{email}/disable` |
+| إدارة CRUD كاملة: صفحات تفصيل project/target/job/schedule/alert/workflow/webhook/connector/dataset/document، عمليات جماعية، تصدير CSV | انظر `/docs` + `contracts/openapi/openapi.json` (178 مسارًا) |
 | مفاتيح API محددة النطاق/منتهية + إلغاء | `POST / GET /api/v1/apikeys`، `POST /api/v1/apikeys/{kid}/revoke` |
 | المصادقة: دخول (Bearer)، OIDC | `POST /api/v1/auth/login`، `/auth/oidc/login`، `/callback`، `/providers` |
 | الفوترة: الخطط، الخطة الحالية، الاستخدام/الحصص (402 عند التجاوز) | `GET /api/v1/billing/plans`، `/plan`، `/usage` |

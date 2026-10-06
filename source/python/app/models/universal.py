@@ -22,8 +22,20 @@ class Membership(Base):
     id = Column(Integer, primary_key=True)
     org_id = Column(Integer, ForeignKey("organizations.id"), index=True)
     email = Column(String(255), index=True)
-    role = Column(String(32), default="viewer")  # owner/admin/analyst/viewer
+    role = Column(String(32), default="viewer")  # builtin or custom role name
     created_at = Column(DateTime, server_default=func.now())
+
+
+class Role(Base):
+    """Custom org-scoped roles. Builtins (owner/admin/analyst/viewer) stay in
+    services/rbac.py MATRIX and cannot be shadowed: custom names must differ."""
+    __tablename__ = "roles"
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), index=True)
+    name = Column(String(64), index=True)
+    permissions = Column(JSON, default=list)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class APIKey(Base):

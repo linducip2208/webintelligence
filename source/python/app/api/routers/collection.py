@@ -79,11 +79,43 @@ def list_jobs(page: int = 1, size: int = 20, status: str = "", sort: str = "", o
     return paginate(_sorted(items, sort, order), page, size)
 
 
+@router.get("/api/v1/jobs/{job_id}")
+def get_job(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Scan/job detail: status, attempts, extracted prices, changes, alerts, errors."""
+    _, org, _ = _ctx(authorization, x_api_key)
+    job = next((j for j in STORE["jobs"]
+                if j.get("job_id") == job_id and j.get("org", 1) == org), None)
+    if not job:
+        raise HTTPException(404, "job not found")
+    attempts = [a for a in STORE.get("attempts", []) if a.get("job_id") == job_id]
+    prices = [p for p in STORE["prices"] if p.get("job_id") == job_id]
+    changes = [c for c in STORE["changes"] if c.get("target_id") == job.get("target_id")]
+    return {**job,
+            "attempts": attempts,
+            "prices": prices,
+            "changes": changes,
+            "price_count": len(prices)}
+
+
+@router.delete("/api/v1/jobs/{job_id}")
+def delete_job(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    job = next((j for j in STORE["jobs"]
+                if j.get("job_id") == job_id and j.get("org", 1) == org), None)
+    if not job:
+        raise HTTPException(404, "job not found")
+    if job.get("status") == "running":
+        raise HTTPException(409, "cannot delete a running job")
+    STORE["jobs"][:] = [j for j in STORE["jobs"] if j.get("job_id") != job_id]
+    _audit(email, "job.delete", job_id[:16])
+    return {"ok": True}
+
+
 @router.post("/api/v1/jobs/{job_id}/run")
 def run_job_now(job_id: str, authorization: str = Header(""), x_api_key: str = Header("")):
     """Execute the full pipeline inline: fetch → validate → normalize →
     change-detect → alerts. BROWSER/proxy legs stay deferred to workers."""
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     job = next((j for j in STORE["jobs"]
                 if j.get("job_id") == job_id and j.get("org", 1) == org), None)
     if not job:
@@ -92,6 +124,7 @@ def run_job_now(job_id: str, authorization: str = Header(""), x_api_key: str = H
         raise HTTPException(409, f"job is {job['status']}")
     job["status"] = "running"
     repo.sync("jobs", job)
+    _audit(email, "job.run", job_id[:16])
     try:
         return _execute_job(job)
     except Exception as e:
@@ -103,7 +136,7 @@ def run_job_now(job_id: str, authorization: str = Header(""), x_api_key: str = H
 @router.post("/api/v1/results")
 def ingest_result(res: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     """Go collector / Python worker result ingestion (contracts/results/result.json)."""
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     if res.get("schema_version") != "1.0" or not res.get("job_id"):
         raise HTTPException(400, "bad result contract")
     job = next((j for j in STORE["jobs"]
@@ -133,6 +166,7 @@ def ingest_result(res: dict, authorization: str = Header(""), x_api_key: str = H
             bundle.update({"prices": prices, "change": change, "alerts": alerts})
         except Exception:
             pass
+    _audit(email, "job.result", f"{res['job_id'][:16]}:{bundle.get('status')}")
     return _apply_result(bundle, job["url"], job["project_id"], job["target_id"])
 
 
@@ -172,10 +206,32 @@ def list_articles(page: int = 1, size: int = 20,
 
 @router.post("/api/v1/articles")
 def create_article(a: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["articles"]) + 1, "org": org, **a}
     STORE["articles"].append(item)
+    _audit(email, "article.create", (a.get("title", "") or "")[:120])
     return item
+
+
+@router.delete("/api/v1/articles/{aid}")
+def delete_article(aid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    a = next((x for x in STORE["articles"] if x.get("id") == aid), None)
+    if not a or _visible_by_org([a], org) != [a]:
+        raise HTTPException(404, "article not found")
+    STORE["articles"][:] = [x for x in STORE["articles"] if x.get("id") != aid]
+    _audit(email, "article.delete", str(aid))
+    return {"ok": True}
+
+
+@router.get("/api/v1/reviews")
+def list_reviews(page: int = 1, size: int = 20, product_id: int = 0,
+                 authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    tids = {t["id"] for t in STORE["targets"] if t.get("org", 1) == org}
+    items = [r for r in STORE["reviews"]
+             if r.get("product_id") in tids and (not product_id or r.get("product_id") == product_id)]
+    return paginate(items, page, size)
 
 
 @router.get("/api/v1/changes")
@@ -205,7 +261,7 @@ def search(q: str = "", scope: str = "all"):
 @router.post("/api/v1/reviews/import", tags=["intelligence"])
 def reviews_import(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...analytics.ml import sentiment
-    _, org, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     n = 0
     for r in spec.get("reviews", [])[:1000]:
         t = next((x for x in STORE["targets"] if x.get("id") == r.get("product_id")), None)
@@ -216,6 +272,7 @@ def reviews_import(spec: dict, authorization: str = Header(""), x_api_key: str =
                 "sentiment": sentiment(r.get("text", ""))}
         STORE["reviews"].append(item)
         n += 1
+    _audit(email, "reviews.import", str(n))
     return {"imported": n}
 
 
@@ -235,12 +292,13 @@ def reviews_summary(product_id: int = 0,
 # ---- schedules + worker ----
 @router.post("/api/v1/schedules")
 def create_schedule(s: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    _need(authorization, "collect", x_api_key)
+    email, _, _ = _need(authorization, "collect", x_api_key)
     item = {"id": len(STORE["schedules"]) + 1, "status": "active",
             "next_run": sched.next_run(s.get("kind", "interval"),
                                        s.get("every_min", 60),
                                        cron=s.get("cron", "")).isoformat(), **s}
     STORE["schedules"].append(item)
+    _audit(email, "schedule.create", str(item["id"]))
     return item
 
 
@@ -249,6 +307,105 @@ def list_schedules(page: int = 1, size: int = 20,
                    authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization, x_api_key)
     return paginate(_visible_by_org(STORE["schedules"], org, "project"), page, size)
+
+
+@router.get("/api/v1/schedules/{sid}")
+def get_schedule(sid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    s = next((x for x in STORE["schedules"] if x.get("id") == sid), None)
+    if not s or _visible_by_org([s], org, "project") != [s]:
+        raise HTTPException(404, "schedule not found")
+    return s
+
+
+@router.put("/api/v1/schedules/{sid}")
+def update_schedule(sid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    s = next((x for x in STORE["schedules"] if x.get("id") == sid), None)
+    if not s or _visible_by_org([s], org, "project") != [s]:
+        raise HTTPException(404, "schedule not found")
+    for f in ("kind", "cron", "url"):
+        if f in spec and spec[f] is not None:
+            s[f] = str(spec[f])[:2000]
+    for f in ("every_min", "project_id", "target_id"):
+        if f in spec and spec[f] is not None:
+            try:
+                s[f] = int(spec[f])
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"{f} must be an integer")
+    if "status" in spec:
+        if spec["status"] not in ("active", "paused"):
+            raise HTTPException(400, "status must be active|paused")
+        s["status"] = spec["status"]
+    s["next_run"] = sched.next_run(s.get("kind", "interval"),
+                                   s.get("every_min", 60),
+                                   cron=s.get("cron", "")).isoformat()
+    repo.sync("schedules", s)
+    _audit(email, "schedule.update", str(sid))
+    return s
+
+
+@router.delete("/api/v1/schedules/{sid}")
+def delete_schedule(sid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    s = next((x for x in STORE["schedules"] if x.get("id") == sid), None)
+    if not s or _visible_by_org([s], org, "project") != [s]:
+        raise HTTPException(404, "schedule not found")
+    STORE["schedules"][:] = [x for x in STORE["schedules"] if x.get("id") != sid]
+    _audit(email, "schedule.delete", str(sid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/schedules/{sid}/enable")
+def enable_schedule(sid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    s = next((x for x in STORE["schedules"] if x.get("id") == sid), None)
+    if not s or _visible_by_org([s], org, "project") != [s]:
+        raise HTTPException(404, "schedule not found")
+    s["status"] = "active"
+    repo.sync("schedules", s)
+    _audit(email, "schedule.enable", str(sid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/schedules/{sid}/disable")
+def disable_schedule(sid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    s = next((x for x in STORE["schedules"] if x.get("id") == sid), None)
+    if not s or _visible_by_org([s], org, "project") != [s]:
+        raise HTTPException(404, "schedule not found")
+    s["status"] = "paused"
+    repo.sync("schedules", s)
+    _audit(email, "schedule.disable", str(sid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/schedules/{sid}/run")
+def run_schedule_now(sid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Run one schedule immediately: creates a collection job from it."""
+    import datetime
+    email, org, _ = _need(authorization, "collect", x_api_key)
+    s = next((x for x in STORE["schedules"] if x.get("id") == sid), None)
+    if not s or _visible_by_org([s], org, "project") != [s]:
+        raise HTTPException(404, "schedule not found")
+    if not s.get("url"):
+        raise HTTPException(400, "schedule has no url")
+    job = {"job_id": uuid.uuid4().hex, "trace_id": uuid.uuid4().hex,
+           "project_id": s.get("project_id", 1), "target_id": s.get("target_id", 1),
+           "url": s.get("url", ""), "strategy": "AUTO",
+           "plan": {"plan": ["DIRECT_HTTP"], "reasons": ["manual-schedule-run"]},
+           "status": "queued", "created_at": time.time(), "org": org,
+           "estimated_cost": 0.0001}
+    STORE["jobs"].append(job)
+    now = datetime.datetime.utcnow()
+    s["last_run"] = now.isoformat()
+    s["next_run"] = sched.next_run(s.get("kind", "interval"),
+                                   s.get("every_min", 60),
+                                   cron=s.get("cron", "")).isoformat()
+    repo.sync("schedules", s)
+    _audit(email, "schedule.run", f"{sid}:{job['job_id'][:8]}")
+    inc("jobs_total")
+    return job
 
 
 @router.post("/api/v1/worker/tick")
@@ -272,7 +429,9 @@ def worker_tick(authorization: str = Header(""), x_api_key: str = Header("")):
                    "project_id": s.get("project_id", 1), "target_id": s.get("target_id", 1),
                    "url": s.get("url", ""), "strategy": "AUTO",
                    "plan": {"plan": ["DIRECT_HTTP"], "reasons": ["scheduled"]},
-                   "status": "queued", "created_at": time.time(), "estimated_cost": 0.0001}
+                   "status": "queued", "created_at": time.time(), "estimated_cost": 0.0001,
+                   "org": next((t.get("org", 1) for t in STORE["targets"]
+                                if t.get("id") == s.get("target_id")), 1)}
             if job["url"]:
                 STORE["jobs"].append(job)
                 fired.append(job["job_id"])
