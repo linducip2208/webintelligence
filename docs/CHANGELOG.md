@@ -1,6 +1,10 @@
 # Changelog
 
-## v2.13.0 — intel interchange, hardening, ops
+## v2.13.1 — button loading UX + dead-handler fix
+- Restored missing `testTarget()` (dead Test button on Targets page)
+- Global `busy()` helper: spinner + live elapsed timer + disable on all
+  long operations (test/scan/run/scheduler/AI test)
+- Dead-handler gate: automated onclick-vs-definition audit, zero missing
 - STIX 2.1 bundle export/validate/import + MISP event export/import
 - Pivot transformations (8) + global timeline + graph node/edge listings
 - Recon attack-surface: RDAP/WHOIS/reverse-DNS, security headers capture,

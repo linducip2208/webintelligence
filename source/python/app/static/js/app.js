@@ -60,3 +60,8 @@ return `<rect x="${x.toFixed(1)}" y="${(h-20-bh).toFixed(1)}" width="${(bw-2).to
 return `<svg viewBox="0 0 ${w} ${h}" style="width:100%" role="img">${bars}<line x1="40" y1="${h-20}" x2="${w}" y2="${h-20}" stroke="currentColor" opacity=".3"/></svg>`;}
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
 function shortId(id){return esc(String(id||'').slice(0,8));}
+/* ---- long-operation button feedback: spinner + live elapsed timer ---- */
+function busy(btn,label){if(!btn||btn.disabled)return()=>{};const orig=btn.innerHTML;btn.disabled=true;const t0=Date.now();
+btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1" role="status"></span>${esc(label||'Working…')} <span data-elapsed class="text-muted">0s</span>`;
+const iv=setInterval(()=>{const el=btn.querySelector('[data-elapsed]');if(el)el.textContent=Math.floor((Date.now()-t0)/1000)+'s';},500);
+return ()=>{clearInterval(iv);if(btn.isConnected){btn.disabled=false;btn.innerHTML=orig;}};}
