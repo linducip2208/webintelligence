@@ -102,6 +102,7 @@ COST_CLASSES = [
     ("/api/v1/datasets", "export", 20),
     ("/api/v1/webhooks", "webhook", 100),
     ("/api/v1/ingest", "webhook", 100),
+    ("/api/v1/auth/login", "auth", 10),
 ]
 _DEFAULT_LIMIT = 300
 

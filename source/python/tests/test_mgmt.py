@@ -257,6 +257,20 @@ def test_rbac_custom_resolution():
     assert set(R.ACTIONS) >= {"read", "collect", "research", "alert", "ai", "configure", "users"}
 
 
+def test_backup_download_and_login_throttle(monkeypatch):
+    c = _c()
+    r = c.post("/api/v1/admin/backup", json={})
+    assert r.status_code == 200
+    assert "INSERT INTO" in r.text and "CREATE TABLE" in r.text
+    assert "webintel-backup.sql" in r.headers.get("content-disposition", "")
+    monkeypatch.setenv("RATE_LIMIT_AUTH", "3")
+    codes = [c.post("/api/v1/auth/login", json={"email": "x", "password": "y"}).status_code
+             for _ in range(5)]
+    assert codes[:3] == [401, 401, 401] and 429 in codes[3:]
+    bad = c.post("/api/v1/auth/login", json={"email": "nobody", "password": "x"})
+    assert bad.status_code in (401, 429)
+
+
 def test_granular_permissions_logout_reset_channels_collectors():
     from app.services import rbac as R
     assert R.GRANULAR["targets.scan"] == "collect"

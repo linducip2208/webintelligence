@@ -38,6 +38,7 @@ def login(creds: dict):
         return {"token": tok.issue(hit["email"], _secret()), "email": hit["email"]}
     u = USERS.get(creds.get("email", ""))
     if not u or not verify_password(creds.get("password", ""), u["password_hash"]):
+        _audit(creds.get("email", "?"), "auth.login.failed", "bad credentials")
         raise HTTPException(401, "bad credentials")
     _audit(creds.get("email", ""), "auth.login", "ok")
     return {"token": tok.issue(creds["email"], _secret()), "email": creds["email"]}
@@ -448,6 +449,66 @@ def collector_registry():
                      "capabilities": ((c.get("manifest") or {}).get("capabilities", []) or []),
                      "connector_id": c.get("id")})
     return {"collectors": cols}
+
+
+@router.post("/api/v1/admin/backup", tags=["admin"])
+def admin_backup(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Portable SQL dump of every app table (CREATE + INSERTs), generated in
+    Python so it works without mysqldump. Download via /admin/backup/download.
+    Secrets (password hashes, key hashes, encrypted blobs) dump as-is — the
+    FILE must be stored securely; it is never served except here."""
+    from ...db import repo as _repo_mod
+    email, _, _ = _need(authorization, "configure", x_api_key)
+    eng = repo.engine
+    if eng is None:
+        raise HTTPException(503, "database unavailable")
+    import datetime as _dt
+    from sqlalchemy import inspect as _insp, text as _tx
+    from sqlalchemy.schema import CreateTable as _CT
+    insp = _insp(eng)
+    parts = ["-- WebIntel backup " + _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+             "SET FOREIGN_KEY_CHECKS=0;"]
+    tables = 0
+    with eng.connect() as conn:
+        for t in sorted(insp.get_table_names()):
+            if t.startswith("alembic"):
+                continue
+            tables += 1
+            cols = [c["name"] for c in insp.get_columns(t)]
+            parts.append(f"DROP TABLE IF EXISTS `{t}`;")
+            try:
+                ddl = str(_CT(_repo_mod.Base.metadata.tables[t]).compile(dialect=eng.dialect))
+                parts.append(ddl.rstrip(";") + ";")
+            except Exception:
+                pass
+            parts.append(f"-- table {t} ({len(cols)} cols)")
+            rows = conn.execute(_tx(f"SELECT * FROM `{t}`")).fetchall()
+            for r in rows:
+                vals = []
+                for v in r:
+                    if v is None:
+                        vals.append("NULL")
+                    elif isinstance(v, bool):
+                        vals.append("1" if v else "0")
+                    elif isinstance(v, (int, float)):
+                        vals.append(str(v))
+                    else:
+                        vals.append("'" + str(v).replace("\\", "\\\\").replace("'", "\\'") + "'")
+                parts.append(f"INSERT INTO `{t}` ({', '.join(f'`{c}`' for c in cols)}) "
+                             f"VALUES ({', '.join(vals)});")
+    parts.append("SET FOREIGN_KEY_CHECKS=1;")
+    sql = "\n".join(parts)
+    try:
+        repo.kv_set("backup:last",
+                    {"at": _dt.datetime.utcnow().isoformat() + "Z",
+                     "tables": tables, "bytes": len(sql.encode())})
+    except Exception:
+        pass
+    _audit(email, "admin.backup", f"{tables} tables")
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(sql, media_type="application/sql",
+                            headers={"Content-Disposition":
+                                     "attachment; filename=webintel-backup.sql"})
 
 
 @router.get("/api/v1/admin/data-quality", tags=["admin"])

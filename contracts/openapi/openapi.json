@@ -725,6 +725,58 @@
     }
    }
   },
+  "/api/v1/admin/backup": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Admin Backup",
+    "description": "Portable SQL dump of every app table (CREATE + INSERTs), generated in\nPython so it works without mysqldump. Download via /admin/backup/download.\nSecrets (password hashes, key hashes, encrypted blobs) dump as-is \u2014 the\nFILE must be stored securely; it is never served except here.",
+    "operationId": "admin_backup_api_v1_admin_backup_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/admin/data-quality": {
    "get": {
     "tags": [

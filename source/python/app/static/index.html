@@ -18,7 +18,8 @@ form.inline input,form.inline select{max-width:220px}
 .navbar-vertical .nav-link{cursor:pointer}
 .navbar-vertical .nav-link.active{background:var(--tblr-active-bg,#1b2942)}
 pre{white-space:pre-wrap}
-@media(max-width:991px){.navbar-vertical{display:none}}
+#mnav{display:none}
+@media(max-width:991px){.navbar-vertical{display:none;position:fixed;top:0;bottom:0;left:0;width:270px;z-index:1045;overflow-y:auto;box-shadow:0 0 2rem rgba(0,0,0,.5)}.navbar-vertical.open{display:block}.navbar-vertical.open #sidebar-menu{display:block}#mnav{display:inline-block}}
 </style>
 </head>
 <body>
@@ -42,7 +43,7 @@ pre{white-space:pre-wrap}
 <div class="row g-2 align-items-center">
 <div class="col"><h2 class="page-title" id="title">Dashboard</h2><div id="sub" class="text-muted small"></div></div>
 <div class="col-auto ms-auto d-print-none"><div class="btn-list">
-<button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank">📖 Docs</a><span id="actions"></span>
+<button id="mnav" class="btn" onclick="document.querySelector('.navbar-vertical').classList.toggle('open')" aria-label="menu">☰</button><button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank">📖 Docs</a><span id="actions"></span>
 </div></div>
 </div></div></div>
 <div class="page-body"><div class="container-xl">

@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.13.0 — intel interchange, hardening, ops
+- STIX 2.1 bundle export/validate/import + MISP event export/import
+- Pivot transformations (8) + global timeline + graph node/edge listings
+- Recon attack-surface: RDAP/WHOIS/reverse-DNS, security headers capture,
+  deep scan profile; scan profiles quick/standard/deep
+- Collector registry (/collectors) with live health + queue depth
+- Granular RBAC names (40+, mapped, backward-compatible), auth login/logout,
+  admin password reset (shown once), login throttle 10/min + failed-login audit
+- Webhook channels generic/slack/discord; portable SQL backup download
+- Mobile off-canvas navigation E2E; security headers middleware;
+  Windows .js MIME fix (found by E2E)
+- Redis RESP2 compat (real queue/rate-limits on old servers)
+- Go tests + vet green; pip-audit clean
+
 ## v2.12.0 — management plane + investigations + intel engines
 - Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/
   webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export
