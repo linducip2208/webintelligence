@@ -130,6 +130,10 @@ class Finding(Base):
     confidence = Column(Float, default=0.0)
     entities = Column(JSON, default=list)
     evidence_ids = Column(JSON, default=list)
+    severity = Column(String(16), default="info", index=True)  # info|low|medium|high|critical
+    status = Column(String(16), default="OPEN", index=True)  # OPEN|CONFIRMED|FALSE_POSITIVE|RESOLVED|ACCEPTED
+    priority = Column(String(16), default="medium")
+    resolved_at = Column(Float, default=0.0)
     created_at = Column(DateTime, server_default=func.now(), index=True)
 
 
@@ -285,6 +289,51 @@ class KV(Base):
     __tablename__ = "kv_store"
     key = Column(String(255), primary_key=True)
     value = Column(JSON, default=dict)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Investigation(Base):
+    __tablename__ = "investigations"
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), index=True)
+    title = Column(String(255))
+    description = Column(Text, default="")
+    status = Column(String(32), default="open", index=True)  # open|investigating|pending|resolved|closed
+    priority = Column(String(16), default="medium")  # low|medium|high|critical
+    owner_email = Column(String(255), default="")
+    member_emails = Column(JSON, default=list)
+    tags = Column(JSON, default=list)
+    target_ids = Column(JSON, default=list)
+    entity_ids = Column(JSON, default=list)
+    finding_ids = Column(JSON, default=list)
+    evidence_ids = Column(JSON, default=list)
+    notes = Column(JSON, default=list)  # [{by,at,text}]
+    tasks = Column(JSON, default=list)  # [{id,title,done,by}]
+    data = Column(JSON, default=dict)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Case(Base):
+    __tablename__ = "cases"
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), index=True)
+    title = Column(String(255))
+    description = Column(Text, default="")
+    status = Column(String(32), default="OPEN", index=True)  # OPEN|INVESTIGATING|PENDING|RESOLVED|CLOSED
+    priority = Column(String(16), default="medium")
+    assignee = Column(String(255), default="")
+    member_emails = Column(JSON, default=list)
+    tags = Column(JSON, default=list)
+    investigation_ids = Column(JSON, default=list)
+    entity_ids = Column(JSON, default=list)
+    finding_ids = Column(JSON, default=list)
+    evidence_ids = Column(JSON, default=list)
+    alert_ids = Column(JSON, default=list)
+    notes = Column(JSON, default=list)
+    tasks = Column(JSON, default=list)
+    data = Column(JSON, default=dict)
+    created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 

@@ -127,6 +127,23 @@ def test_ui_management_flow():
             pg.wait_for_selector("text=E2E Project", timeout=15000)
             rids = [r["id"] for r in _call("GET", "/api/v1/reports?size=100")["items"]]
             assert rids
+            # investigation + case via UI
+            pg.evaluate("view='investigations'; load()")
+            pg.wait_for_selector("text=+ New investigation", timeout=10000)
+            pg.click("text=+ New investigation")
+            pg.fill("#modal-root input[name=title]", "E2E Investigation")
+            pg.get_by_role("button", name="Create", exact=True).click()
+            pg.wait_for_selector("text=E2E Investigation", timeout=15000)
+            iids = [i["id"] for i in _call("GET", "/api/v1/investigations?size=100")["items"]]
+            assert iids
+            pg.evaluate("view='cases'; load()")
+            pg.wait_for_selector("text=+ New case", timeout=10000)
+            pg.click("text=+ New case")
+            pg.fill("#modal-root input[name=title]", "E2E Case")
+            pg.get_by_role("button", name="Create", exact=True).click()
+            pg.wait_for_selector("text=E2E Case", timeout=15000)
+            cids = [c["id"] for c in _call("GET", "/api/v1/cases?size=100")["items"]]
+            assert cids
             # webhook add via UI
             pg.evaluate("view='webhooks'; load()")
             pg.wait_for_selector("text=+ Add webhook", timeout=10000)

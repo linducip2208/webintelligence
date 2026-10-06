@@ -255,3 +255,164 @@ def test_rbac_custom_resolution():
     assert not R.can("anything", "configure", {"read", "collect"})
     assert not R.can("ghost", "read")
     assert set(R.ACTIONS) >= {"read", "collect", "research", "alert", "ai", "configure", "users"}
+
+
+def test_recon_unit_shapes():
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from app.services import recon as RC
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = (b"<html><head><title>T1</title></head><body>"
+                    b'<script src="/x/jquery.min.js"></script>'
+                    b'<a href="/in">i</a><a href="https://other.example/o">o</a>'
+                    b"</body></html>" if self.path == "/" else b"User-agent: *\n")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html" if self.path == "/" else "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    s = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{s.server_port}/"
+        body = (b"<html><head><title>T1</title></head><body>"
+                b'<script src="/x/jquery.min.js"></script>'
+                b'<a href="/in">i</a><a href="https://other.example/o">o</a>'
+                b"</body></html>")
+        out = RC.recon_target(url, body, trusted_cidrs=["127.0.0.0/8"])
+        assert out["ok"] and out["host"] == "127.0.0.1"
+        assert out["dns"]["ok"] and "127.0.0.1" in out["dns"]["ips"]
+        assert out["tls"]["ok"] is False  # plain http
+        assert out["http"]["ok"] and "jQuery" in out["http"]["tech"]
+        assert out["http"]["robots_txt"] is True
+        assert out["http"]["links_external"] == 1
+        bad = RC.recon_target("http://169.254.169.254/", trusted_cidrs=[])
+        assert bad["ok"] is False  # SSRF-guarded
+        assert RC.recon_target("not a url", trusted_cidrs=[])["ok"] is False
+    finally:
+        s.shutdown()
+
+
+def test_infra_correlation_candidates():
+    from app.services import infracorr as IC
+    store = {"targets": [{"id": 1, "org": 1, "domain": "a.com",
+                          "recon": {"ok": True, "dns": {"ok": True, "ips": ["9.9.9.9"]},
+                                    "tls": {"ok": True, "cert_key": "C1"},
+                                    "http": {"ok": True, "tech": ["WordPress", "jQuery"]}}},
+                         {"id": 2, "org": 1, "domain": "b.com",
+                          "recon": {"ok": True, "dns": {"ok": True, "ips": ["9.9.9.9"]},
+                                    "tls": {"ok": True, "cert_key": "C1"},
+                                    "http": {"ok": True, "tech": ["WordPress", "jQuery"]}}},
+                         {"id": 3, "org": 1, "domain": "c.com",
+                          "recon": {"ok": True, "dns": {"ok": True, "ips": ["8.8.8.8"]},
+                                    "tls": {"ok": False},
+                                    "http": {"ok": True, "tech": ["React"]}}}],
+             "findings": []}
+    cands = IC.correlate(store, 1)
+    signals = {c["signal"] for c in cands}
+    assert {"SHARES_IP", "SHARES_CERTIFICATE", "SHARES_TECHNOLOGY"} <= signals
+    assert all(c["members"] == [1, 2] for c in cands)
+    made = IC.materialize(store, 1)
+    assert len(made) == len(cands) and all(f["status"] == "OPEN" for f in made)
+    assert IC.materialize(store, 1) == []  # idempotent, no duplicates
+    assert IC.correlate({"targets": []}, 1) == []
+
+
+def test_findings_lifecycle_and_risk():
+    from app.services import risk as R
+    c = _c()
+    f = c.post("/api/v1/findings", json={"kind": "obs", "title": "F-RISK",
+                                         "confidence": 0.9}).json()
+    fid = f["id"]
+    assert f["severity"] == "info" and f["status"] == "OPEN"
+    assert c.put(f"/api/v1/findings/{fid}", json={"severity": "bogus"}).status_code == 400
+    assert c.put(f"/api/v1/findings/{fid}", json={"status": "bogus"}).status_code == 400
+    r = c.put(f"/api/v1/findings/{fid}", json={"severity": "critical"}).json()
+    assert r["severity"] == "critical"
+    out = c.post("/api/v1/findings/bulk", json={"action": "status", "status": "CONFIRMED",
+                                                "ids": [fid, 999999]}).json()
+    assert out == {"ok": True, "updated": 1}
+    assert c.post("/api/v1/findings/bulk", json={"action": "nope", "ids": []}).status_code == 400
+    store = {"targets": [{"id": 7, "org": 1, "project_id": 1}],
+             "findings": [{"id": fid, "org": 1, "severity": "critical",
+                           "status": "OPEN", "title": "F-RISK", "entities": [7]}],
+             "alerts": [{"id": 1, "org": 1, "project_id": 1, "rule": "x",
+                         "severity": "critical"}],
+             "projects": [{"id": 1, "org": 1}], "changes": [], "jobs": [],
+             "entities": [{"id": 7, "name": "e", "domain": "e.com"}],
+             "nodes": [], "edges": [], "evidence": []}
+    scored = R.score_target(store, 7, 1)
+    assert scored["score"] == 40 and scored["level"] == "medium"  # 25 finding + 15 alert
+    assert all({"name", "points", "why", "evidence"} <= set(fc) for fc in scored["factors"])
+    assert R.score_target(store, 999, 1) == {"error": "target not found"}
+    assert R.score_target(store, 7, 2) == {"error": "target not found"}
+    ent = R.score_entity(store, 7, 1)
+    assert ent["score"] >= 25 and "relationships" in ent
+    assert R.score_entity(store, 999, 1) == {"error": "entity not found"}
+    assert R._level(0) == "none" and R._level(100) == "critical"
+    assert c.delete(f"/api/v1/findings/{fid}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/findings/{fid}").status_code == 404
+
+
+def test_investigations_crud_links():
+    c = _c()
+    assert c.post("/api/v1/investigations", json={"title": ""}).status_code == 400
+    assert c.post("/api/v1/investigations", json={"title": "x", "status": "bogus"}).status_code == 400
+    inv = c.post("/api/v1/investigations", json={"title": "INV-1", "priority": "high",
+                                                 "tags": ["t"]}).json()
+    iid = inv["id"]
+    assert c.get("/api/v1/investigations/999999").status_code == 404
+    d = c.get(f"/api/v1/investigations/{iid}").json()
+    assert d["linked"]["targets"] == [] and d["status"] == "open"
+    assert c.put(f"/api/v1/investigations/{iid}", json={"status": "bogus"}).status_code == 400
+    assert c.put(f"/api/v1/investigations/{iid}", json={"status": "investigating"}).json()["status"] == "investigating"
+    t = c.post("/api/v1/targets", json={"project_id": 1, "domain": "inv.com",
+                                        "url": "https://example.com/inv"}).json()
+    r = c.post(f"/api/v1/investigations/{iid}/links", json={"kind": "target_ids", "ids": [t["id"], t["id"]]}).json()
+    assert r["added"] == [t["id"]]
+    assert c.post(f"/api/v1/investigations/{iid}/links", json={"kind": "nope", "ids": []}).status_code == 400
+    n = c.post(f"/api/v1/investigations/{iid}/notes", json={"text": "note-1"}).json()
+    assert len(n["notes"]) == 1 and n["notes"][0]["text"] == "note-1"
+    assert c.post(f"/api/v1/investigations/{iid}/notes", json={"text": ""}).status_code == 400
+    task = c.post(f"/api/v1/investigations/{iid}/tasks", json={"title": "task-1"}).json()
+    assert task["done"] is False
+    assert c.post(f"/api/v1/investigations/{iid}/tasks/{task['id']}/toggle").json() == {"ok": True, "done": True}
+    assert c.post(f"/api/v1/investigations/{iid}/tasks/999999/toggle").status_code == 404
+    m = c.post(f"/api/v1/investigations/{iid}/members", json={"email": "an@example.com"}).json()
+    assert "an@example.com" in m["member_emails"]
+    assert c.post(f"/api/v1/investigations/{iid}/members", json={"email": "bad"}).status_code == 400
+    assert c.get("/api/v1/investigations?q=inv-1").json()["total"] >= 1
+    assert c.get("/api/v1/investigations?status=investigating").json()["total"] >= 1
+    assert c.delete(f"/api/v1/investigations/{iid}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/targets/{t['id']}").json() == {"ok": True}
+
+
+def test_cases_lifecycle():
+    c = _c()
+    assert c.post("/api/v1/cases", json={"title": ""}).status_code == 400
+    case = c.post("/api/v1/cases", json={"title": "CASE-1", "priority": "critical",
+                                         "assignee": "lead@example.com"}).json()
+    cid = case["id"]
+    assert case["status"] == "OPEN"
+    assert c.put(f"/api/v1/cases/{cid}", json={"status": "bogus"}).status_code == 400
+    assert c.put(f"/api/v1/cases/{cid}", json={"status": "investigating"}).json()["status"] == "INVESTIGATING"
+    inv = c.post("/api/v1/investigations", json={"title": "INV-C"}).json()
+    r = c.post(f"/api/v1/cases/{cid}/links", json={"kind": "investigation_ids", "ids": [inv["id"]]}).json()
+    assert r["added"] == [inv["id"]]
+    assert c.post(f"/api/v1/cases/{cid}/links", json={"kind": "nope", "ids": []}).status_code == 400
+    n = c.post(f"/api/v1/cases/{cid}/notes", json={"text": "case-note"}).json()
+    assert n["notes"][0]["text"] == "case-note"
+    task = c.post(f"/api/v1/cases/{cid}/tasks", json={"title": "ct"}).json()
+    assert c.post(f"/api/v1/cases/{cid}/tasks/{task['id']}/toggle").json()["done"] is True
+    d = c.get(f"/api/v1/cases/{cid}").json()
+    assert len(d["linked"]["investigations"]) == 1 and "audit_trail" in d
+    assert c.get("/api/v1/cases?q=case-1").json()["total"] >= 1
+    assert c.delete(f"/api/v1/cases/{cid}").json() == {"ok": True}
+    assert c.delete(f"/api/v1/investigations/{inv['id']}").json() == {"ok": True}
+    assert c.get(f"/api/v1/cases/{cid}").status_code == 404

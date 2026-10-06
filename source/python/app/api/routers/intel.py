@@ -663,3 +663,24 @@ def get_alert(alert_id: int, authorization: str = Header(""), x_api_key: str = H
     return a
 
 
+# ---- explainable risk ----
+@router.get("/api/v1/risk/target/{tid}", tags=["intelligence"])
+def risk_target(tid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import risk as _risk
+    _, org, _ = _ctx(authorization, x_api_key)
+    out = _risk.score_target(STORE, tid, org)
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
+@router.get("/api/v1/risk/entity/{eid}", tags=["intelligence"])
+def risk_entity(eid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...services import risk as _risk
+    _, org, _ = _ctx(authorization, x_api_key)
+    out = _risk.score_entity(STORE, eid, org)
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+

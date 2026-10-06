@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.12.0 — management plane + investigations + intel engines
+- Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/
+  webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export
+- Investigations + cases (notes/tasks/members/links/status lifecycles)
+- Findings severity/status/priority + triage + bulk; explainable risk engine
+- Recon enrichment (DNS/TLS/tech/robots) in every job + infra-correlation
+  candidates as reviewable findings
+- Custom org-scoped roles (builtin matrix untouched); users disable/enable
+- Audit trail on all mutations; IDOR org-scope fixes; security headers;
+  Redis RESP2 compat (real queue/rate-limits on old servers)
+- Settings area (12 groups), verticals UI, retention/SLA/billing wiring
+- Admin UI split to static/js (app.js utils + views.js); 38 views verified
+  in Chromium with zero console errors
+- 178 versioned API paths; docs/DATA_MODEL.md, docs/COLLECTORS.md,
+  docs/WORKFLOWS.md
+
 ## v2.11.0
 - Dataset versioning fixed (per-dataset numbering; was global)
 - Hermetic test isolation (autouse backend flush)

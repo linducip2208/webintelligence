@@ -39,3 +39,16 @@ def test_ai_quota_and_usage():
     u = E.usage(s, 1)
     assert u["plan"] == "starter" and u["used"]["ai_tokens"] == 99900
     assert u["limits"]["max_projects"] == 3
+
+
+def test_jobs_quota_mixed_timestamp_shapes():
+    import time
+    import datetime as _dt
+    s = _store()
+    s["jobs"] = [{"org": 1, "created_at": time.time()},
+                 {"org": 1, "created_at": _dt.datetime.now().isoformat()},
+                 {"org": 1},
+                 {"org": 1, "created_at": "garbage"}]
+    assert E.check(s, 1, "jobs")[0] is True
+    assert E.usage(s, 1)["used"]["jobs_today"] == 2
+    assert E._day_of(None) == "" and E._day_of("garbage") == ""

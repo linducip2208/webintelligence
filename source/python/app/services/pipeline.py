@@ -18,6 +18,7 @@ from . import change as changedet
 from . import quality as qual
 from . import normalize as norm
 from . import targets as tgt
+from . import recon as _recon
 
 MAX_BODY = 10_000_000
 
@@ -101,6 +102,11 @@ def run_job(job: dict, target: dict, last_prices: list, policy: dec.Policy,
     cost = costeng.estimate(strategy)
     prof = tgt.record_attempt(dict(target.get("profile", {})), strategy, ok,
                               fetched["latency_ms"], cost)
+    try:
+        recon = _recon.recon_target(job.get("url", ""), body, timeout_s=min(timeout_s, 10),
+                                    trusted_cidrs=trusted_cidrs)
+    except Exception:
+        recon = {"ok": False, "error": "recon crashed"}
     ms = round((time.time() - t0) * 1000, 2)
     return {
         "job_id": job.get("job_id"), "status": "success" if ok else "failed",
@@ -109,7 +115,7 @@ def run_job(job: dict, target: dict, last_prices: list, policy: dec.Policy,
         "latency_ms": fetched["latency_ms"], "duration_ms": ms,
         "diagnostics": diag, "quality": q, "prices": prices,
         "change": change_kind, "alerts": alerts, "cost": cost,
-        "target_profile": prof,
+        "target_profile": prof, "recon": recon,
     }
 
 

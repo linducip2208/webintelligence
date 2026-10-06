@@ -45,6 +45,37 @@ def graph_edge(spec: dict, authorization: str = Header(""), x_api_key: str = Hea
     return edge
 
 
+@router.get("/api/v1/graph/nodes", tags=["knowledge"])
+def graph_nodes(q: str = "", kind: str = "", page: int = 1, size: int = 20,
+                authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = [n for n in STORE["nodes"] if n.get("org", 1) == org]
+    if kind:
+        items = [n for n in items if n.get("kind") == kind]
+    if q:
+        ql = q.lower()
+        items = [n for n in items
+                 if ql in str(n.get("key", "")).lower() or ql in str(n.get("name", "")).lower()]
+    return paginate(items, page, size)
+
+
+@router.get("/api/v1/graph/edges", tags=["knowledge"])
+def graph_edges(q: str = "", rel: str = "", page: int = 1, size: int = 20,
+                authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = [e for e in STORE["edges"] if e.get("org", 1) == org]
+    if rel:
+        items = [e for e in items if e.get("rel") == rel]
+    if q:
+        ql = q.lower()
+        names = {n["id"]: (n.get("key", ""), n.get("name", "")) for n in STORE["nodes"]}
+        items = [e for e in items
+                 if ql in str(e.get("rel", "")).lower()
+                 or ql in " ".join(str(v) for v in names.get(e.get("src"), ("", ""))).lower()
+                 or ql in " ".join(str(v) for v in names.get(e.get("dst"), ("", ""))).lower()]
+    return paginate(items, page, size)
+
+
 @router.get("/api/v1/graph/traverse", tags=["knowledge"])
 def graph_traverse(node: int = 0, depth: int = 2, rel: str = "", kind: str = "", at: str = "",
                    authorization: str = Header(""), x_api_key: str = Header("")):
@@ -146,17 +177,97 @@ def check_contradictions(spec: dict):
 @router.post("/api/v1/findings", tags=["intelligence"])
 def create_finding(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     email, org, _ = _need(authorization, "research", x_api_key)
-    item = {"id": len(STORE["findings"]) + 1, "org": org, **spec}
+    item = {"id": len(STORE["findings"]) + 1, "org": org,
+            "severity": (spec.get("severity", "info") or "info").lower(),
+            "status": (spec.get("status", "OPEN") or "OPEN").upper(),
+            "priority": (spec.get("priority", "medium") or "medium").lower(),
+            "resolved_at": 0.0, **{k: v for k, v in spec.items()
+                                   if k not in ("severity", "status", "priority")}}
     STORE["findings"].append(item)
     _audit(email, "finding.create", str(item["id"]))
     return item
 
 
 @router.get("/api/v1/findings", tags=["intelligence"])
-def list_findings(page: int = 1, size: int = 20,
+def list_findings(page: int = 1, size: int = 20, severity: str = "", status: str = "",
                   authorization: str = Header(""), x_api_key: str = Header("")):
     _, org, _ = _ctx(authorization, x_api_key)
-    return paginate(_visible_by_org(STORE["findings"], org), page, size)
+    items = _visible_by_org(STORE["findings"], org)
+    if severity:
+        items = [x for x in items if (x.get("severity") or "info").lower() == severity.lower()]
+    if status:
+        items = [x for x in items if (x.get("status") or "OPEN").upper() == status.upper()]
+    return paginate(items, page, size)
+
+
+FINDING_SEVERITIES = ("info", "low", "medium", "high", "critical")
+FINDING_STATUSES = ("OPEN", "CONFIRMED", "FALSE_POSITIVE", "RESOLVED", "ACCEPTED")
+
+
+@router.put("/api/v1/findings/{fid}", tags=["intelligence"])
+def update_finding(fid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "research", x_api_key)
+    f = next((x for x in STORE["findings"]
+              if x.get("id") == fid and x.get("org", 1) == org), None)
+    if not f:
+        raise HTTPException(404, "finding not found")
+    if "title" in spec and spec["title"]:
+        f["title"] = str(spec["title"])[:500]
+    if "body" in spec:
+        f["body"] = str(spec["body"] or "")[:20000]
+    if "severity" in spec:
+        sev = str(spec["severity"]).lower()
+        if sev not in FINDING_SEVERITIES:
+            raise HTTPException(400, f"severity must be one of {list(FINDING_SEVERITIES)}")
+        f["severity"] = sev
+    if "status" in spec:
+        st = str(spec["status"]).upper()
+        if st not in FINDING_STATUSES:
+            raise HTTPException(400, f"status must be one of {list(FINDING_STATUSES)}")
+        f["status"] = st
+        import time as _t
+        f["resolved_at"] = _t.time() if st in ("RESOLVED", "FALSE_POSITIVE") else 0.0
+    if "priority" in spec:
+        f["priority"] = str(spec["priority"]).lower()[:16]
+    repo.sync("findings", f)
+    _audit(email, "finding.update", str(fid))
+    return f
+
+
+@router.delete("/api/v1/findings/{fid}", tags=["intelligence"])
+def delete_finding(fid: int, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    f = next((x for x in STORE["findings"]
+              if x.get("id") == fid and x.get("org", 1) == org), None)
+    if not f:
+        raise HTTPException(404, "finding not found")
+    STORE["findings"][:] = [x for x in STORE["findings"] if x.get("id") != fid]
+    _audit(email, "finding.delete", str(fid))
+    return {"ok": True}
+
+
+@router.post("/api/v1/findings/bulk", tags=["intelligence"])
+def findings_bulk(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    email, org, _ = _need(authorization, "research", x_api_key)
+    action = spec.get("action", "")
+    if action != "status":
+        raise HTTPException(400, "action must be status")
+    st = str(spec.get("status", "")).upper()
+    if st not in FINDING_STATUSES:
+        raise HTTPException(400, f"status must be one of {list(FINDING_STATUSES)}")
+    import time as _t
+    n = 0
+    for fid in spec.get("ids", [])[:500]:
+        f = next((x for x in STORE["findings"]
+                  if x.get("id") == fid and x.get("org", 1) == org), None)
+        if not f:
+            continue
+        f["status"] = st
+        f["resolved_at"] = _t.time() if st in ("RESOLVED", "FALSE_POSITIVE") else 0.0
+        repo.sync("findings", f)
+        n += 1
+    _audit(email, "finding.bulk.status", f"{st}:{n}")
+    return {"ok": True, "updated": n}
 
 
 @router.get("/api/v1/feed", tags=["intelligence"])

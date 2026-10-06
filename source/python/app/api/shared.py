@@ -353,9 +353,36 @@ def _apply_result(res: dict, job_url: str, project_id: int, target_id: int):
                             f"({res.get('strategy')}, http={res.get('http_status')})",
                  "project_id": project_id, "is_read": False}))
     STORE["attempts"].append({"target_id": target_id, "ok": res.get("status") == "success",
-                              "latency_ms": res.get("latency_ms", 0),
-                              "completeness": (res.get("quality") or {}).get("overall", 0),
-                              "at": time.time()})
+                               "latency_ms": res.get("latency_ms", 0),
+                               "completeness": (res.get("quality") or {}).get("overall", 0),
+                               "at": time.time()})
+    # recon snapshot -> target profile + evidence + infra correlation
+    try:
+        recon = res.get("recon") or {}
+        if recon.get("ok") or recon.get("dns") or recon.get("http"):
+            tgt = next((t for t in STORE["targets"] if t.get("id") == target_id), None)
+            if tgt is not None:
+                tgt["recon"] = {"at": time.time(), "host": recon.get("host", ""),
+                                "dns": recon.get("dns", {}), "tls": recon.get("tls", {}),
+                                "http": recon.get("http", {})}
+                repo.sync("targets", tgt)
+                import hashlib as _h, json as _j
+                fp = _h.sha256(_j.dumps(tgt["recon"], sort_keys=True, default=str).encode()).hexdigest()[:24]
+                if not any(e.get("content_hash") == fp for e in STORE["evidence"]):
+                    STORE["evidence"].append({
+                        "id": len(STORE["evidence"]) + 1,
+                        "org": (tgt.get("org", 1)), "source": "recon",
+                        "url": job_url, "content_hash": fp,
+                        "snippet": f"recon {recon.get('host','')}: "
+                                   f"{len((recon.get('dns') or {}).get('ips', []))} IPs, "
+                                   f"tech {((recon.get('http') or {}).get('tech', []))[:4]}",
+                        "confidence": 0.9})
+            from ..services import infracorr as _ic
+            made = _ic.materialize(STORE, (job or {}).get("org", 1))
+            for f in made:
+                _audit("pipeline", "finding.correlation", f"{f['id']}:{f['title'][:80]}")
+    except Exception:
+        pass
     if True:
         from ..services import temporal as _t
         for p in res.get("prices", []):

@@ -710,11 +710,73 @@ def _m_roles(item):
     from ..models.universal import Role
     return Role, {"org_id": item.get("org_id"), "name": item.get("name", ""),
                   "permissions": list(item.get("permissions", []))}
-
-
 def _h_roles(row):
     return {"id": row.id, "org_id": row.org_id, "name": row.name,
             "permissions": list(row.permissions or []), "builtin": False}
+
+
+def _m_investigations(item):
+    from ..models.universal import Investigation
+    cols = {"org_id": item.get("org", 1), "title": item.get("title", ""),
+            "description": item.get("description", "") or "",
+            "status": item.get("status", "open"),
+            "priority": item.get("priority", "medium"),
+            "owner_email": item.get("owner_email", "") or "",
+            "member_emails": list(item.get("member_emails", []) or []),
+            "tags": list(item.get("tags", []) or []),
+            "target_ids": list(item.get("target_ids", []) or []),
+            "entity_ids": list(item.get("entity_ids", []) or []),
+            "finding_ids": list(item.get("finding_ids", []) or []),
+            "evidence_ids": list(item.get("evidence_ids", []) or []),
+            "notes": list(item.get("notes", []) or []),
+            "tasks": list(item.get("tasks", []) or [])}
+    return Investigation, cols
+
+
+def _h_investigations(row):
+    return {"id": row.id, "org": row.org_id, "title": row.title,
+            "description": row.description or "", "status": row.status or "open",
+            "priority": row.priority or "medium",
+            "owner_email": row.owner_email or "",
+            "member_emails": list(row.member_emails or []),
+            "tags": list(row.tags or []),
+            "target_ids": list(row.target_ids or []),
+            "entity_ids": list(row.entity_ids or []),
+            "finding_ids": list(row.finding_ids or []),
+            "evidence_ids": list(row.evidence_ids or []),
+            "notes": list(row.notes or []), "tasks": list(row.tasks or [])}
+
+
+def _m_cases(item):
+    from ..models.universal import Case
+    return Case, {"org_id": item.get("org", 1), "title": item.get("title", ""),
+                  "description": item.get("description", "") or "",
+                  "status": item.get("status", "OPEN"),
+                  "priority": item.get("priority", "medium"),
+                  "assignee": item.get("assignee", "") or "",
+                  "member_emails": list(item.get("member_emails", []) or []),
+                  "tags": list(item.get("tags", []) or []),
+                  "investigation_ids": list(item.get("investigation_ids", []) or []),
+                  "entity_ids": list(item.get("entity_ids", []) or []),
+                  "finding_ids": list(item.get("finding_ids", []) or []),
+                  "evidence_ids": list(item.get("evidence_ids", []) or []),
+                  "alert_ids": list(item.get("alert_ids", []) or []),
+                  "notes": list(item.get("notes", []) or []),
+                  "tasks": list(item.get("tasks", []) or [])}
+
+
+def _h_cases(row):
+    return {"id": row.id, "org": row.org_id, "title": row.title,
+            "description": row.description or "", "status": row.status or "OPEN",
+            "priority": row.priority or "medium", "assignee": row.assignee or "",
+            "member_emails": list(row.member_emails or []),
+            "tags": list(row.tags or []),
+            "investigation_ids": list(row.investigation_ids or []),
+            "entity_ids": list(row.entity_ids or []),
+            "finding_ids": list(row.finding_ids or []),
+            "evidence_ids": list(row.evidence_ids or []),
+            "alert_ids": list(row.alert_ids or []),
+            "notes": list(row.notes or []), "tasks": list(row.tasks or [])}
 
 
 def _m_apikeys(item):
@@ -815,13 +877,21 @@ def _m_findings(item):
                      "title": item.get("title", ""), "body": item.get("body", ""),
                      "confidence": item.get("confidence", 0.0),
                      "entities": item.get("entities", []),
-                     "evidence_ids": item.get("evidence_ids", [])}
+                     "evidence_ids": item.get("evidence_ids", []),
+                     "severity": (item.get("severity", "info") or "info").lower(),
+                     "status": (item.get("status", "OPEN") or "OPEN").upper(),
+                     "priority": (item.get("priority", "medium") or "medium").lower(),
+                     "resolved_at": item.get("resolved_at", 0.0) or 0.0}
 
 
 def _h_findings(row):
     return {"id": row.id, "org": row.org_id, "kind": row.kind, "title": row.title,
             "body": row.body or "", "confidence": row.confidence,
-            "entities": row.entities or [], "evidence_ids": row.evidence_ids or []}
+            "entities": row.entities or [], "evidence_ids": row.evidence_ids or [],
+            "severity": getattr(row, "severity", "info") or "info",
+            "status": getattr(row, "status", "OPEN") or "OPEN",
+            "priority": getattr(row, "priority", "medium") or "medium",
+            "resolved_at": getattr(row, "resolved_at", 0.0) or 0.0}
 
 
 def _m_research(item):
@@ -1082,6 +1152,7 @@ _MIRRORS = {
     "deliveries": _m_deliveries, "history": _m_snapshots, "feed_subs": _m_feedsubs,
     "entity_history": _m_entity_history, "ai_providers": _m_aiproviders,
     "reviews": _m_reviews, "ai_usage": _m_aiusage, "maintenance": _m_maintenance,
+    "investigations": _m_investigations, "cases": _m_cases,
 }
 
 _HYDRATE = {
@@ -1105,6 +1176,7 @@ _HYDRATE = {
     "feed_subs": (None, _h_feedsubs), "entity_history": (None, _h_entity_history),
     "ai_providers": (None, _h_aiproviders), "reviews": (None, _h_reviews),
     "ai_usage": (None, _h_aiusage), "maintenance": (None, _h_maintenance),
+    "investigations": (None, _h_investigations), "cases": (None, _h_cases),
 }
 
 _KEYS = {"jobs": "job_uid", "apikeys": "key_hash"}
@@ -1115,7 +1187,8 @@ def _model_for(coll):
                                    Report, Schedule, RawDocument, Change, Alert,
                                    NormalizedEntity, AuditLog, CollectionAttempt,
                                    AIProvider, AIUsage, Review)
-    from ..models.universal import (Organization, Membership, Role, APIKey, GraphNode,
+    from ..models.universal import (Organization, Membership, Role, Investigation,
+                                     Case, APIKey, GraphNode,
                                     GraphEdge, Event, Evidence, Claim, Finding,
                                     ResearchRun, Watchlist, Workflow, WorkflowRun,
                                     Dataset, DatasetVersion, Connector, Document,
@@ -1128,7 +1201,8 @@ def _model_for(coll):
             "ai_usage": AIUsage,
             "entities": NormalizedEntity, "audit": AuditLog,
             "attempts": CollectionAttempt, "orgs": Organization,
-            "memberships": Membership, "roles": Role, "apikeys": APIKey, "nodes": GraphNode,
+            "memberships": Membership, "roles": Role, "investigations": Investigation,
+            "cases": Case, "apikeys": APIKey, "nodes": GraphNode,
             "edges": GraphEdge, "events": Event, "evidence": Evidence,
             "claims": Claim, "findings": Finding, "research": ResearchRun,
             "watchlists": Watchlist, "workflows": Workflow,

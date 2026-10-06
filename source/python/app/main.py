@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api.shared import _rate_ok, _key_lookup, _secret, tok, STORE, get_redis
-from .api.routers import system, catalog, collection, intel, knowledge, ops
+from .api.routers import system, catalog, collection, intel, knowledge, ops, cases
 
 app = FastAPI(title="Web Intelligence Platform", version="2.0.0",
               docs_url="/api-docs",
@@ -21,6 +21,12 @@ app = FastAPI(title="Web Intelligence Platform", version="2.0.0",
 
 _STATIC = _os.path.join(_os.path.dirname(__file__), "static")
 if _os.path.isdir(_STATIC):
+    import mimetypes as _mt
+    # Windows registry often maps .js to text/plain (and guess_type prefers
+    # it); with X-Content-Type-Options: nosniff browsers then refuse our
+    # scripts. strict=True overrides the registry entry.
+    _mt.add_type("application/javascript", ".js", strict=True)
+    _mt.add_type("text/css", ".css", strict=True)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
     @app.get("/", include_in_schema=False)
@@ -72,6 +78,15 @@ async def _guard(request, call_next):
                                 status_code=429, headers={"Retry-After": str(retry_after)})
     resp = await call_next(request)
     resp.headers["X-Request-ID"] = rid
+    # Baseline hardening headers. No strict CSP: the dashboard legitimately
+    # uses inline handlers/scripts (documented in docs/SECURITY.md). HSTS is
+    # opt-in (HSTS=1) for TLS-terminated production behind Nginx.
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    if _o.getenv("HSTS", "") == "1":
+        resp.headers.setdefault("Strict-Transport-Security",
+                                "max-age=31536000; includeSubDomains")
     return resp
 
 
@@ -165,7 +180,7 @@ def _rate_ok(ip: str) -> bool:
     return True
 
 
-for _r in (system, catalog, collection, intel, knowledge, ops):
+for _r in (system, catalog, collection, intel, knowledge, ops, cases):
     app.include_router(_r.router)
 
 

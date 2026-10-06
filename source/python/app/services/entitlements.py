@@ -28,7 +28,30 @@ def plan_for(org: dict):
 
 
 def _today():
-    return time.strftime("%Y-%m-%d", time.gmtime())
+    return time.strftime("%Y-%m-%d", time.localtime())
+
+
+def _day_of(v):
+    """Calendar-day bucket (server-local) for float epochs, ISO strings, or
+    garbage (never raises — hydrated rows carry ISO created_at while live
+    rows carry floats; naive strings are read as wall-clock)."""
+    try:
+        if v is None:
+            return ""
+        if isinstance(v, (int, float)):
+            return time.strftime("%Y-%m-%d", time.localtime(float(v)))
+        import datetime as _dt
+        s = str(v).strip()
+        if not s:
+            return ""
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        d = _dt.datetime.fromisoformat(s)
+        if d.tzinfo is not None:
+            d = d.astimezone()
+        return d.strftime("%Y-%m-%d")
+    except Exception:
+        return ""
 
 
 def check(store: dict, org_id: int, resource: str, amount: int = 1):
@@ -47,8 +70,7 @@ def check(store: dict, org_id: int, resource: str, amount: int = 1):
     elif resource == "jobs":
         day = _today()
         used = sum(1 for j in store.get("jobs", [])
-                   if j.get("org", 1) == org_id and
-                   time.strftime("%Y-%m-%d", time.gmtime(j.get("created_at", 0))) == day)
+                   if j.get("org", 1) == org_id and _day_of(j.get("created_at", 0)) == day)
         if used + amount > lim["max_jobs_per_day"]:
             return False, f"plan {org.get('plan', 'starter')}: max_jobs_per_day={lim['max_jobs_per_day']}"
     elif resource == "ai_tokens":
@@ -78,6 +100,6 @@ def usage(store: dict, org_id: int):
                 "targets": sum(1 for t in store.get("targets", []) if t.get("org", 1) == org_id),
                 "jobs_today": sum(1 for j in store.get("jobs", [])
                                   if j.get("org", 1) == org_id and
-                                  time.strftime("%Y-%m-%d", time.gmtime(j.get("created_at", 0))) == _today()),
+                                  _day_of(j.get("created_at", 0)) == _today()),
                 "ai_tokens": ai,
                 "connectors": sum(1 for c in store.get("connectors", []) if c.get("org", 1) == org_id)}}
