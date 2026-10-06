@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="en" dir="ltr" data-bs-layout="fluid">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,6 +17,7 @@ document.documentElement.setAttribute('data-bs-theme',eff);
 document.documentElement.setAttribute('data-wi-theme',t);
 var s=localStorage.getItem('wi-side')||'expanded';
 if(s==='folded')document.documentElement.setAttribute('data-wi-side','folded');
+if((localStorage.getItem('wi-nav')||'sticky')==='static')document.documentElement.setAttribute('data-wi-nav','static');
 }catch(e){document.documentElement.setAttribute('data-bs-theme','light');}})();
 </script>
 <link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
@@ -79,6 +80,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .search-results{position:absolute;top:100%;inset-inline-start:0;inset-inline-end:0;z-index:1200;max-height:60vh;overflow:auto}
 .kbd{font-size:.65rem;border:1px solid var(--wi-border);border-bottom-width:2px;border-radius:.3rem;padding:0 .3rem;color:var(--wi-muted)}
 .topbar-sticky{position:sticky;top:0;z-index:1000;background:var(--wi-surface);border-bottom:1px solid var(--wi-border)}
+html[data-wi-nav="static"] .topbar-sticky{position:static}
 .riskbar{display:flex;height:.5rem;border-radius:99px;overflow:hidden;background:var(--wi-border)}
 @media(max-width:991px){.navbar-vertical{display:none;position:fixed;top:0;bottom:0;inset-inline-start:0;width:280px;z-index:1045;overflow-y:auto;box-shadow:0 0 2rem rgba(0,0,0,.5)}html[data-wi-side] .navbar-vertical{width:280px}.navbar-vertical.open{display:block}.navbar-vertical.open #sidebar-menu{display:block}html[data-wi-side="folded"] .navbar-vertical .nav-link-title span.lbl,html[data-wi-side="folded"] .navbar-vertical .brand-txt,html[data-wi-side="folded"] .navbar-vertical .nav-section-title,html[data-wi-side="folded"] .navbar-vertical .navbar-footer{display:block}#mnav{display:inline-block}}
 @media(max-width:576px){.table-responsive table{font-size:.82rem}.hero{padding:1rem}.page-title{font-size:1.15rem}}
@@ -88,7 +90,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 <body>
 <a class="skip-link" href="#main-content" data-i18n="skip">Skip to main content</a>
 <div class="page">
-<aside class="navbar navbar-vertical navbar-expand-lg" id="sidebar" aria-label="Primary">
+<aside class="navbar navbar-vertical navbar-expand-lg" id="sidebar" aria-label="Primary" data-bs-navbar-theme="default">
 <div class="container-fluid">
 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-expanded="false" aria-controls="sidebar-menu">☰</button>
 <h1 class="navbar-brand mb-0"><span aria-hidden="true">◉</span> <span class="brand-txt">WEB INTELLIGENCE</span></h1>

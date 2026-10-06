@@ -128,3 +128,7 @@ const items=live.concat((window._opsServer||[]).map(s=>({id:String(s.id),title:s
 host.innerHTML=items.length?items.slice(0,12).map(o=>`<div class="d-flex gap-2 align-items-center mb-1"><span class="status ${o.status==='success'?'ok':o.status==='failed'?'err':'warn'}">${esc(o.status||o.stage||'running')}</span><span class="text-truncate" style="max-width:220px">${esc(o.title||o.id)}</span><span class="text-muted small ms-auto">${o.ms!=null?(o.ms/1000).toFixed(1)+'s':''}</span></div>`).join(''):'<div class="text-muted small">No operations yet.</div>';
 const n=live.filter(o=>o.status==='running').length;const b=$('#opsbadge');if(b){b.textContent=n||'';b.style.display=n?'inline-block':'none';}}
 setInterval(()=>{const d=$('#opsdrawer');if(d&&d.style.display==='block')opRefresh();},5000);
+/* Note: dropdown/collapse/modal behavior comes from the Bootstrap JS bundled
+   inside /static/vendor/tabler/tabler.min.js (it auto-wires
+   [data-bs-toggle="dropdown"|"collapse"]). Do NOT add a second toggle
+   handler here — double toggles instantly close menus. */

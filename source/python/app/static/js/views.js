@@ -12,6 +12,9 @@ try{if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventList
 function toggleSidebar(){const f=document.documentElement.getAttribute('data-wi-side')==='folded';
 if(f){document.documentElement.removeAttribute('data-wi-side');localStorage.setItem('wi-side','expanded');}
 else{document.documentElement.setAttribute('data-wi-side','folded');localStorage.setItem('wi-side','folded');}}
+function setNavbar(mode){localStorage.setItem('wi-nav',mode);if(mode==='static')document.documentElement.setAttribute('data-wi-nav','static');else document.documentElement.removeAttribute('data-wi-nav');applyNavbar();}
+function applyNavbar(){const sticky=(localStorage.getItem('wi-nav')||'sticky')==='sticky';
+$$('header.topbar-sticky').forEach(h=>{h.style.position=sticky?'':'static';});}
 const ICONS={
 dashboard:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>',
 investigate:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
@@ -54,7 +57,7 @@ const VIEW_SECTION={'dashboard':null,'new-investigation':'Investigate','investig
 function T(k){return (I18N[k]||VIEW_TITLE[k]||k)}
 function bootMsg(m){const b=$('#bootmsg');if(b)b.textContent=m;}
 async function init(){try{
-applyTheme();bootMsg('Loading language…');
+applyTheme();applyNavbar();bootMsg('Loading language…');
 try{const r=await fetch('/api/v1/i18n?lang='+LANG);const j=await r.json();I18N=j.strings||{};}catch(e){}
 bootMsg('Applying language…');
 document.documentElement.lang=LANG;document.documentElement.dir=(LANG==='ar'?'rtl':'ltr');
@@ -535,6 +538,12 @@ api('/api/v1/verticals').catch(()=>({verticals:[]}))]);
 const o=(orgs.items||[])[0]||{};
 C.innerHTML=crumbs([['System','settings']])+`<h2>Settings</h2><div class="grid">
 <div class="card"><div class="card-body"><h3 class="card-title">General</h3><div>Org: <b>${esc(o.name||'—')}</b> <span class="text-muted">(${esc(o.plan||'starter')})</span></div><div class="text-muted small">Slug: ${esc(o.slug||'—')} · App v${esc(ver.version||'?')} · API ${esc(ver.api||'v1')}</div><div class="btn-list mt-2"><button class="btn btn-sm" onclick="go('orgs')">Organizations</button><button class="btn btn-sm" onclick="billingPlan()">Change plan</button></div></div></div>
+<div class="card"><div class="card-body"><h3 class="card-title">Appearance</h3>
+<label class="form-label">Theme</label><div class="btn-list mb-2">${['light','dark','system'].map(t=>`<button class="btn btn-sm ${getTheme()===t?'btn-primary':''}" onclick="setTheme('${t}');load()">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>
+<label class="form-label">Sidebar</label><div class="btn-list mb-2"><button class="btn btn-sm ${document.documentElement.getAttribute('data-wi-side')!=='folded'?'btn-primary':''}" onclick="if(document.documentElement.getAttribute('data-wi-side')==='folded')toggleSidebar();load()">Expanded</button><button class="btn btn-sm ${document.documentElement.getAttribute('data-wi-side')==='folded'?'btn-primary':''}" onclick="if(document.documentElement.getAttribute('data-wi-side')!=='folded')toggleSidebar();load()">Folded</button></div>
+<label class="form-label">Top navbar</label><div class="btn-list mb-2"><button class="btn btn-sm ${(localStorage.getItem('wi-nav')||'sticky')==='sticky'?'btn-primary':''}" onclick="setNavbar('sticky');load()">Sticky</button><button class="btn btn-sm ${(localStorage.getItem('wi-nav')||'sticky')==='static'?'btn-primary':''}" onclick="setNavbar('static');load()">Static</button></div>
+<label class="form-label">Language</label><div class="btn-list mb-2">${[['en','English'],['id','Indonesia'],['ar','العربية']].map(([v,l])=>`<button class="btn btn-sm ${LANG===v?'btn-primary':''}" onclick="setLang('${v}')">${l}</button>`).join('')}</div>
+<div class="text-muted small">Timezone: Asia/Jakarta (WIB) · Navbar theme follows page theme.</div></div></div>
 <div class="card"><div class="card-body"><h3 class="card-title">Security</h3><div class="text-muted small">App API keys: ${(keys.items||[]).length} · Roles: ${Object.keys(roles.roles||{}).join(', ')||'—'}</div><div class="btn-list mt-2"><button class="btn btn-sm" onclick="go('apikeys')">API keys</button><button class="btn btn-sm" onclick="go('users')">Users &amp; roles</button></div></div></div>
 <div class="card"><div class="card-body"><h3 class="card-title">Collectors</h3><div class="text-muted small">Connectors: ${(conn.items||[]).length} · Bright Data: ${(hl.checks||[]).find(c=>c.name==='brightdata')?.status||'?'}</div><div class="btn-list mt-2"><button class="btn btn-sm" onclick="go('connectors')">Connectors</button><button class="btn btn-sm" onclick="bdTest(this)">Test Bright Data</button></div><pre id="bd"></pre></div></div>
 <div class="card"><div class="card-body"><h3 class="card-title">Browser</h3><div class="text-muted small">Status: ${(hl.checks||[]).find(c=>c.name==='browser')?.status||(hl.checks||[]).find(c=>c.name==='api')?'see health':'?'}</div><div class="btn-list mt-2"><button class="btn btn-sm" onclick="go('health')">System health</button></div></div></div>
