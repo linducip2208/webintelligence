@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Universal Intelligence Platform</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23206bc4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3C/svg%3E">
 <link href="/static/vendor/tabler/tabler.min.css" rel="stylesheet">
 <style>
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem}
@@ -30,11 +31,11 @@ pre{white-space:pre-wrap}
 <h1 class="navbar-brand">Universal Intel</h1>
 <div class="navbar-text text-muted small">v2.11 · live data only</div>
 <div class="d-flex gap-2 my-2">
-<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option></select>
+<select id="lang" class="form-select form-select-sm" onchange="setLang(this.value)"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select>
 <button class="btn btn-icon btn-sm" onclick="toggleTheme()" title="dark/light">◐</button>
 </div>
 <div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100"></div></div>
-<div class="mt-2"><input id="tok" class="form-control form-control-sm" placeholder="API token / key"></div>
+<div class="mt-2" id="userchip"><span class="text-muted small">anonymous</span></div>
 <div class="d-flex gap-2 mt-2"><button class="btn btn-sm flex-fill" onclick="loginForm()">Login</button><button class="btn btn-sm flex-fill" onclick="doLogout()">Logout</button></div>
 </div>
 </aside>
@@ -43,14 +44,15 @@ pre{white-space:pre-wrap}
 <div class="row g-2 align-items-center">
 <div class="col"><h2 class="page-title" id="title">Dashboard</h2><div id="sub" class="text-muted small"></div></div>
 <div class="col-auto ms-auto d-print-none"><div class="btn-list">
-<button id="mnav" class="btn" onclick="document.querySelector('.navbar-vertical').classList.toggle('open')" aria-label="menu">☰</button><button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank">📖 Docs</a><span id="actions"></span>
+<button id="mnav" class="btn" onclick="document.querySelector('.navbar-vertical').classList.toggle('open')" aria-label="menu">☰</button><button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank">📖 Docs</a><button class="btn" onclick="opToggle()" aria-label="operations">Operations <span id="opsbadge" class="badge bg-primary" style="display:none"></span></button><span id="actions"></span>
 </div></div>
 </div></div></div>
 <div class="page-body"><div class="container-xl">
-<div id="content"><div class="empty">Loading…</div></div>
+<div id="content"><div class="card"><div class="card-body"><div class="placeholder-glow"><span class="placeholder col-7"></span><span class="placeholder col-4"></span><span class="placeholder col-6"></span></div><div class="text-muted small mt-2" id="bootmsg">Starting…</div></div></div></div>
 </div></div>
 </div>
 </div>
+<div id="opsdrawer" style="display:none;position:fixed;top:0;bottom:0;right:0;width:340px;max-width:92vw;z-index:1500;background:var(--tblr-bg-surface);border-left:1px solid var(--tblr-border-color);overflow:auto;padding:1rem" role="complementary" aria-label="operations"><div class="d-flex align-items-center mb-2"><h3 class="m-0">Operations</h3><button class="btn btn-sm ms-auto" onclick="opToggle(false)">Close</button></div><div id="opslist"></div><button class="btn btn-sm mt-2" onclick="opRefresh()">Refresh</button></div>
 <div id="toasts"></div>
 <script src="/static/vendor/tabler/tabler.min.js"></script>
 <script src="/static/js/app.js"></script>
