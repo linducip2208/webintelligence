@@ -60,12 +60,37 @@ def _base(kind, it, title, subtitle="", open_kind=None, route=None):
         "value": it.get("value"),
         # confidence as stored (entities 0-100, findings 0-1); see docs
         "confidence": it.get("confidence"),
+        "project_id": it.get("project_id"),
+        "tags": list(it.get("tags") or []),
+        "collector": it.get("collector") or it.get("strategy") or "",
+        "related": 0,
     }
 
 
 def harvest(store, org):
     """All searchable records, org-scoped and normalized (unscored)."""
     out = []
+    edges = [e for e in (store.get("edges") or []) if e.get("org", 1) == org]
+    nodes = [n for n in (store.get("nodes") or []) if n.get("org", 1) == org]
+    by_key = {}
+    for n in nodes:
+        by_key.setdefault(str(n.get("key") or ""), n)
+        by_key.setdefault(str(n.get("name") or ""), n)
+    touche = {}
+    for e in edges:
+        touche[e.get("src")] = touche.get(e.get("src"), 0) + 1
+        touche[e.get("dst")] = touche.get(e.get("dst"), 0) + 1
+
+    def _related(kind, it):
+        count = 0
+        keys = {str(it.get("domain") or ""), str(it.get("name") or "")} - {""}
+        nids = {by_key[k]["id"] for k in keys if k in by_key}
+        for nid in nids:
+            count += touche.get(nid, 0)
+        if kind == "target":
+            count += sum(1 for j in (store.get("jobs") or [])
+                         if j.get("target_id") == it.get("id") and j.get("org", 1) == org)
+        return count
     for it in _org(store.get("investigations"), org):
         out.append(_base("investigation", it, it.get("title"),
                          f"{it.get('status', '')} · {(it.get('description') or '')[:120]}".strip(" ·"),
@@ -104,6 +129,24 @@ def harvest(store, org):
     for it in _org(store.get("claims"), org):
         out.append(_base("claim", it, it.get("value") or it.get("text"),
                          "", None, "#evidence"))
+    for it in out:
+        if it["kind"] in ("entity", "target"):
+            src = next((x for x in _org(store.get("entities" if it["kind"] == "entity" else "targets"), org)
+                        if x.get("id") == it["id"]), None)
+            if src is not None:
+                it["related"] = _related(it["kind"], src)
+        elif it["kind"] == "finding":
+            src = next((x for x in _org(store.get("findings"), org)
+                        if x.get("id") == it["id"]), None)
+            if src is not None:
+                it["related"] = len(src.get("evidence_ids") or []) + len(src.get("entities") or [])
+        elif it["kind"] == "case":
+            src = next((x for x in _org(store.get("cases"), org)
+                        if x.get("id") == it["id"]), None)
+            if src is not None:
+                it["related"] = sum(len(src.get(k) or []) for k in
+                                    ("investigation_ids", "entity_ids", "finding_ids",
+                                     "evidence_ids", "alert_ids"))
     return out
 
 
@@ -144,7 +187,8 @@ def _score(it, terms, q):
 
 def _apply_filters(items, kinds=None, risk_min=None, risk_max=None, source=None,
                    date_from=None, date_to=None, confidence_min=None,
-                   confidence_max=None, status=None):
+                   confidence_max=None, status=None, project_id=None,
+                   tag=None, collector=None):
     if kinds:
         items = [i for i in items if i["kind"] in kinds]
     if risk_min is not None:
@@ -170,6 +214,16 @@ def _apply_filters(items, kinds=None, risk_min=None, risk_max=None, source=None,
     if status:
         s = status.lower()
         items = [i for i in items if s in str(i.get("status") or "").lower()]
+    if project_id is not None:
+        items = [i for i in items if i.get("project_id") == project_id]
+    if tag:
+        t = tag.lower()
+        items = [i for i in items if any(t in str(x).lower() for x in (i.get("tags") or []))]
+    if collector:
+        c = collector.lower()
+        items = [i for i in items
+                 if c in str(i.get("collector") or "").lower()
+                 or c in str(i.get("source") or "").lower()]
     return items
 
 
@@ -223,8 +277,9 @@ def semantic_search(store, org, q, kinds=None, limit=20, offset=0, **filters):
 
 
 def unified_search(store, org, q, mode="hybrid", kinds=None, limit=20, offset=0,
-                   investigation_id=None, **filters):
-    """mode: keyword | exact | semantic | hybrid (default). Returns (page, total)."""
+                   investigation_id=None, sort="score", **filters):
+    """mode: keyword | exact | semantic | hybrid (default). sort: score|seen|risk.
+    Returns (page, total)."""
     mode = (mode or "hybrid").lower()
     if mode not in ("keyword", "exact", "semantic", "hybrid"):
         mode = "keyword"
@@ -272,6 +327,10 @@ def unified_search(store, org, q, mode="hybrid", kinds=None, limit=20, offset=0,
 
         items = [i for i in items if _rel(i)]
         total = len(items)
+    if (sort or "score") == "seen":
+        items = sorted(items, key=lambda i: -_epoch(i.get("seen")))
+    elif sort == "risk":
+        items = sorted(items, key=lambda i: (-(i.get("risk") or -1), -i.get("score", 0)))
     return items[offset:offset + limit], total
 
 

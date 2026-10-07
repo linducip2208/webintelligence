@@ -165,6 +165,7 @@ See `deploy/aaPanel/README.md` and `deploy/scripts/deploy_aapanel.sh`. Nginx: `d
 ### Live credentials required for
 - Bright Data (`BRIGHTDATA_API_KEY`, `BRIGHTDATA_ZONE`) — adapter + `POST /api/v1/brightdata/test` work; live crawl tests skip without creds.
 - Muse Spark 1.3 (`MUSE_SPARK_BASE_URL`, `MUSE_SPARK_API_KEY`) — provider + health endpoint work; live chat test requires creds.
+- Any of 19 AI vendors (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`/`GEMINI_API_KEY`, `OPENROUTER/GROQ/DEEPSEEK/MISTRAL/XAI/COHERE/TOGETHER/FIREWORKS/PERPLEXITY_API_KEY`, `OPENCODE_GO/ZEN_API_KEY`, Ollama at `OLLAMA_BASE_URL`) — auto-discovered; inventory at `GET /api/v1/ai/credentials/inventory` (masked only); privacy policy enforced before evidence leaves the server.
 - MySQL/Redis URLs for integration runs.
 
 See `docs/MASTER_BUILD_SPEC.md` for the full architecture.
@@ -305,6 +306,7 @@ Lihat `deploy/aaPanel/README.md` dan `deploy/scripts/deploy_aapanel.sh`. Nginx: 
 ### Kredensial live yang dibutuhkan
 - Bright Data (`BRIGHTDATA_API_KEY`, `BRIGHTDATA_ZONE`) — adapter + `POST /api/v1/brightdata/test` berfungsi; tes crawl live dilewati tanpa kredensial.
 - Muse Spark 1.3 (`MUSE_SPARK_BASE_URL`, `MUSE_SPARK_API_KEY`) — provider + endpoint kesehatan berfungsi; tes chat live butuh kredensial.
+- Salah satu dari 19 vendor AI (`OPENAI/ANTHROPIC/GOOGLE/GEMINI/OPENROUTER/GROQ/DEEPSEEK/MISTRAL/XAI/COHERE/TOGETHER/FIREWORKS/PERPLEXITY_API_KEY`, `OPENCODE_GO/ZEN_API_KEY`, Ollama di `OLLAMA_BASE_URL`) — terdeteksi otomatis; inventaris di `GET /api/v1/ai/credentials/inventory` (hanya masked); kebijakan privasi ditegakkan sebelum bukti keluar server.
 - URL MySQL/Redis untuk uji integrasi.
 
 Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
@@ -445,6 +447,7 @@ go build -o ..\..\..\build\linux\collector .\cmd\collector
 ### بيانات الاعتماد الحية المطلوبة
 - Bright Data (`BRIGHTDATA_API_KEY`، `BRIGHTDATA_ZONE`) — المحول + `POST /api/v1/brightdata/test` يعملان؛ تُتخطى اختبارات الزحف الحية بدون بيانات.
 - Muse Spark 1.3 (`MUSE_SPARK_BASE_URL`، `MUSE_SPARK_API_KEY`) — المزود + نقطة الصحة يعملان؛ اختبار الدردشة الحية يحتاج بيانات.
+- أي من 19 مزود ذكاء اصطناعي (`OPENAI/ANTHROPIC/GOOGLE/GEMINI/OPENROUTER/GROQ/DEEPSEEK/MISTRAL/XAI/COHERE/TOGETHER/FIREWORKS/PERPLEXITY_API_KEY`، `OPENCODE_GO/ZEN_API_KEY`، Ollama على `OLLAMA_BASE_URL`) — اكتشاف تلقائي؛ الجرد على `GET /api/v1/ai/credentials/inventory` (مقنّع فقط)؛ سياسة الخصوصية تُفرض قبل مغادرة الأدلة للخادم.
 - روابط MySQL/Redis لاختبارات التكامل.
 
 انظر `docs/MASTER_BUILD_SPEC.md` للمعمارية الكاملة.

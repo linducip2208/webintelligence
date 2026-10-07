@@ -150,14 +150,14 @@ green (199 passed).
 
 ## Dead UI: 0
 
-- Static gate: 495 functions defined, 356 API calls match real routes and
+- Static gate: 505 functions defined, 365 API calls match real routes and
   methods, all `go()` targets resolve, JS syntax checked by node.
 
 ## Broken API mappings: 0
 
-- 227/227 OpenAPI paths implemented, documented, and contract-synced
-  (`test_openapi_sync` passes). 197 frontend-connected, 15 documented
-  API-only surface, 0 broken.
+- 231/231 OpenAPI paths implemented, documented, and contract-synced
+  (`test_openapi_sync` passes). Frontend-connected majority, documented
+  API-only surface for the remainder, 0 broken.
 
 ## Fake completion states: 0
 

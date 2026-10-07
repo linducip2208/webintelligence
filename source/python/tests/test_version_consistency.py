@@ -4,7 +4,7 @@ import re
 
 import app as _pkg
 from app.main import app
-from app.version import APP_VERSION
+from app.version import APP_VERSION, API_VERSION, BUILD_ID, APP_NAME
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -12,6 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 def test_version_consistency():
     assert app.version == APP_VERSION
     assert _pkg.__version__ == APP_VERSION
+    assert APP_NAME == "webintel" and API_VERSION == "v1" and BUILD_ID
     import tomllib
     with open(os.path.join(ROOT, "source", "python", "pyproject.toml"), "rb") as fh:
         assert tomllib.load(fh)["project"]["version"] == APP_VERSION
@@ -20,6 +21,13 @@ def test_version_consistency():
     assert app.openapi()["info"]["version"] == APP_VERSION
     readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
     assert f"v{APP_VERSION}" in readme.splitlines()[0]
+    from fastapi.testclient import TestClient
+    c = TestClient(app)
+    hz = c.get("/healthz").json()
+    assert hz["status"] == "ok" and hz["version"] == APP_VERSION
+    assert hz["api_version"] == API_VERSION and hz["build"] == BUILD_ID
+    ver = c.get("/api/version").json()
+    assert ver["version"] == APP_VERSION and ver["api_version"] == API_VERSION
 
 
 def test_no_stale_version_literals():

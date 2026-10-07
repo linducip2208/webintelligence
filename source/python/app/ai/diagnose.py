@@ -56,7 +56,27 @@ def normalize_error(err: Exception | str) -> tuple[str, str]:
 
 
 def discover(provider, limit: int = 100) -> dict:
-    """Real model discovery via the adapter. Never invents metadata."""
+    """Real model discovery via the adapter. Prefers gateway-aware
+    discover_models() (per-model protocol/endpoint metadata); falls back to
+    plain list_models(). Never invents metadata."""
+    fn = getattr(provider, "discover_models", None)
+    if callable(fn):
+        try:
+            out = fn()
+        except Exception as e:  # noqa: BLE001
+            code, msg = normalize_error(e)
+            return {"models": [], "discovery": False, "manual_entry": True,
+                    "error": {"code": code, "message": msg}}
+        if isinstance(out, dict) and out.get("models"):
+            models = out["models"][:limit]
+            norm = [m if isinstance(m, dict) and m.get("id") else {"id": str(m)}
+                    for m in models if (m if isinstance(m, str) else m.get("id"))]
+            return {"models": norm, "discovery": True, "manual_entry": False,
+                    "count": len(norm), "source": out.get("source", "REMOTE DISCOVERED")}
+        if isinstance(out, dict) and "error" in out:
+            return {"models": [], "discovery": False, "manual_entry": True,
+                    "error": out["error"] if isinstance(out["error"], dict)
+                    else {"code": "PROVIDER_UNAVAILABLE", "message": str(out["error"])[:300]}}
     try:
         out = provider.list_models()
     except Exception as e:  # noqa: BLE001
@@ -124,8 +144,12 @@ def test_provider(provider, name: str = "", model: str = "") -> dict:
 
 
 def _fail(base, model, t0, code, msg):
+    # authenticated means "a response validated the credential". With no
+    # response at all (unreachable/timeout) auth is unvalidated: False.
+    no_response = code in ("PROVIDER_UNAVAILABLE", "CONNECTION_TIMEOUT")
     return {"success": False, "provider": base,
-            "connection": {"authenticated": code not in ("INVALID_CONFIGURATION",),
+            "connection": {"authenticated": (not no_response
+                                             and code not in ("INVALID_CONFIGURATION",)),
                            "latency_ms": round((time.time() - t0) * 1000, 2)},
             "model": {"selected": model or "", "available": False},
             "models": [],

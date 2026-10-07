@@ -246,9 +246,10 @@ def list_changes(page: int = 1, size: int = 20,
 def search(q: str = "", scope: str = "all", mode: str = "hybrid", kind: str = "",
            limit: int = 20, offset: int = 0, risk_min: float = None,
            risk_max: float = None, source: str = "", date_from: str = "",
-           date_to: str = "", investigation_id: int = None,
+           date_to: str = "",            investigation_id: int = None,
            confidence_min: float = None, confidence_max: float = None,
-           status: str = "",
+           status: str = "", project_id: int = None, tag: str = "",
+           collector: str = "", sort: str = "score",
            authorization: str = Header(""), x_api_key: str = Header("")):
     """Unified intelligence search: keyword, exact, semantic and hybrid modes
     over one engine. Org-scoped; no AI required for any mode. Legacy callers
@@ -267,7 +268,9 @@ def search(q: str = "", scope: str = "all", mode: str = "hybrid", kind: str = ""
                                  investigation_id=investigation_id,
                                  confidence_min=confidence_min,
                                  confidence_max=confidence_max,
-                                 status=status or "")
+                                 status=status or "", project_id=project_id,
+                                 tag=tag or "", collector=collector or "",
+                                 sort=sort or "score")
     facets = {}
     for it in items:
         facets[it.get("kind", "?")] = facets.get(it.get("kind", "?"), 0) + 1

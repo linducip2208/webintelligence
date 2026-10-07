@@ -68,6 +68,7 @@ _Every view branch: button label → handler → API calls → status. 0 dead bu
 | `#findings` | (icon) | `fndCheckAll()` | 0 endpoint(s) | toast/reload/modal | OK |
 | `#finding` | Confirm | `findingStatus()` | 1 endpoint(s) | toast/reload/modal | OK |
 | `#finding` | Triage… | `fndEdit()` | 1 endpoint(s) | toast/reload/modal | OK |
+| `#finding` | Summarize | `aiAssist()` | 2 endpoint(s) | toast/reload/modal | OK |
 | `#feed` | All | `window()` | 0 endpoint(s) | toast/reload/modal | OK |
 | `#feed` | Subscribe… | `feedSubAdd()` | 0 endpoint(s) | toast/reload/modal | OK |
 | `#runs` | Analyze | `runAnalyze()` | 0 endpoint(s) | toast/reload/modal | OK |
@@ -146,7 +147,7 @@ _Every view branch: button label → handler → API calls → status. 0 dead bu
 | `#investigation` | Open | `openFinding()` | 0 endpoint(s) | toast/reload/modal | OK |
 | `#investigation` | Start Collection | `invCollect()` | 3 endpoint(s) | toast/reload/modal | OK |
 | `#investigation` | Toggle | `invTaskToggle()` | 0 endpoint(s) | toast/reload/modal | OK |
-| `#investigation` | Refresh | `load()` | 54 endpoint(s) | toast/reload/modal | OK |
+| `#investigation` | Refresh | `load()` | 55 endpoint(s) | toast/reload/modal | OK |
 | `#investigation` | Create Case | `invToCase()` | 1 endpoint(s) | toast/reload/modal | OK |
 | `#investigation` | Generate Report | `window()` | 0 endpoint(s) | toast/reload/modal | OK |
 | `#cases` | + New case | `caseAdd()` | 0 endpoint(s) | toast/reload/modal | OK |

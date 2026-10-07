@@ -159,6 +159,14 @@ class ResponsesProvider:
         except AIError as e:
             return {"error": str(e)[:300]}
 
+    def discover_models(self):
+        """Gateway-aware discovery with per-model protocol/endpoint metadata."""
+        if not self.configured:
+            return {"models": [], "error": {"code": "INVALID_CONFIGURATION",
+                                            "message": "Provider endpoint missing."}}
+        from . import go_discovery as _go
+        return _go.discover(self.base_url, self._headers(), self.timeout)
+
     def health_check(self):
         if not self.configured:
             return {"ok": False, "reason": "not-configured"}

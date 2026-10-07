@@ -143,9 +143,10 @@ def test_credentials_inventory_never_leaks():
     try:
         inv = c.get("/api/v1/ai/credentials/inventory").json()
         assert set(inv) >= {"inventory", "summary", "effective_default"}
-        db_rows = [r for r in inv["inventory"] if r["source"] == "DATABASE"]
+        db_rows = [r for r in inv["inventory"] if r["source"] in ("DATABASE", "CUSTOM")]
         assert db_rows, "db credentials must be inventoried"
         row = next(r for r in db_rows if r["provider"] == "AuditInv")
+        assert row["source"] == "CUSTOM"  # openai-compatible preset
         assert set(row) >= {"provider", "protocol", "source", "configured",
                             "masked_key", "model", "default", "status"}
         assert "SECRET-INV-9999" not in str(inv)
@@ -174,3 +175,47 @@ def test_use_case_routing_validated_and_resolved():
     assert r["ok"] is True
     v = c.get("/api/v1/ai/default").json()
     assert v["use_cases"]["research"]["enabled"] is False
+
+
+def test_privacy_policy_enforced_and_redacting():
+    p = c.get("/api/v1/ai/privacy").json()
+    assert p["mode"] == "any"
+    assert c.post("/api/v1/ai/privacy", json={"mode": "nope"}).status_code == 400
+    c.post("/api/v1/ai/privacy", json={"mode": "local_only"})
+    try:
+        r = c.post("/api/v1/ai/chat",
+                   json={"messages": [{"role": "user", "content": "hi"}],
+                         "provider": "ollama"}).json()
+        # local provider is not blocked by local_only (fails honestly instead)
+        assert "local_only" not in str(r)
+        probleak = c.post("/api/v1/ai/providers/db",
+                          json={"name": "AuditPriv", "preset": "openai-compatible",
+                                "protocol": "chat", "base_url": "https://example.com/v1",
+                                "api_key": "k", "model": "m"}).json()
+        try:
+            denied = c.post("/api/v1/ai/chat",
+                            json={"messages": [{"role": "user", "content": "hi"}],
+                                  "provider": "db:AuditPriv"})
+            assert denied.status_code == 403
+            assert "local_only" in denied.text
+        finally:
+            c.delete(f"/api/v1/ai/providers/db/{probleak['id']}")
+    finally:
+        c.post("/api/v1/ai/privacy", json={"mode": "any"})
+
+
+def test_by_name_routes_and_sync():
+    p = c.post("/api/v1/ai/providers/db",
+               json={"name": "AuditNamed", "preset": "ollama",
+                     "protocol": "chat", "base_url": "http://127.0.0.1:9/v1",
+                     "api_key": "", "model": ""}).json()
+    try:
+        t = c.post("/api/v1/ai/providers/AuditNamed/test", json={}).json()
+        assert t["success"] is False
+        assert c.post("/api/v1/ai/providers/no-such/test", json={}).status_code == 404
+        m = c.get("/api/v1/ai/providers/AuditNamed/models").json()
+        assert "models" in m
+        s = c.post("/api/v1/ai/providers/AuditNamed/models/sync", json={}).json()
+        assert s["count"] == 0  # unreachable: nothing discovered, honestly reported
+    finally:
+        c.delete(f"/api/v1/ai/providers/db/{p['id']}")

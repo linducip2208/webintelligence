@@ -25,6 +25,8 @@ Authentication: Bearer token from `POST /api/v1/auth/login` or `X-API-Key` heade
 | `GET` | `/api/v1/ai/default` | Ai Default View |
 | `POST` | `/api/v1/ai/default` | Ai Default Set |
 | `PATCH` | `/api/v1/ai/default` | Ai Default Set |
+| `GET` | `/api/v1/ai/privacy` | Ai Privacy View |
+| `POST` | `/api/v1/ai/privacy` | Ai Privacy Set |
 | `GET` | `/api/v1/ai/provider-presets` | Ai Provider Presets |
 | `GET` | `/api/v1/ai/providers` | Ai Providers |
 | `GET` | `/api/v1/ai/providers/db` | Ai Provider List |
@@ -40,6 +42,9 @@ Authentication: Bearer token from `POST /api/v1/auth/login` or `X-API-Key` heade
 | `POST` | `/api/v1/ai/providers/db/{pid}/enable` | Ai Provider Enable |
 | `POST` | `/api/v1/ai/providers/db/{pid}/models` | Ai Provider Discover Saved |
 | `POST` | `/api/v1/ai/providers/db/{pid}/test` | Ai Provider Test |
+| `GET` | `/api/v1/ai/providers/{name}/models` | Ai Provider Models By Name |
+| `POST` | `/api/v1/ai/providers/{name}/models/sync` | Ai Provider Models Sync |
+| `POST` | `/api/v1/ai/providers/{name}/test` | Ai Provider Test By Name |
 | `POST` | `/api/v1/ask` | Nlq Ask |
 | `GET` | `/api/v1/ml/models` | Ml Models |
 | `POST` | `/api/v1/ml/predict` | Ml Predict |

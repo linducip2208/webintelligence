@@ -12,7 +12,7 @@ shots: [28-api.png]
 
 > Every versioned path under /api/v1, generated from the live OpenAPI contract.
 
-227 versioned paths under /api/v1, generated from the live OpenAPI contract (this number is computed at build time, never hardcoded).
+231 versioned paths under /api/v1, generated from the live OpenAPI contract (this number is computed at build time, never hardcoded).
 
 Authentication: Bearer token from `POST /api/v1/auth/login` or `X-API-Key` header. See [API Authentication](/docs/api/authentication).
 

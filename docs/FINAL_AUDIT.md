@@ -47,7 +47,7 @@ Two tracks, both verified:
 
 - Markdown sources: **127 files** (`app/docs_content/{en,id,ar}/`).
 - Sitemap: `docs/SITEMAP.md` (generated, 115 pages).
-- API coverage: `docs/API_COVERAGE.md` — **225/225 implemented paths documented**, 0 missing.
+- API coverage: `docs/API_COVERAGE.md` — **231/231 implemented paths documented**, 0 missing.
 - Documentation coverage: `docs/DOCUMENTATION_COVERAGE.md` (feature × docs × screenshot × E2E).
 - Functionality: `docs/FUNCTIONALITY_MATRIX.md`, `docs/ROUTE_AUDIT.md`,
   `docs/API_FUNCTIONALITY_AUDIT.md`, `docs/AI_PROVIDER_AUDIT.md`,
@@ -82,13 +82,13 @@ Full pipeline: `python scripts/docs/all.py [--skip-shots]`.
 | `tests/integration` + `tests/security` + `tests/load` | all pass (Redis-live verified against Memurai) |
 | `tests/e2e` | pass (live-gated skips except hermetic journey) |
 | Functional journey (`UI_E2E=1`) | **PASS** — 31 views, live collection, settings persistence, docs |
-| Full combined run | **199 passed, 6 skipped (live-gated)** |
+| Full combined run | **205 passed, 6 skipped (live-gated)** |
 | `go test ./...` + `go vet` | pass |
 | Playwright screenshot run | 34/34 captured, secrets clean |
 
 ## 8. API coverage
 
-225 implemented paths → 225 referenced by documentation pages.
+231 implemented paths → 231 referenced by documentation pages.
 `test_openapi_sync` passes; contract regenerated (`contracts/openapi/openapi.json`).
 
 ## 9. Security checks

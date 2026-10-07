@@ -40,6 +40,8 @@ Providers are added through the UI: choose, credential, test live, discover mode
 | `PATCH` | `/api/v1/ai/default` | Ai Default Set |
 | `GET` | `/api/v1/ai/health` | Ai Health |
 | `GET` | `/api/v1/ai/models` | Ai Models |
+| `GET` | `/api/v1/ai/privacy` | Ai Privacy View |
+| `POST` | `/api/v1/ai/privacy` | Ai Privacy Set |
 | `GET` | `/api/v1/ai/provider-presets` | Ai Provider Presets |
 | `GET` | `/api/v1/ai/providers` | Ai Providers |
 | `GET` | `/api/v1/ai/providers/db` | Ai Provider List |
@@ -55,6 +57,9 @@ Providers are added through the UI: choose, credential, test live, discover mode
 | `POST` | `/api/v1/ai/providers/db/{pid}/enable` | Ai Provider Enable |
 | `POST` | `/api/v1/ai/providers/db/{pid}/models` | Ai Provider Discover Saved |
 | `POST` | `/api/v1/ai/providers/db/{pid}/test` | Ai Provider Test |
+| `GET` | `/api/v1/ai/providers/{name}/models` | Ai Provider Models By Name |
+| `POST` | `/api/v1/ai/providers/{name}/models/sync` | Ai Provider Models Sync |
+| `POST` | `/api/v1/ai/providers/{name}/test` | Ai Provider Test By Name |
 
 
 ## Examples

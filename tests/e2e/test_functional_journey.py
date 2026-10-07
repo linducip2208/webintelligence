@@ -158,6 +158,23 @@ def test_functional_journey():
             with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/docs/en/index",
                                         timeout=20) as dr:
                 assert dr.status == 200 and "Web Intelligence" in dr.read().decode()
+
+            # logout returns to anonymous
+            pg.evaluate("doLogout()")
+            pg.wait_for_timeout(800)
+            assert "anonymous" in pg.content()
+
+            # mobile viewports: no horizontal overflow on key views
+            mob = b.new_context(viewport={"width": 390, "height": 844},
+                                is_mobile=True, has_touch=True).new_page()
+            for v in ("dashboard", "search", "settings", "ai-providers", "login"):
+                mob.goto(f"http://127.0.0.1:{PORT}/#{v}", wait_until="domcontentloaded",
+                         timeout=30000)
+                mob.evaluate(f"go('{v}')")
+                mob.wait_for_selector("#content", timeout=20000)
+                mob.wait_for_timeout(800)
+                overflow = mob.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+                assert overflow <= 1, f"horizontal overflow on {v}: {overflow}px"
             b.close()
     finally:
         api.terminate()

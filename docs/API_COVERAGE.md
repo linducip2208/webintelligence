@@ -1,6 +1,6 @@
 # Web Intelligence — API Coverage
 
-_Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documentation._
+_Application v2.14.0: 231 implemented paths, 231 documented, 0 missing documentation._
 
 ## Implemented but undocumented
 
@@ -431,7 +431,7 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 - `/api/v1/apikeys/{kid}/revoke`
 - `/api/v1/ingest/webhook`
 
-### integrations/ai — 10 endpoint(s)
+### integrations/ai — 13 endpoint(s)
 
 - `/api/v1/ai/providers`
 - `/api/v1/ai/providers/db`
@@ -443,13 +443,17 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 - `/api/v1/ai/providers/db/{pid}/enable`
 - `/api/v1/ai/providers/db/{pid}/models`
 - `/api/v1/ai/providers/db/{pid}/test`
+- `/api/v1/ai/providers/{name}/models`
+- `/api/v1/ai/providers/{name}/models/sync`
+- `/api/v1/ai/providers/{name}/test`
 
-### ai/providers — 15 endpoint(s)
+### ai/providers — 19 endpoint(s)
 
 - `/api/v1/ai/credentials/inventory`
 - `/api/v1/ai/default`
 - `/api/v1/ai/health`
 - `/api/v1/ai/models`
+- `/api/v1/ai/privacy`
 - `/api/v1/ai/provider-presets`
 - `/api/v1/ai/providers`
 - `/api/v1/ai/providers/db`
@@ -461,6 +465,9 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 - `/api/v1/ai/providers/db/{pid}/enable`
 - `/api/v1/ai/providers/db/{pid}/models`
 - `/api/v1/ai/providers/db/{pid}/test`
+- `/api/v1/ai/providers/{name}/models`
+- `/api/v1/ai/providers/{name}/models/sync`
+- `/api/v1/ai/providers/{name}/test`
 
 ### ai/provider-configuration — 9 endpoint(s)
 
@@ -741,11 +748,12 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 - `/api/v1/connectors/{cid}/execute`
 - `/api/v1/connectors/{cid}/test`
 
-### api/ai — 18 endpoint(s)
+### api/ai — 22 endpoint(s)
 
 - `/api/v1/ai/chat`
 - `/api/v1/ai/credentials/inventory`
 - `/api/v1/ai/default`
+- `/api/v1/ai/privacy`
 - `/api/v1/ai/provider-presets`
 - `/api/v1/ai/providers`
 - `/api/v1/ai/providers/db`
@@ -757,6 +765,9 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 - `/api/v1/ai/providers/db/{pid}/enable`
 - `/api/v1/ai/providers/db/{pid}/models`
 - `/api/v1/ai/providers/db/{pid}/test`
+- `/api/v1/ai/providers/{name}/models`
+- `/api/v1/ai/providers/{name}/models/sync`
+- `/api/v1/ai/providers/{name}/test`
 - `/api/v1/ask`
 - `/api/v1/ml/models`
 - `/api/v1/ml/predict`
@@ -826,7 +837,7 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 
 - `/api/v1/strategy/decide`
 
-### ai-providers — 11 endpoint(s)
+### ai-providers — 14 endpoint(s)
 
 - `/api/v1/ai/default`
 - `/api/v1/ai/providers`
@@ -839,6 +850,9 @@ _Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documenta
 - `/api/v1/ai/providers/db/{pid}/enable`
 - `/api/v1/ai/providers/db/{pid}/models`
 - `/api/v1/ai/providers/db/{pid}/test`
+- `/api/v1/ai/providers/{name}/models`
+- `/api/v1/ai/providers/{name}/models/sync`
+- `/api/v1/ai/providers/{name}/test`
 
 ### settings — 3 endpoint(s)
 

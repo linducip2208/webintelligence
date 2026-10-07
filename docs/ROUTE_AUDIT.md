@@ -11,12 +11,12 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#analytics` | Analytics | Intelligence | 6 | YES | OK |
 | `#apikeys` | External APIs | Integrations | 3 | YES | OK |
 | `#articles` | Articles | Intelligence | 8 | YES | OK |
-| `#attack` | Attack Surface | Discover | 7 | YES | OK |
+| `#attack` | Attack Surface | Discover | 8 | YES | OK |
 | `#audit` | Audit Log | Administration | 3 | YES | OK |
 | `#case` | Case | Investigate | 2 | YES | OK |
 | `#cases` | Cases | Investigate | 2 | YES | OK |
 | `#changes` | Changes | Discover | 5 | YES | OK |
-| `#claims` | Claims | Evidence | 4 | YES | CHECK |
+| `#claims` | Claims | Evidence | 3 | YES | CHECK |
 | `#collectors` | Collectors | Discover | 0 | YES | OK |
 | `#connectors` | Connectors | Discover | 5 | YES | OK |
 | `#costs` | Costs | Administration | 7 | YES | OK |
@@ -28,13 +28,13 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#entities` | Entities | Investigate | 5 | YES | OK |
 | `#entity` | Entity | Investigate | 4 | YES | OK |
 | `#events` | Events | Investigate | 4 | YES | CHECK |
-| `#evidence` | Evidence | Evidence | 4 | YES | CHECK |
+| `#evidence` | Evidence | Evidence | 3 | YES | CHECK |
 | `#external-apis` | External APIs | Integrations | 3 | — | OK |
 | `#feed` | Intelligence Feed | Intelligence | 9 | YES | OK |
 | `#finding` | Finding | Intelligence | 7 | YES | CHECK |
 | `#findings` | Findings | Intelligence | 5 | YES | CHECK |
 | `#graph` | Intelligence Graph | Investigate | 3 | YES | OK |
-| `#health` | System Health | Administration | 6 | YES | OK |
+| `#health` | System Health | Administration | 5 | YES | OK |
 | `#indicators` | Indicators | Intelligence | 8 | YES | OK |
 | `#intel-feed` | Intelligence Feed | Intelligence | 0 | — | OK |
 | `#investigation` | Investigation | Investigate | 2 | YES | OK |
@@ -43,14 +43,14 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#jobs` | Collection Runs | Discover | 5 | YES | OK |
 | `#login` | Sign in | ? | 5 | YES | OK |
 | `#new-investigation` | New Investigation | Investigate | 8 | — | OK |
-| `#operations` | Operations | Discover | 5 | YES | OK |
+| `#operations` | Operations | Discover | 6 | YES | OK |
 | `#opps` | Opportunities | Intelligence | 7 | YES | OK |
 | `#orgs` | Organizations | Administration | 5 | YES | OK |
 | `#prices` | Prices | Discover | 8 | YES | OK |
 | `#project` | Data Source | Discover | 7 | YES | OK |
 | `#projects` | Data Sources | Discover | 8 | YES | OK |
 | `#recon` | Reconnaissance | Discover | 0 | YES | OK |
-| `#reliability` | Reliability | Administration | 8 | YES | OK |
+| `#reliability` | Reliability | Administration | 6 | YES | OK |
 | `#reports` | Reports | Evidence | 5 | YES | OK |
 | `#research` | Research | Intelligence | 6 | YES | OK |
 | `#reviews` | Reviews | Intelligence | 7 | YES | OK |
@@ -65,7 +65,7 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#targets` | Targets | Discover | 5 | YES | OK |
 | `#threat` | Threat Intelligence | Intelligence | 0 | — | OK |
 | `#timeline` | Timeline | Investigate | 4 | YES | OK |
-| `#transforms` | Transforms | Investigate | 3 | YES | OK |
+| `#transforms` | Transforms | Investigate | 4 | YES | OK |
 | `#users` | Users & Roles | Administration | 4 | YES | OK |
 | `#watchlists` | Watchlists | Monitor | 3 | YES | OK |
 | `#webhook` | Webhook | Monitor | 7 | YES | OK |

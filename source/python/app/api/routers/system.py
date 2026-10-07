@@ -115,8 +115,9 @@ def oidc_callback(spec: dict):
 
 @router.get("/healthz")
 def healthz():
-    from ...main import app as _app
-    return {"status": "ok", "version": _app.version}
+    from ...version import APP_VERSION, API_VERSION, BUILD_ID
+    return {"status": "ok", "version": APP_VERSION,
+            "api_version": API_VERSION, "build": BUILD_ID}
 
 
 @router.get("/readyz")
@@ -170,15 +171,25 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     untrusted DATA; every call is usage/cost-tracked; fallback chain on error."""
     from ...ai import fallback as _fb
     from ...ai import safety as _safe
+    from ...ai import privacy as _priv
     from ...services import flags as _fl
     from ...ai.http import estimate_tokens, messages_text
     email0, org0, _ = _ctx(authorization, x_api_key)
     if not _fl.is_enabled(repo, "ai", org0, email0):
         raise HTTPException(403, "ai disabled by feature flag")
     _require_auth(authorization, x_api_key)
+    _policy = _priv.get_policy(repo)
     messages = list(spec.get("messages", []))
     model = spec.get("model", "")
     provider = spec.get("provider", "")
+    use_case = (spec.get("use_case") or "").strip()
+    if use_case:
+        from ...ai.chain import resolve_role as _role0
+        _r0 = _role0(repo, use_case)
+        if not _r0:
+            raise HTTPException(400, f"unknown or disabled use-case {use_case}")
+        if not provider:
+            provider, model = _r0.get("provider", ""), _r0.get("model", "") or model
     import os as _o
     try:
         max_chars = int(_o.getenv("MAX_AI_CHARS", "200000") or 200000)
@@ -187,8 +198,9 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     if sum(len(str(m.get("content", ""))) for m in messages) > max_chars:
         raise HTTPException(413, "ai context too large")
     if spec.get("evidence"):
+        clean = _priv.redact_items(_policy, spec["evidence"])
         messages = messages + [{"role": "user",
-                                "content": _safe.wrap_evidence(spec["evidence"])}]
+                                "content": _safe.wrap_evidence(clean)}]
     from ...services import entitlements as _e
     _, _, _ = _need(authorization, "ai", x_api_key)
     okq, why = _e.check(STORE, org0, "ai_tokens",
@@ -226,6 +238,14 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     if not chain:
         raise HTTPException(502, "AI analysis is not configured. "
                                  "Configure an AI provider first.")
+    _head, _hinst = chain[0][0], chain[0][1]
+    _hpreset = ""
+    if _head.startswith("db:"):
+        _hrow = next((x for x in STORE["ai_providers"] if x.get("name") == _head[3:]), None)
+        _hpreset = (_hrow or {}).get("preset", "")
+    _ok, _why = _priv.check(_policy, _head[3:] if _head.startswith("db:") else _head, _hpreset)
+    if not _ok:
+        raise HTTPException(403, _why)
     out = _fb.chat_fallback(chain, messages, use_model)
     out["org"] = org0
     out["default_used"] = default_used
@@ -352,6 +372,24 @@ def ai_health():
     return base
 
 
+@router.get("/api/v1/ai/privacy")
+def ai_privacy_view():
+    from ...ai import privacy as _priv
+    return _priv.get_policy(repo)
+
+
+@router.post("/api/v1/ai/privacy")
+def ai_privacy_set(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    from ...ai import privacy as _priv
+    email, _, _ = _need(authorization, "configure", x_api_key)
+    try:
+        out = _priv.set_policy(repo, spec or {})
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    _audit(email, "ai.privacy.set", out["mode"])
+    return out
+
+
 @router.get("/api/v1/ai/credentials/inventory", tags=["admin"])
 def ai_credentials_inventory(authorization: str = Header(""), x_api_key: str = Header("")):
     """Credential inventory: every configured credential by source
@@ -395,9 +433,13 @@ def ai_credentials_inventory(authorization: str = Header(""), x_api_key: str = H
     for item in STORE["ai_providers"]:
         pub = _public_provider(item)
         st = pub.get("last_test_status", "untested")
+        preset = pub.get("preset", "") or ""
+        src = ("CUSTOM" if preset in ("openai-compatible", "responses-compatible",
+                                      "anthropic-compatible", "google-compatible")
+               else "DATABASE")
         rows.append({
             "provider": pub.get("name", ""), "protocol": pub.get("protocol", "chat"),
-            "source": "DATABASE",
+            "source": src,
             "configured": bool(pub.get("configured")) and bool(pub.get("enabled", True)),
             "masked_key": pub.get("masked_key", ""),
             "model": pub.get("model", "") or pub.get("default_model", ""),
@@ -550,7 +592,9 @@ def browser_health():
 @router.get("/api/version")
 def api_version():
     from ...main import app as _app
+    from ...version import API_VERSION, BUILD_ID
     return {"app": "universal-intelligence", "api": "v1", "version": _app.version,
+            "api_version": API_VERSION, "build": BUILD_ID,
             "contracts": {"jobs": "1.0", "results": "1.0", "events": "1.0"},
             "deprecation": "v1 stable; no deprecation scheduled"}
 
@@ -933,6 +977,7 @@ def _public_provider(p: dict) -> dict:
     out["capabilities"] = capabilities_for(p.get("preset", ""), p.get("protocol", "chat"))
     out["default_model"] = p.get("model", "") or default_model_for(p.get("preset", ""))
     out["models_cached"] = list(p.get("models_cached") or [])
+    out["models_meta"] = list(p.get("models_meta") or [])
     out["models_source"] = p.get("models_source", "")
     return out
 
@@ -972,7 +1017,14 @@ def _record_test(p: dict, result: dict):
     models = [m.get("id", "") for m in (result.get("models") or []) if m.get("id")]
     if models:
         p["models_cached"] = models[:50]
-        p["models_source"] = "REMOTE DISCOVERED"
+        p["models_source"] = result.get("source") or "REMOTE DISCOVERED"
+        synced = _t.time()
+        p["models_meta"] = [
+            {"id": m.get("id", ""), "protocol": m.get("protocol", ""),
+             "endpoint": m.get("endpoint") or "",
+             "capabilities": list(m.get("capabilities") or [])[:20],
+             "synced_at": synced}
+            for m in (result.get("models") or []) if m.get("id")][:50]
     elif not p.get("models_cached"):
         from ...ai.presets import get_preset
         preset = get_preset(p.get("preset", "") or "")
@@ -1001,6 +1053,11 @@ def _run_test(base_url: str, protocol: str, api_key: str, model: str,
                 "model": {"selected": model or "", "available": False},
                 "models": [], "error": {"code": code, "message": msg}}
     return _dg.test_provider(prov, name, model or "")
+
+
+def _resolve_provider_row(name: str):
+    """Find a DB provider by name, else None (env providers resolve live)."""
+    return next((x for x in STORE["ai_providers"] if x.get("name") == name), None)
 
 
 @router.post("/api/v1/ai/providers/db", tags=["admin"])
@@ -1218,6 +1275,108 @@ def ai_provider_delete(pid: int, authorization: str = Header(""), x_api_key: str
         pass
     _audit(email, "ai.provider.delete", p["name"])
     return {"ok": True}
+
+
+@router.post("/api/v1/ai/providers/{name}/test", tags=["admin"])
+def ai_provider_test_by_name(name: str, authorization: str = Header(""),
+                             x_api_key: str = Header("")):
+    """Live test by provider name (database row or registered env provider)."""
+    from ...core.crypto import decrypt
+    from ...ai import diagnose as _dg
+    email, _, _ = _need(authorization, "configure", x_api_key)
+    row = _resolve_provider_row(name)
+    if row is not None:
+        if not row.get("enabled", True):
+            return {"success": False, "provider": {"name": name},
+                    "connection": {"authenticated": False, "latency_ms": 0},
+                    "model": {"selected": row.get("model", ""), "available": False},
+                    "models": [], "error": {"code": "INVALID_CONFIGURATION",
+                                            "message": "Provider is disabled."}}
+        try:
+            key = decrypt(row.get("api_key_enc", ""))
+        except Exception as e:  # noqa: BLE001
+            code, msg = _dg.normalize_error(f"key unreadable: {e}")
+            return {"success": False, "provider": {"name": name},
+                    "connection": {"authenticated": False, "latency_ms": 0},
+                    "model": {"selected": row.get("model", ""), "available": False},
+                    "models": [], "error": {"code": code, "message": msg}}
+        _validate_endpoint(row.get("base_url", ""), row.get("preset", ""))
+        result = _run_test(row.get("base_url", ""), row.get("protocol", "chat"),
+                           key, row.get("model", ""), name)
+        _record_test(row, result)
+        _audit(email, "ai.provider.test", f"{name}:{result.get('success')}")
+        return result
+    inst = aireg.get(name)
+    if inst is None:
+        raise HTTPException(404, f"unknown provider {name}")
+    result = _dg.test_provider(inst, name, getattr(inst, "model", ""))
+    _audit(email, "ai.provider.test", f"{name}:{result.get('success')}")
+    return result
+
+
+@router.get("/api/v1/ai/providers/{name}/models", tags=["admin"])
+def ai_provider_models_by_name(name: str, authorization: str = Header(""),
+                               x_api_key: str = Header("")):
+    """Live model discovery by provider name (no persistence)."""
+    from ...core.crypto import decrypt
+    from ...ai.factory import build_provider as _bp
+    from ...ai import diagnose as _dg
+    from ...ai.presets import valid_protocol
+    _, _, _ = _need(authorization, "configure", x_api_key)
+    row = _resolve_provider_row(name)
+    if row is not None:
+        proto = (row.get("protocol", "chat") or "chat").lower()
+        if not valid_protocol(proto):
+            raise HTTPException(400, "stored protocol invalid")
+        _validate_endpoint(row.get("base_url", ""), row.get("preset", ""))
+        try:
+            prov = _bp(proto, row.get("base_url", ""),
+                       decrypt(row.get("api_key_enc", "")), row.get("model", ""))
+        except Exception as e:  # noqa: BLE001
+            code, msg = _dg.normalize_error(e)
+            return {"models": [], "discovery": False, "manual_entry": True,
+                    "error": {"code": code, "message": msg}}
+        return _dg.discover(prov)
+    inst = aireg.get(name)
+    if inst is None:
+        raise HTTPException(404, f"unknown provider {name}")
+    return _dg.discover(inst)
+
+
+@router.post("/api/v1/ai/providers/{name}/models/sync", tags=["admin"])
+def ai_provider_models_sync(name: str, authorization: str = Header(""),
+                            x_api_key: str = Header("")):
+    """Discover models for a SAVED provider and persist the metadata
+    (ids, protocol, endpoint, capabilities, sync time). Env providers are
+    discovered live without persistence."""
+    from ...ai import diagnose as _dg
+    email, _, _ = _need(authorization, "configure", x_api_key)
+    row = _resolve_provider_row(name)
+    if row is None:
+        inst = aireg.get(name)
+        if inst is None:
+            raise HTTPException(404, f"unknown provider {name}")
+        return _dg.discover(inst)
+    disc = ai_provider_models_by_name(name, authorization, x_api_key)
+    models = disc.get("models") or []
+    import time as _t
+    synced = _t.time()
+    row["models_cached"] = [m.get("id", "") for m in models if m.get("id")][:50]
+    row["models_meta"] = [
+        {"id": m.get("id", ""), "protocol": m.get("protocol", ""),
+         "endpoint": m.get("endpoint") or "",
+         "capabilities": list(m.get("capabilities") or [])[:20],
+         "synced_at": synced}
+        for m in models if m.get("id")][:50]
+    row["models_source"] = disc.get("source") or ("REMOTE DISCOVERED" if models else "")
+    try:
+        repo.sync("ai_providers", row)
+    except Exception:
+        pass
+    _audit(email, "ai.provider.models-sync", f"{name}:{len(row['models_cached'])}")
+    return {"ok": True, "count": len(row["models_cached"]),
+            "source": row["models_source"], "models": row["models_meta"]}
+
 
 
 

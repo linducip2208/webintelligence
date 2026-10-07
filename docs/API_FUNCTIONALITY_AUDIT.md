@@ -1,6 +1,6 @@
 # Web Intelligence — API Functionality Audit
 
-_227 endpoints. Auth column from static analysis of router handlers (`_need` = permission-checked, `_ctx`/auth headers = identity, else public). Consumer/test columns from repo-wide reference scans._
+_231 endpoints. Auth column from static analysis of router handlers (`_need` = permission-checked, `_ctx`/auth headers = identity, else public). Consumer/test columns from repo-wide reference scans._
 
 | Method | Path | Auth | Frontend consumer | Test ref | Status |
 |---|---|---|---|---|---|
@@ -18,6 +18,8 @@ _227 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `PATCH` | `/api/v1/ai/default` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `GET` | `/api/v1/ai/health` | public | YES | YES | OK |
 | `GET` | `/api/v1/ai/models` | public | — | — | OK |
+| `GET` | `/api/v1/ai/privacy` | public | YES | YES | OK |
+| `POST` | `/api/v1/ai/privacy` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `GET` | `/api/v1/ai/prompts` | public | — | — | OK |
 | `GET` | `/api/v1/ai/provider-presets` | public | YES | YES | OK |
 | `GET` | `/api/v1/ai/providers` | public | YES | YES | OK |
@@ -34,6 +36,9 @@ _227 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `POST` | `/api/v1/ai/providers/db/{pid}/enable` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
 | `POST` | `/api/v1/ai/providers/db/{pid}/models` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `POST` | `/api/v1/ai/providers/db/{pid}/test` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
+| `GET` | `/api/v1/ai/providers/{name}/models` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
+| `POST` | `/api/v1/ai/providers/{name}/models/sync` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
+| `POST` | `/api/v1/ai/providers/{name}/test` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `GET` | `/api/v1/ai/usage` | public | YES | — | OK |
 | `GET` | `/api/v1/alerts` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/alerts` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
@@ -287,7 +292,7 @@ _227 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `POST` | `/api/v1/workflows/{wid}/retry` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `POST` | `/api/v1/workflows/{wid}/run` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
 | `GET` | `/api/v1/workflows/{wid}/runs` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
-| `GET` | `/api/version` | public | YES | — | OK |
+| `GET` | `/api/version` | public | YES | YES | OK |
 | `GET` | `/healthz` | public | YES | YES | OK |
 | `GET` | `/metrics` | public | — | — | OK |
 | `GET` | `/readyz` | public | YES | YES | OK |

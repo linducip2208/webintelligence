@@ -148,6 +148,19 @@ def test_confidence_and_status_filters(local_url):
     assert all("open" in str(i.get("status") or "").lower() for i in r["items"])
 
 
+def test_project_tag_sort_and_related(local_url):
+    s = _seed(local_url)
+    pid = s["project"]["id"]
+    r = c.get("/api/v1/search", params={"q": "searchsuite", "project_id": pid}).json()
+    assert r["items"] and all(i.get("project_id") == pid for i in r["items"]
+                              if i.get("project_id") is not None)
+    r = c.get("/api/v1/search", params={"q": "searchsuite", "sort": "seen"}).json()
+    assert r["items"]
+    ent = next(i for i in c.get("/api/v1/search", params={"q": "searchsuite"}).json()["items"]
+               if i["kind"] == "entity")
+    assert "related" in ent and "confidence" in ent
+
+
 def test_entity_isolation(local_url):
     s = _seed(local_url)
     ent_id = s["entity"]["entity"]["id"]

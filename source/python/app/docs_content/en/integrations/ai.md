@@ -44,6 +44,9 @@ A domain investigation touches this concept within the first minutes: the wizard
 | `POST` | `/api/v1/ai/providers/db/{pid}/enable` | Ai Provider Enable |
 | `POST` | `/api/v1/ai/providers/db/{pid}/models` | Ai Provider Discover Saved |
 | `POST` | `/api/v1/ai/providers/db/{pid}/test` | Ai Provider Test |
+| `GET` | `/api/v1/ai/providers/{name}/models` | Ai Provider Models By Name |
+| `POST` | `/api/v1/ai/providers/{name}/models/sync` | Ai Provider Models Sync |
+| `POST` | `/api/v1/ai/providers/{name}/test` | Ai Provider Test By Name |
 
 
 ## Related

@@ -112,14 +112,34 @@ def settings_system():
         index_docs = -1
     from ...main import app as _app
     import os as _o
+    static_dir = _o.path.join(_o.path.dirname(__file__), "..", "..", "static")
+    assets = {}
+    for rel in ("vendor/tabler/tabler.min.css", "vendor/tabler/tabler.min.js",
+                "js/app.js", "js/views.js", "js/viewdocs.js", "docs.js"):
+        try:
+            assets[rel] = _o.path.getsize(_o.path.join(static_dir, rel))
+        except Exception:
+            assets[rel] = -1
+    try:
+        docs_pages = sum(1 for _r, _d, fs in _o.walk(
+            _o.path.join(_o.path.dirname(__file__), "..", "..", "docs_content"))
+            for _f in fs if _f.endswith(".md"))
+    except Exception:
+        docs_pages = -1
+    from ...version import APP_VERSION, API_VERSION, BUILD_ID
+    paths = _app.openapi()["paths"]
     return {
-        "app_version": _app.version, "api": "v1",
+        "app_version": APP_VERSION, "api_version": API_VERSION, "build": BUILD_ID,
+        "api": "v1",
         "env": _o.getenv("ENV", "dev"),
         "python": _pf.python_version(),
         "database": {"backend": getattr(repo, "backend", "?")},
         "redis": {"connected": r is not None, **redis_status()},
         "search_index_documents": index_docs,
         "ai_providers_configured": len(STORE.get("ai_providers", [])),
+        "openapi_paths": len(paths),
+        "docs_pages": docs_pages,
+        "frontend_assets": assets,
         "counts": {k: len(STORE.get(k, [])) for k in
                    ("projects", "targets", "jobs", "investigations", "cases",
                     "entities", "findings", "evidence", "reports")},

@@ -2,10 +2,10 @@
 
 _Generated from the live contract (v2.14.0)._
 
-- TOTAL: 227
-- IMPLEMENTED: 227
-- TESTED (referenced by test sources): 136
-- FRONTEND_CONNECTED: 197
+- TOTAL: 231
+- IMPLEMENTED: 231
+- TESTED (referenced by test sources): 138
+- FRONTEND_CONNECTED: 201
 - UNUSED (no frontend consumer, no test reference): 15
 - BROKEN: 0 (every frontend call matches a route+method; enforced by test)
 

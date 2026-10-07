@@ -326,6 +326,7 @@ def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_ap
     Without credentials returns an honest error; never fake analysis."""
     from ...ai import fallback as _fb
     from ...ai import safety as _safe
+    from ...ai import privacy as _priv
     from ...ai.chain import build_chain as _bc, resolve_role as _role
     from ...ai import prompts as _pr
     email, org, _ = _need(authorization, "research", x_api_key)
@@ -336,6 +337,8 @@ def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_ap
     ev = [x for x in STORE["evidence"] if x.get("id") in (run.get("evidence_ids") or [])]
     if not ev:
         raise HTTPException(400, "no evidence attached; attach evidence first")
+    _policy = _priv.get_policy(repo)
+    ev = _priv.redact_items(_policy, ev)
     prompt = _pr.render("summarize_evidence",
                         evidence="\n".join(f"[{e['id']}] {e.get('snippet', '')}" for e in ev))
     messages = [{"role": "user", "content": _safe.wrap_evidence(
@@ -351,6 +354,10 @@ def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_ap
     if not chain:
         raise HTTPException(502, "AI analysis is not configured. "
                                  "Configure an AI provider first.")
+    _head = chain[0][0]
+    _ok, _why = _priv.check(_policy, _head[3:] if _head.startswith("db:") else _head, "")
+    if not _ok:
+        raise HTTPException(403, _why)
     out = _fb.chat_fallback(chain, messages, use_model)
     if out.get("error"):
         raise HTTPException(502, f"ai unavailable: {out['error']}"[:300])

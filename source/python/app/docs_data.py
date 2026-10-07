@@ -1324,9 +1324,10 @@ API_EXTRA = {
     "intelligence/feed": ["/api/v1/feed"],
     "evidence/documents": ["/api/v1/datasets", "/api/v1/documents"],
     "ai/research": ["/api/v1/research"],
-    "ai/providers": ["/api/v1/ai/provider-presets", "/api/v1/ai/credentials/inventory"],
+    "ai/providers": ["/api/v1/ai/provider-presets", "/api/v1/ai/credentials/inventory",
+                     "/api/v1/ai/privacy"],
     "api/ai": ["/api/v1/ai/provider-presets", "/api/v1/ml", "/api/v1/ai/default",
-               "/api/v1/ai/credentials/inventory"],
+               "/api/v1/ai/credentials/inventory", "/api/v1/ai/privacy"],
     "monitoring/workflows": ["/api/v1/maintenance"],
     "administration/users": ["/api/v1/users", "/api/v1/memberships"],
     "administration/settings": [
