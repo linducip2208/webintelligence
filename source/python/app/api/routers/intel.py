@@ -281,17 +281,19 @@ def intel_news(spec: dict):
 # ---- entities ----
 @router.post("/api/v1/entities/resolve")
 def entity_resolve(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, _, _ = _need(authorization, "collect", x_api_key)
+    email, org, _ = _need(authorization, "collect", x_api_key)
     from ...services.entity_resolution import score, decide
     cand = spec.get("candidate", {})
     best, best_s = None, -1.0
     for e in STORE["entities"]:
+        if e.get("org", 1) != org:
+            continue
         s = score(cand, e)
         if s > best_s:
             best, best_s = e, s
     verdict = decide(best_s) if best else "NEW"
     if verdict == "NEW":
-        item = {"id": len(STORE["entities"]) + 1, **cand}
+        item = {"id": len(STORE["entities"]) + 1, "org": org, **cand}
         STORE["entities"].append(item)
         _audit(email, "entity.resolve.new", str(item["id"]))
         return {"verdict": "NEW", "entity": item, "score": 0.0}
@@ -304,8 +306,12 @@ def entity_resolve(spec: dict, authorization: str = Header(""), x_api_key: str =
 
 
 @router.get("/api/v1/entities")
-def list_entities(page: int = 1, size: int = 20):
-    return paginate(STORE["entities"], page, size)
+def list_entities(page: int = 1, size: int = 20,
+                  authorization: str = Header(""), x_api_key: str = Header("")):
+    from ..shared import paginate
+    _, org, _ = _ctx(authorization, x_api_key)
+    items = [x for x in STORE["entities"] if x.get("org", 1) == org]
+    return paginate(items, page, size)
 
 
 
@@ -510,11 +516,20 @@ def report_export(rep_id: int, format: str = "json",
 
 
 
+def _org_entity(eid: int, org: int):
+    e = next((x for x in STORE["entities"] if x.get("id") == eid), None)
+    if not e or e.get("org", 1) != org:
+        return None
+    return e
+
+
 # ---- entity operations + explorer ----
 @router.post("/api/v1/entities/merge", tags=["entities"])
 def entity_merge(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import entityops as _o
-    email, _, _ = _need(authorization, "configure")
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    if not _org_entity(spec.get("keep_id"), org) or not _org_entity(spec.get("drop_id"), org):
+        raise HTTPException(404, "entity not found in your organization")
     out = _o.merge(STORE["entities"], STORE["entity_history"],
                    spec.get("keep_id"), spec.get("drop_id"), email)
     if not out["ok"]:
@@ -527,7 +542,9 @@ def entity_merge(spec: dict, authorization: str = Header(""), x_api_key: str = H
 @router.post("/api/v1/entities/split", tags=["entities"])
 def entity_split(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import entityops as _o
-    email, _, _ = _need(authorization, "configure")
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    if not _org_entity(spec.get("entity_id"), org):
+        raise HTTPException(404, "entity not found in your organization")
     out = _o.split(STORE["entities"], STORE["entity_history"],
                    spec.get("entity_id"), spec.get("parts", []), email)
     if not out["ok"]:
@@ -541,21 +558,26 @@ def entity_split(spec: dict, authorization: str = Header(""), x_api_key: str = H
 @router.post("/api/v1/entities/reject", tags=["entities"])
 def entity_reject(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     from ...services import entityops as _o
-    email, _, _ = _need(authorization, "configure")
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    if not _org_entity(spec.get("entity_id"), org):
+        raise HTTPException(404, "entity not found in your organization")
     _audit(email, "entity.reject", str(spec.get("entity_id")))
     return _o.reject(STORE["entity_history"], spec.get("entity_id"),
                      spec.get("reason", ""), email)
 
 
 @router.get("/api/v1/entities/history", tags=["entities"])
-def entity_history():
-    return {"items": STORE["entity_history"]}
+def entity_history(authorization: str = Header(""), x_api_key: str = Header("")):
+    _, org, _ = _ctx(authorization, x_api_key)
+    own = {x.get("id") for x in STORE["entities"] if x.get("org", 1) == org}
+    return {"items": [h for h in STORE["entity_history"]
+                      if h.get("keep") in own or h.get("drop") in own or h.get("src") in own]}
 
 
 @router.post("/api/v1/entities/{eid}/aliases", tags=["entities"])
 def entity_alias(eid: int, spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
-    email, _, _ = _need(authorization, "configure")
-    e = next((x for x in STORE["entities"] if x.get("id") == eid), None)
+    email, org, _ = _need(authorization, "configure", x_api_key)
+    e = _org_entity(eid, org)
     if not e:
         raise HTTPException(404, "entity not found")
     aliases = e.get("aliases", [])
@@ -583,17 +605,21 @@ def review_queue(authorization: str = Header(""), x_api_key: str = Header("")):
 
 
 @router.get("/api/v1/entities/{eid}", tags=["entities"])
-def entity_detail(eid: int):
+def entity_detail(eid: int, authorization: str = Header(""), x_api_key: str = Header("")):
     """Rich explorer: overview, timeline, relationships, events, changes, evidence."""
-    e = next((x for x in STORE["entities"] if x.get("id") == eid), None)
+    _, org, _ = _ctx(authorization, x_api_key)
+    e = _org_entity(eid, org)
     if not e:
         raise HTTPException(404, "not found")
     key = e.get("domain") or e.get("name", "")
-    nodes = [n for n in STORE["nodes"] if key and (n.get("key") == key or n.get("name") == e.get("name"))]
+    nodes = [n for n in STORE["nodes"] if n.get("org", 1) == org and key
+             and (n.get("key") == key or n.get("name") == e.get("name"))]
     node_ids = {n["id"] for n in nodes}
-    rels = [x for x in STORE["edges"] if x.get("src") in node_ids or x.get("dst") in node_ids]
+    rels = [x for x in STORE["edges"] if x.get("org", 1) == org
+            and (x.get("src") in node_ids or x.get("dst") in node_ids)]
     evts = [v for v in STORE["events"] if key and key.lower() in str(v.get("entity_key", "")).lower()]
-    ev = [x for x in STORE["evidence"] if key and key.lower() in (x.get("url", "") + x.get("snippet", "")).lower()]
+    ev = [x for x in STORE["evidence"] if x.get("org", 1) == org and key
+          and key.lower() in (x.get("url", "") + x.get("snippet", "")).lower()]
     from ...services import temporal as _t
     return {"entity": e, "timeline": _t.timeline(STORE["history"], f"price:{eid}"),
             "graph_nodes": nodes, "relationships": rels, "events": evts,

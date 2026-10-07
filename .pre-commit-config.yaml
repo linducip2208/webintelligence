@@ -1,0 +1,23 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+        name: gitleaks secret scan
+        entry: gitleaks protect --staged --verbose
+        language: system
+        pass_filenames: false
+  - repo: local
+    hooks:
+      - id: docs-validate
+        name: docs link + API coverage validation
+        entry: python scripts/docs/validate.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: frontend-audit
+        name: dead UI / dead endpoint audit
+        entry: python scripts/audit/frontend_audit.py
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -114,7 +114,7 @@ _Generated from the application registry (v2.14.0). Every row is a live `/docs` 
 
 ## API
 
-- [API Overview](/docs/api/overview) — 216 versioned paths under /api/v1, generated from the live OpenAPI contract.
+- [API Overview](/docs/api/overview) — Every versioned path under /api/v1, generated from the live OpenAPI contract.
 - [API Authentication](/docs/api/authentication) — Bearer tokens and scoped API keys with curl, Python and JavaScript examples.
 - [Projects API](/docs/api/projects) — Create and manage investigation workspaces.
 - [Investigations API](/docs/api/investigations) — Full lifecycle plus notes, tasks, members, links and saved views.

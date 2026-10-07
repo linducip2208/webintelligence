@@ -21,8 +21,10 @@ Authentication: Bearer token from `POST /api/v1/auth/login` or `X-API-Key` heade
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/v1/ai/chat` | Ai Chat |
+| `GET` | `/api/v1/ai/credentials/inventory` | Ai Credentials Inventory |
 | `GET` | `/api/v1/ai/default` | Ai Default View |
 | `POST` | `/api/v1/ai/default` | Ai Default Set |
+| `PATCH` | `/api/v1/ai/default` | Ai Default Set |
 | `GET` | `/api/v1/ai/provider-presets` | Ai Provider Presets |
 | `GET` | `/api/v1/ai/providers` | Ai Providers |
 | `GET` | `/api/v1/ai/providers/db` | Ai Provider List |

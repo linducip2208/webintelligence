@@ -133,3 +133,44 @@ def test_ollama_unreachable_is_honest():
     assert r["success"] is False
     assert r["error"]["code"] in ("PROVIDER_UNAVAILABLE", "CONNECTION_TIMEOUT",
                                  "INVALID_CONFIGURATION")
+
+
+def test_credentials_inventory_never_leaks():
+    p = c.post("/api/v1/ai/providers/db",
+               json={"name": "AuditInv", "preset": "openai-compatible",
+                     "protocol": "chat", "base_url": "https://example.com/v1",
+                     "api_key": "SECRET-INV-9999", "model": "m"}).json()
+    try:
+        inv = c.get("/api/v1/ai/credentials/inventory").json()
+        assert set(inv) >= {"inventory", "summary", "effective_default"}
+        db_rows = [r for r in inv["inventory"] if r["source"] == "DATABASE"]
+        assert db_rows, "db credentials must be inventoried"
+        row = next(r for r in db_rows if r["provider"] == "AuditInv")
+        assert set(row) >= {"provider", "protocol", "source", "configured",
+                            "masked_key", "model", "default", "status"}
+        assert "SECRET-INV-9999" not in str(inv)
+        assert "api_key" not in str(inv).replace("masked_key", "").replace("key_configured", "")
+        assert row["masked_key"].endswith("9999")
+        assert row["status"] in ("CONFIGURED", "CONNECTED", "FAILED", "DISABLED")
+        env_rows = [r for r in inv["inventory"] if r["source"] in ("ENVIRONMENT", "LOCAL")]
+        assert env_rows, "env/local providers must be inventoried"
+        assert "SECRET-INV-9999" not in str(env_rows)
+        assert inv["summary"]["total"] == len(inv["inventory"])
+    finally:
+        c.delete(f"/api/v1/ai/providers/db/{p['id']}")
+
+
+def test_use_case_routing_validated_and_resolved():
+    assert c.post("/api/v1/ai/default",
+                  json={"scope": "system", "provider": "",
+                        "use_cases": {"bogus-role": {}}}).status_code == 400
+    assert c.post("/api/v1/ai/default",
+                  json={"scope": "user", "provider": "",
+                        "use_cases": {"research": {}}}).status_code == 403
+    r = c.post("/api/v1/ai/default",
+               json={"scope": "system", "provider": "",
+                     "use_cases": {"research": {"provider": "", "model": "",
+                                                "enabled": False}}}).json()
+    assert r["ok"] is True
+    v = c.get("/api/v1/ai/default").json()
+    assert v["use_cases"]["research"]["enabled"] is False

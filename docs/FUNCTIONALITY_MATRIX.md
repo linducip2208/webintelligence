@@ -1,6 +1,6 @@
 # Web Intelligence — Functionality Matrix
 
-_Generated from views.js, the live OpenAPI contract (225 paths), service modules and the STORE. v2.14.0_
+_Generated from views.js, the live OpenAPI contract (227 paths), service modules and the STORE. v2.14.0_
 
 | Feature | Menu | Frontend route | API endpoints | Service | Persistence | External dep | Status |
 |---|---|---|---|---|---|---|---|
@@ -32,7 +32,7 @@ _Generated from views.js, the live OpenAPI contract (225 paths), service modules
 | STIX / MISP | Integrations | `#stix` | 5 paths | services/stix | nodes, edges, entities, findings | none | WORKING |
 | External APIs | Integrations | `#external-apis` | 3 paths | auth/service, services/webhooks | apikeys | none | WORKING |
 | Security Tools | Integrations | `#security-tools` | 1 paths | collectors/brightdata | — | brightdata, proxies, browser | WORKING |
-| AI Providers | Integrations | `#ai-providers` | 17 paths | ai/factory, ai/registry, ai/safety | ai_providers | ai-vendors | WORKING |
+| AI Providers | Integrations | `#ai-providers` | 18 paths | ai/factory, ai/registry, ai/safety | ai_providers | ai-vendors | WORKING |
 | Users & Roles | Administration | `#users` | 6 paths | services/rbac, auth/service | memberships, orgs | oidc | WORKING |
 | Settings | Administration | `#settings` | 2 paths | services/flags | repo-kv | none | WORKING |
 | Audit Log | Administration | `#audit` | 1 paths | api/shared | audit | none | WORKING |

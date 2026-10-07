@@ -291,7 +291,7 @@
   "viewport": "1440x900",
   "theme": "light",
   "lang": "en",
-  "generated_at": "2026-10-07T09:00:02.044954+00:00",
+  "generated_at": "2026-10-07T12:11:21.034701+00:00",
   "app_version": "2.14.0",
   "redacted": false,
   "demo_data": true
@@ -324,7 +324,7 @@
   "viewport": "1440x900",
   "theme": "light",
   "lang": "en",
-  "generated_at": "2026-10-07T09:03:26.509803+00:00",
+  "generated_at": "2026-10-07T12:11:22.351128+00:00",
   "app_version": "2.14.0",
   "redacted": false,
   "demo_data": true
@@ -369,6 +369,28 @@
   "theme": "light",
   "lang": "en",
   "generated_at": "2026-10-07T09:00:06.321744+00:00",
+  "app_version": "2.14.0",
+  "redacted": false,
+  "demo_data": true
+ },
+ "33-security-tools.png": {
+  "route": "/#security-tools",
+  "view": "security-tools",
+  "viewport": "1440x900",
+  "theme": "light",
+  "lang": "en",
+  "generated_at": "2026-10-07T12:11:23.656410+00:00",
+  "app_version": "2.14.0",
+  "redacted": false,
+  "demo_data": true
+ },
+ "34-external-apis.png": {
+  "route": "/#external-apis",
+  "view": "external-apis",
+  "viewport": "1440x900",
+  "theme": "light",
+  "lang": "en",
+  "generated_at": "2026-10-07T12:11:24.960111+00:00",
   "app_version": "2.14.0",
   "redacted": false,
   "demo_data": true

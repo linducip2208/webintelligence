@@ -59,6 +59,7 @@ A domain investigation touches this concept within the first minutes: the wizard
 |---|---|---|
 | `GET` | `/api/v1/ai/default` | Ai Default View |
 | `POST` | `/api/v1/ai/default` | Ai Default Set |
+| `PATCH` | `/api/v1/ai/default` | Ai Default Set |
 | `GET` | `/api/v1/ai/providers` | Ai Providers |
 | `GET` | `/api/v1/ai/providers/db` | Ai Provider List |
 | `POST` | `/api/v1/ai/providers/db` | Ai Provider Create |

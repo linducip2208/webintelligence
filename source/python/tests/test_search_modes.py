@@ -48,7 +48,8 @@ def _seed(local_url):
                                         "url": local_url}).json()
     e = c.post("/api/v1/entities/resolve",
                json={"candidate": {"name": "SearchSuite Corp",
-                                   "domain": "searchsuite.example"}}).json()
+                                   "domain": "searchsuite.example",
+                                   "confidence": 85}}).json()
     f = c.post("/api/v1/findings", json={"kind": "OBS", "title": "SearchSuite exposed panel",
                                          "severity": "high"}).json()
     inv = c.post("/api/v1/investigations", json={"title": "SearchSuite review"}).json()
@@ -137,3 +138,26 @@ def test_legacy_scope_param_still_works(local_url):
     _seed(local_url)
     r = c.get("/api/v1/search", params={"q": "searchsuite", "scope": "targets"}).json()
     assert "items" in r and "facets" in r
+
+
+def test_confidence_and_status_filters(local_url):
+    _seed(local_url)
+    r = c.get("/api/v1/search", params={"q": "searchsuite", "confidence_min": 50}).json()
+    assert r["items"] and all((i.get("confidence") or 0) >= 50 for i in r["items"])
+    r = c.get("/api/v1/search", params={"q": "searchsuite", "status": "open"}).json()
+    assert all("open" in str(i.get("status") or "").lower() for i in r["items"])
+
+
+def test_entity_isolation(local_url):
+    s = _seed(local_url)
+    ent_id = s["entity"]["entity"]["id"]
+    org2 = c.post("/api/v1/orgs", json={"name": "EntOther"}).json()
+    key = c.post("/api/v1/apikeys", json={"name": "e2", "scopes": ["read", "collect"],
+                                          "org_id": org2["id"]}).json()
+    h = {"X-API-Key": key["key"]}
+    assert c.get("/api/v1/entities", headers=h).json()["items"] == []
+    assert c.get(f"/api/v1/entities/{ent_id}", headers=h).status_code == 404
+    r = c.post("/api/v1/entities/resolve", headers=h,
+               json={"candidate": {"name": "SearchSuite Corp",
+                                   "domain": "searchsuite.example"}}).json()
+    assert r["verdict"] == "NEW"  # other org's entity invisible here

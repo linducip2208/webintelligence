@@ -8,8 +8,14 @@ Two tracks, both verified:
   (no separate framework, no CDN, local Tabler only): 115 pages in English,
   Indonesian and Arabic; search, sitemap, contextual help and coverage APIs.
 - **Functionality audit**: unified search engine, 19-vendor AI catalog with
-  enriched listing/health/defaults, sectioned Settings with persisted
-  defaults, static frontend audit gate, hermetic browser journey E2E.
+  enriched listing/health/defaults/inventory, sectioned Settings with
+  persisted defaults, static frontend audit gate (with JS syntax), hermetic
+  browser journey E2E.
+- **100/100 hardening**: version constant + gate, env credential discovery,
+  credentials inventory, per-role AI routing, Ctrl+K commands, density/
+  layout/timezone, settings search/reset/unsaved guard, diagnostics export,
+  backup verification, real Security Tools + External APIs views, secret
+  scanner, entity org isolation, 36 real screenshots.
 
 ## 2. Version
 
@@ -49,7 +55,7 @@ Two tracks, both verified:
 
 ## 6. Screenshot matrix
 
-34 shots, all from the real UI against isolated demo data (`.example`
+36 shots, all from the real UI against isolated demo data (`.example`
 domains, `TRUSTED_EGRESS_CIDRS=127.0.0.1/32` for the running-state capture),
 Plus manifest with route/viewport/version per shot; dev credential redacted
 on the login shot; sentinel secret scan before every capture.
@@ -61,6 +67,7 @@ on the login shot; sentinel secret scan before every capture.
 | 12–28 | findings … external-apis | real demo-backed views |
 | 29–30 | docs home + tutorial | real portal |
 | 31-search / 32-search-results | search console | real unified-engine results (26 for "acme") |
+| 33-security-tools / 34-external-apis | new real views | honest availability + key management |
 | m-dashboard / m-docs-home | 390×844 | real mobile layout |
 
 Regenerate: `python scripts/docs/generate_screenshots.py [--update]`.
@@ -75,7 +82,7 @@ Full pipeline: `python scripts/docs/all.py [--skip-shots]`.
 | `tests/integration` + `tests/security` + `tests/load` | all pass (Redis-live verified against Memurai) |
 | `tests/e2e` | pass (live-gated skips except hermetic journey) |
 | Functional journey (`UI_E2E=1`) | **PASS** — 31 views, live collection, settings persistence, docs |
-| Full combined run | **192 passed, 6 skipped (live-gated)** |
+| Full combined run | **199 passed, 6 skipped (live-gated)** |
 | `go test ./...` + `go vet` | pass |
 | Playwright screenshot run | 34/34 captured, secrets clean |
 

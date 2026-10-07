@@ -1,6 +1,6 @@
 # Web Intelligence — API Coverage
 
-_Application v2.14.0: 225 implemented paths, 225 documented, 0 missing documentation._
+_Application v2.14.0: 227 implemented paths, 227 documented, 0 missing documentation._
 
 ## Implemented but undocumented
 
@@ -444,8 +444,9 @@ _Application v2.14.0: 225 implemented paths, 225 documented, 0 missing documenta
 - `/api/v1/ai/providers/db/{pid}/models`
 - `/api/v1/ai/providers/db/{pid}/test`
 
-### ai/providers — 14 endpoint(s)
+### ai/providers — 15 endpoint(s)
 
+- `/api/v1/ai/credentials/inventory`
 - `/api/v1/ai/default`
 - `/api/v1/ai/health`
 - `/api/v1/ai/models`
@@ -518,7 +519,7 @@ _Application v2.14.0: 225 implemented paths, 225 documented, 0 missing documenta
 - `/api/v1/apikeys`
 - `/api/v1/apikeys/{kid}/revoke`
 
-### administration/settings — 19 endpoint(s)
+### administration/settings — 20 endpoint(s)
 
 - `/api/v1/admin/backup`
 - `/api/v1/admin/data-quality`
@@ -535,6 +536,7 @@ _Application v2.14.0: 225 implemented paths, 225 documented, 0 missing documenta
 - `/api/v1/costs/summary`
 - `/api/v1/flags`
 - `/api/v1/settings/defaults`
+- `/api/v1/settings/reset`
 - `/api/v1/settings/system`
 - `/api/v1/verticals`
 - `/api/v1/verticals/{name}`
@@ -739,9 +741,10 @@ _Application v2.14.0: 225 implemented paths, 225 documented, 0 missing documenta
 - `/api/v1/connectors/{cid}/execute`
 - `/api/v1/connectors/{cid}/test`
 
-### api/ai — 17 endpoint(s)
+### api/ai — 18 endpoint(s)
 
 - `/api/v1/ai/chat`
+- `/api/v1/ai/credentials/inventory`
 - `/api/v1/ai/default`
 - `/api/v1/ai/provider-presets`
 - `/api/v1/ai/providers`

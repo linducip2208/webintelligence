@@ -1,6 +1,6 @@
 # Web Intelligence — API Functionality Audit
 
-_225 endpoints. Auth column from static analysis of router handlers (`_need` = permission-checked, `_ctx`/auth headers = identity, else public). Consumer/test columns from repo-wide reference scans._
+_227 endpoints. Auth column from static analysis of router handlers (`_need` = permission-checked, `_ctx`/auth headers = identity, else public). Consumer/test columns from repo-wide reference scans._
 
 | Method | Path | Auth | Frontend consumer | Test ref | Status |
 |---|---|---|---|---|---|
@@ -12,8 +12,10 @@ _225 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `GET` | `/api/v1/admin/first-run` | public | YES | YES | OK |
 | `POST` | `/api/v1/admin/retention/run` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/ai/chat` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
+| `GET` | `/api/v1/ai/credentials/inventory` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `GET` | `/api/v1/ai/default` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
-| `POST` | `/api/v1/ai/default` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
+| `POST` | `/api/v1/ai/default` | ? | YES | YES | OK |
+| `PATCH` | `/api/v1/ai/default` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `GET` | `/api/v1/ai/health` | public | YES | YES | OK |
 | `GET` | `/api/v1/ai/models` | public | — | — | OK |
 | `GET` | `/api/v1/ai/prompts` | public | — | — | OK |
@@ -32,7 +34,7 @@ _225 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `POST` | `/api/v1/ai/providers/db/{pid}/enable` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
 | `POST` | `/api/v1/ai/providers/db/{pid}/models` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `POST` | `/api/v1/ai/providers/db/{pid}/test` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
-| `GET` | `/api/v1/ai/usage` | public | — | — | OK |
+| `GET` | `/api/v1/ai/usage` | public | YES | — | OK |
 | `GET` | `/api/v1/alerts` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/alerts` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/alerts/bulk` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
@@ -115,13 +117,13 @@ _225 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `GET` | `/api/v1/documents` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/documents` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `DELETE` | `/api/v1/documents/{did}` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
-| `GET` | `/api/v1/entities` | public | YES | YES | OK |
-| `GET` | `/api/v1/entities/history` | public | — | — | OK |
+| `GET` | `/api/v1/entities` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
+| `GET` | `/api/v1/entities/history` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `POST` | `/api/v1/entities/merge` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/entities/reject` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | — | OK |
 | `POST` | `/api/v1/entities/resolve` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/entities/split` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | — | OK |
-| `GET` | `/api/v1/entities/{eid}` | public | — | YES | OK |
+| `GET` | `/api/v1/entities/{eid}` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
 | `POST` | `/api/v1/entities/{eid}/aliases` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
 | `GET` | `/api/v1/events` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/events` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
@@ -211,7 +213,7 @@ _225 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `POST` | `/api/v1/research/runs/{rid}/analyze` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `GET` | `/api/v1/research/runs/{rid}/export` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
 | `POST` | `/api/v1/research/runs/{rid}/finish` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | — | OK |
-| `POST` | `/api/v1/results` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | — | YES | OK |
+| `POST` | `/api/v1/results` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `GET` | `/api/v1/reviews` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/reviews/import` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `GET` | `/api/v1/reviews/queue` | Bearer/X-API-Key identity (dev-open unless REQUIRE_AUTH=1) | YES | — | OK |
@@ -234,6 +236,7 @@ _225 endpoints. Auth column from static analysis of router handlers (`_need` = p
 | `GET` | `/api/v1/search/semantic` | public | — | YES | OK |
 | `GET` | `/api/v1/settings/defaults` | public | YES | YES | OK |
 | `PATCH` | `/api/v1/settings/defaults` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
+| `POST` | `/api/v1/settings/reset` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | — | OK |
 | `GET` | `/api/v1/settings/system` | public | YES | YES | OK |
 | `POST` | `/api/v1/stix/export` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |
 | `POST` | `/api/v1/stix/import` | Bearer/X-API-Key + permission (dev-open unless REQUIRE_AUTH=1) | YES | YES | OK |

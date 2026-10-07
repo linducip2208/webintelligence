@@ -679,6 +679,9 @@ def api_examples(first_prefix):
 
 def api_body(page):
     desc = page[11]
+    if page[0] == "api/overview":
+        desc = (f"{len(PATHS)} versioned paths under /api/v1, generated from the live "
+                f"OpenAPI contract (this number is computed at build time, never hardcoded).")
     lines = [desc, "",
              "Authentication: Bearer token from `POST /api/v1/auth/login` or `X-API-Key` header. "
              "See [API Authentication](/docs/api/authentication).", ""]
@@ -1099,8 +1102,10 @@ def build_page(page):
                    "\n## Ranking\n\nExact field match (100) beats prefix (50), which beats token hits "
                    "(10 each), with small boosts for numeric risk and recency. "
                    "Filters: `kind`, `risk_min`, `risk_max`, `source`, `date_from`, `date_to`, "
-                   "`investigation_id`. Pagination: `limit` (max 100) and `offset`; responses carry "
-                   "`total`, `mode` and `facets`. Every collection is filtered to your organization.\n")
+                   "`investigation_id`, `confidence_min`, `confidence_max`, `status`. Pagination: `limit` (max 100) and `offset`; responses carry "
+                   "`total`, `mode` and `facets`. Every collection is filtered to your organization. "
+                   "Confidence scales differ by kind (entities 0–100, findings 0–1). "
+                   "Result actions: open, investigate, add to case, watch, create finding, view graph, export.\n")
     elif kind == "concept":
         md += concept_body(page)
     elif kind == "api":

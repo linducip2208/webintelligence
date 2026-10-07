@@ -6,44 +6,61 @@ Before: buttons and menus existed whose backend chains were unverified —
 search crossed organization boundaries with no ranking or modes, Redis
 silently never connected on common installs, STIX imports wrote graph edges
 against the wrong ID namespace, `/api/version` disagreed with the app about
-its own version, and two test suites failed only in combination.
+its own version, entity endpoints ignored organization isolation, and two
+test suites failed only in combination.
 
 After: every frontend handler, API call and route is statically verified by
-a pytest gate; search is one org-isolated ranked engine; Redis connects with
-retry; STIX edges reference real nodes; versions agree; the full combined
-suite is green (171+ new tests included).
+pytest gates (including JS syntax); search is one org-isolated ranked engine
+with 4 modes and 9 filters; Redis connects with retry; STIX edges reference
+real nodes; versions agree from one constant; entities are org-scoped;
+AI covers 19 vendors with inventory, health aggregate and defaults cascade;
+Settings is sectioned with persisted defaults; the full combined suite is
+green (199 passed).
 
 ## Search: WORKING
 
 - One engine (`app/search/unified.py`): keyword, exact, semantic, hybrid
   (default). Ranking exact > prefix > token + risk/recency nudges.
-- Filters: kind, risk_min/max, source, date_from/to, investigation_id.
-  Pagination with total. Org isolation tested (org-2 sees nothing).
+- Filters: kind, risk_min/max, source, date_from/to, investigation_id,
+  confidence_min/max, status. Pagination with total. Org isolation tested
+  (org-2 sees nothing), including entity isolation.
 - Console + hero + Ctrl+K share the backend. Result actions (Open,
-  Investigate, Add to Case, Watch, Create Finding, View Evidence) verified
-  against real endpoints. No AI required for any mode.
+  Investigate, Add to Case, Watch, Create Finding, View Evidence, View
+  Graph, Export) verified against real endpoints. No AI required for any
+  mode. Semantic index health shown in the console.
 
 ## AI Providers: WORKING (config-dependent)
 
 - 19-preset catalog (OpenAI, Anthropic, Google, Ollama, OpenCode Go/Zen,
   OpenRouter, Groq, DeepSeek, Mistral, xAI, Cohere, Together, Fireworks,
   Perplexity + 4 custom-compat), all adapter-backed, capabilities declared.
+- Environment discovery for every vendor key (OPENAI…PERPLEXITY, OPENCODE_*,
+  GEMINI alias); database credentials override environment per documented
+  precedence (explicit → user → org → system → env fallbacks → DB).
+- Credentials inventory endpoint (source badges, masked keys, live status);
+  raw key material never leaves the server (asserted, secret-scanned).
 - Configured providers listed with masked keys, test history, cached models;
-  raw key material never leaves the server (tested).
-- Live Test / Test All (sequential) with structured honest errors; Ollama
+  live Test / sequential Test All with structured honest errors; Ollama
   models discovered live; empty chain answers 502 `AI analysis is not
-  configured`.
-- Defaults cascade user → org → system → fallbacks, validated and tested.
+  configured`; fallback usage reported (`fallbacks_tried`, `default_used`).
+- Per-role routing (research/summarization/classification/risk/report);
+  research analyze resolves explicit → role → cascade → fallbacks + DB.
+- Defaults cascade user → org → system → fallbacks, validated and tested
+  (POST and PATCH).
 - Count in this environment: 0 configured (no vendor credentials here) —
-  the UI shows the honest empty state, not fake providers.
+  the UI shows the honest empty state plus the inventory table, not fake providers.
 
 ## Settings: WORKING
 
 - Sectioned shell (General/Workspace/Search/Appearance/Security/Collection/
-  Notifications/Integrations/Data/System) reusing verified controls.
-- Server-persisted workspace + search defaults, consumed by the wizard and
-  the console (tested round-trip + reload).
-- Appearance stays client-side by design and says so.
+  Notifications/Integrations/Data/System) with section search, reusing
+  verified controls — no alias pages.
+- Server-persisted workspace + search + timezone defaults, consumed by the
+  wizard, the console and timestamps (tested round-trip + reload + reset).
+- Appearance (theme, density, layout, language, accent) applies instantly
+  per browser and says so. Dirty tracking with beforeunload guard.
+- Misleading aliases removed: Security Tools and External APIs are real
+  views; `apikeys` remains a documented alias to the real page.
 
 ## Investigations: WORKING
 
@@ -117,8 +134,8 @@ suite is green (171+ new tests included).
 
 ## Unit: PASS
 
-- `source/python/tests` + `tests/unit`: all pass including 16 docs tests,
-  10 search tests, 6 AI registry tests, 2 settings tests, 3 frontend-audit tests.
+- `source/python/tests` + `tests/unit`: all pass including docs, search,
+  AI registry, settings, frontend-audit (with JS syntax) and version tests.
 
 ## Integration: PASS
 
@@ -133,13 +150,14 @@ suite is green (171+ new tests included).
 
 ## Dead UI: 0
 
-- Static gate: 479 functions defined, 345 API calls match real routes and
-  methods, all `go()` targets resolve.
+- Static gate: 495 functions defined, 356 API calls match real routes and
+  methods, all `go()` targets resolve, JS syntax checked by node.
 
 ## Broken API mappings: 0
 
-- 225/225 OpenAPI paths implemented, documented, and contract-synced
-  (`test_openapi_sync` passes).
+- 227/227 OpenAPI paths implemented, documented, and contract-synced
+  (`test_openapi_sync` passes). 197 frontend-connected, 15 documented
+  API-only surface, 0 broken.
 
 ## Fake completion states: 0
 

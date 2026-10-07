@@ -46,8 +46,8 @@ _Feature matrix: documentation page, real screenshot, E2E reference._
 | Outbound Webhooks | YES `/docs/monitoring/webhooks` | — | YES |
 | STIX 2.1 | YES `/docs/integrations/stix` | `24-stix.png` | YES |
 | MISP | YES `/docs/integrations/misp` | `25-misp.png` | YES |
-| Security Tools | YES `/docs/integrations/security-tools` | — | NO |
-| External APIs | YES `/docs/integrations/external-apis` | `28-api.png` | NO |
+| Security Tools | YES `/docs/integrations/security-tools` | `33-security-tools.png` | NO |
+| External APIs | YES `/docs/integrations/external-apis` | `34-external-apis.png`, `28-api.png` | NO |
 | AI Overview | YES `/docs/integrations/ai` | `23-ai-provider.png` | YES |
 | AI Providers | YES `/docs/ai/providers` | `23-ai-provider.png` | YES |
 | Provider Configuration | YES `/docs/ai/provider-configuration` | — | NO |

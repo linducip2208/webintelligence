@@ -115,7 +115,8 @@ def oidc_callback(spec: dict):
 
 @router.get("/healthz")
 def healthz():
-    return {"status": "ok", "version": "1.0.0"}
+    from ...main import app as _app
+    return {"status": "ok", "version": _app.version}
 
 
 @router.get("/readyz")
@@ -169,7 +170,6 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     untrusted DATA; every call is usage/cost-tracked; fallback chain on error."""
     from ...ai import fallback as _fb
     from ...ai import safety as _safe
-    from ...ai.factory import fallback_order
     from ...services import flags as _fl
     from ...ai.http import estimate_tokens, messages_text
     email0, org0, _ = _ctx(authorization, x_api_key)
@@ -197,6 +197,7 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
         raise HTTPException(402, why)
     use_model = model or settings.muse_model
     chain = []
+    default_used = "explicit" if provider else ""
     db_name = provider[3:] if provider.startswith("db:") else provider
     dbp = next((x for x in STORE["ai_providers"]
                 if x.get("name") == db_name and x.get("enabled")), None) if provider else None
@@ -213,51 +214,8 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
             raise HTTPException(404, f"unknown provider {provider}")
         chain = [(provider, p0)]
     else:
-        names = fallback_order() or _fb.default_names(aireg)
-        chain = [(n, aireg.get(n)) for n in names]
-        # Defaults cascade (user -> org -> system) leads the chain when the
-        # caller names no provider. Unknown/stale defaults are skipped openly.
-        try:
-            _dflt = (_ai_default_get("user", org0, email0)
-                     or _ai_default_get("org", org0)
-                     or _ai_default_get("system") or {})
-        except Exception:
-            _dflt = {}
-        if _dflt.get("provider"):
-            _dp, _dm = _dflt["provider"], _dflt.get("model", "")
-            _inst = None
-            try:
-                from ...core.crypto import decrypt as _dec0
-                from ...ai.factory import build_provider as _bp0
-                if _dp.startswith("db:"):
-                    _row = next((x for x in STORE["ai_providers"]
-                                 if x.get("name") == _dp[3:] and x.get("enabled")), None)
-                    if _row:
-                        _inst = _bp0(_row.get("protocol", "chat"), _row.get("base_url", ""),
-                                     _dec0(_row.get("api_key_enc", "")),
-                                     _row.get("model", "") or _dm)
-                        _dp = _row["name"]
-                else:
-                    _inst = aireg.get(_dp)
-                if _inst is not None:
-                    chain.insert(0, (_dp, _inst))
-                    use_model = _dm or use_model
-            except Exception:
-                pass
-        # Enabled DB-configured providers join the default chain too, so
-        # every AI added via Settings works without naming it explicitly.
-        seen = {n for n, _ in chain}
-        from ...core.crypto import decrypt as _dec
-        from ...ai.factory import build_provider as _bp2
-        for row in STORE["ai_providers"]:
-            if not row.get("enabled") or row.get("name") in seen:
-                continue
-            try:
-                chain.append((row["name"], _bp2(
-                    row.get("protocol", "chat"), row.get("base_url", ""),
-                    _dec(row.get("api_key_enc", "")), row.get("model", ""))))
-            except Exception:
-                continue
+        from ...ai.chain import build_chain as _bc
+        chain, use_model, default_used = _bc(STORE, repo, aireg, "", model, email0, org0)
     org_plan = next((o.get("plan", "starter") for o in STORE["orgs"] if o.get("id") == org0), "starter")
     allowed = _e.PLANS.get(org_plan, _e.PLANS["starter"]).get("allowed_models", [])
     if allowed != ["*"]:
@@ -270,6 +228,7 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
                                  "Configure an AI provider first.")
     out = _fb.chat_fallback(chain, messages, use_model)
     out["org"] = org0
+    out["default_used"] = default_used
     _record_usage(out, spec.get("prompt_version", ""))
     inc("AI_requests")
     return out
@@ -393,6 +352,73 @@ def ai_health():
     return base
 
 
+@router.get("/api/v1/ai/credentials/inventory", tags=["admin"])
+def ai_credentials_inventory(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Credential inventory: every configured credential by source
+    (ENVIRONMENT / DATABASE / LOCAL), masked, with live status.
+    Raw key material never appears here. No live provider calls."""
+    from ...ai import diagnose as _dg
+    from ...ai.presets import capabilities_for
+    email, org, _ = _ctx(authorization, x_api_key)
+    try:
+        dflt = (_ai_default_get("user", org, email)
+                or _ai_default_get("org", org)
+                or _ai_default_get("system") or {})
+    except Exception:
+        dflt = {}
+    dflt_name = (dflt.get("provider") or "")
+    rows = []
+
+    def _mask(raw):
+        raw = (raw or "").strip()
+        return ("••••••••" + raw[-4:]) if raw else ""
+
+    for name in sorted(aireg.names()):
+        p = aireg.get(name)
+        if p is None:
+            continue
+        raw = str(getattr(p, "api_key", "") or "")
+        proto = _dg._protocol_of(p)
+        local = name == "ollama"
+        rows.append({
+            "provider": name, "protocol": proto,
+            "source": "LOCAL" if local else "ENVIRONMENT",
+            "configured": bool(getattr(p, "configured", bool(raw))),
+            "masked_key": _mask(raw) if raw else ("NO KEY REQUIRED" if local else ""),
+            "model": getattr(p, "model", ""),
+            "default": dflt_name in (name, f"db:{name}"),
+            "status": ("CONFIGURED" if (getattr(p, "configured", bool(raw)) or local)
+                       else "NOT CONFIGURED"),
+            "capabilities": capabilities_for(name, proto),
+            "last_tested_at": 0.0, "last_test_status": "untested", "latency_ms": 0,
+        })
+    for item in STORE["ai_providers"]:
+        pub = _public_provider(item)
+        st = pub.get("last_test_status", "untested")
+        rows.append({
+            "provider": pub.get("name", ""), "protocol": pub.get("protocol", "chat"),
+            "source": "DATABASE",
+            "configured": bool(pub.get("configured")) and bool(pub.get("enabled", True)),
+            "masked_key": pub.get("masked_key", ""),
+            "model": pub.get("model", "") or pub.get("default_model", ""),
+            "default": dflt_name == f"db:{pub.get('name', '')}",
+            "status": ("DISABLED" if not pub.get("enabled", True)
+                       else "CONNECTED" if st == "passed"
+                       else "FAILED" if st == "failed" else "CONFIGURED"),
+            "capabilities": pub.get("capabilities", []),
+            "last_tested_at": pub.get("last_tested_at", 0.0),
+            "last_test_status": st,
+            "latency_ms": pub.get("last_test_latency_ms", 0),
+        })
+    summary = {"total": len(rows),
+               "configured": sum(1 for r in rows if r["configured"]),
+               "connected": sum(1 for r in rows if r["status"] == "CONNECTED"),
+               "failed": sum(1 for r in rows if r["status"] == "FAILED"),
+               "disabled": sum(1 for r in rows if r["status"] == "DISABLED")}
+    return {"inventory": rows, "summary": summary,
+            "effective_default": dflt}
+
+
 @router.post("/api/v1/ai/providers/db/test-all", tags=["admin"])
 def ai_provider_test_all(authorization: str = Header(""), x_api_key: str = Header("")):
     """Sequential live test of every enabled provider (sequential = no fan-out
@@ -448,14 +474,22 @@ def ai_default_view(authorization: str = Header(""), x_api_key: str = Header("")
     orgd = _ai_default_get("org", org) or {}
     userd = _ai_default_get("user", org, email) or {}
     effective = userd or orgd or system
+    try:
+        from ...ai.chain import ROLES
+        roles = {r: (repo.kv_get(f"ai:usecase:{r}") or {}) for r in ROLES}
+    except Exception:
+        roles = {}
     return {"system": system, "organization": orgd, "user": userd,
-            "effective": effective}
+            "effective": effective, "use_cases": roles}
 
 
 @router.post("/api/v1/ai/default")
+@router.patch("/api/v1/ai/default")
 def ai_default_set(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
     """Set the default provider+model cascade level. system/org need the
-    configure permission; user scope sets the caller's own default."""
+    configure permission; user scope sets the caller's own default.
+    Optional use_cases: {role: {provider, model, enabled}} for system-level
+    per-role routing (research, summarization, classification, risk, report)."""
     scope = (spec.get("scope") or "system").lower()
     if scope not in ("system", "org", "user"):
         raise HTTPException(400, "scope must be system|org|user")
@@ -478,6 +512,29 @@ def ai_default_set(spec: dict, authorization: str = Header(""), x_api_key: str =
     except Exception as e:
         raise HTTPException(500, f"could not save default: {e}"[:200])
     _audit(email, "ai.default.set", f"{scope}:{provider}/{model}")
+    if "use_cases" in spec:
+        if scope != "system":
+            raise HTTPException(403, "use-case routing is system-level (scope=system)")
+        from ...ai.chain import ROLES
+        roles = spec.get("use_cases") or {}
+        if not isinstance(roles, dict):
+            raise HTTPException(400, "use_cases must be an object")
+        known = set(aireg.names()) | {f"db:{x.get('name', '')}" for x in STORE["ai_providers"]}
+        for role, cfg in roles.items():
+            if role not in ROLES:
+                raise HTTPException(400, f"unknown role {role}")
+            if not isinstance(cfg, dict):
+                raise HTTPException(400, f"use_cases.{role} must be an object")
+            prov = (cfg.get("provider") or "").strip()
+            if prov and prov not in known and not prov.startswith("db:"):
+                raise HTTPException(404, f"unknown provider {prov}")
+            try:
+                repo.kv_set(f"ai:usecase:{role}",
+                            {"provider": prov, "model": (cfg.get("model") or "").strip(),
+                             "enabled": bool(cfg.get("enabled", True))})
+            except Exception as e:
+                raise HTTPException(500, f"could not save role: {e}"[:200])
+        _audit(email, "ai.usecase.set", ",".join(sorted(roles)))
     return {"ok": True, "scope": scope, **value}
 
 

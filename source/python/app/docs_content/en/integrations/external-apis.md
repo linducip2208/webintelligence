@@ -5,7 +5,7 @@ category: Integrations
 order: 40
 slug: integrations/external-apis
 language: en
-shots: [28-api.png]
+shots: [34-external-apis.png, 28-api.png]
 ---
 
 # External APIs
@@ -20,6 +20,8 @@ Outside clients authenticate with scoped keys; inbound events arrive HMAC-signed
 - You know which target you are authorized to investigate.
 
 ## Screenshots
+
+![Outside-client integration with key management.](shot:34-external-apis.png)
 
 ![API keys and external integration endpoints.](shot:28-api.png)
 

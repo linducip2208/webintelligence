@@ -1,6 +1,15 @@
 # Changelog
 
 ## v2.14.0 — commercial productization
+- 100/100 hardening: single version constant + consistency gate; unified
+  search (4 modes, 9 filters, org isolation incl. entities); 19-vendor AI
+  catalog with env discovery, credentials inventory, health aggregate,
+  Test All, defaults cascade + per-role routing; sectioned Settings with
+  search/reset/unsaved-guard/timezone/density/layout; real Security Tools
+  and External APIs views (aliases removed); Ctrl+K command rows;
+  diagnostics export; backup verification toast; secret scanner + pre-commit;
+  entity endpoints org-scoped; legacy docs.html removed; README counts
+  generated, never hardcoded
 - Functionality final audit: unified search engine (keyword/exact/semantic/
   hybrid, ranking, filters, pagination, org isolation — no AI required),
   search console with result actions, 20-vendor AI preset catalog with

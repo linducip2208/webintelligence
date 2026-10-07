@@ -9,9 +9,9 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#alert` | Alert | Monitor | 6 | YES | OK |
 | `#alerts` | Alerts | Monitor | 3 | YES | OK |
 | `#analytics` | Analytics | Intelligence | 6 | YES | OK |
-| `#apikeys` | External APIs | Integrations | 4 | YES | OK |
+| `#apikeys` | External APIs | Integrations | 3 | YES | OK |
 | `#articles` | Articles | Intelligence | 8 | YES | OK |
-| `#attack` | Attack Surface | Discover | 6 | YES | OK |
+| `#attack` | Attack Surface | Discover | 7 | YES | OK |
 | `#audit` | Audit Log | Administration | 3 | YES | OK |
 | `#case` | Case | Investigate | 2 | YES | OK |
 | `#cases` | Cases | Investigate | 2 | YES | OK |
@@ -22,19 +22,19 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#costs` | Costs | Administration | 7 | YES | OK |
 | `#dashboard` | Dashboard | ? | 8 | YES | OK |
 | `#data-sources` | Data Sources | Discover | 0 | — | OK |
-| `#dataset` | Dataset | Evidence | 9 | YES | OK |
+| `#dataset` | Dataset | Evidence | 8 | YES | OK |
 | `#datasets` | Datasets | Evidence | 7 | YES | OK |
 | `#documents` | Documents | Evidence | 9 | YES | OK |
 | `#entities` | Entities | Investigate | 5 | YES | OK |
 | `#entity` | Entity | Investigate | 4 | YES | OK |
 | `#events` | Events | Investigate | 4 | YES | CHECK |
 | `#evidence` | Evidence | Evidence | 4 | YES | CHECK |
-| `#external-apis` | External APIs | Integrations | 0 | — | OK |
+| `#external-apis` | External APIs | Integrations | 3 | — | OK |
 | `#feed` | Intelligence Feed | Intelligence | 9 | YES | OK |
 | `#finding` | Finding | Intelligence | 7 | YES | CHECK |
 | `#findings` | Findings | Intelligence | 5 | YES | CHECK |
 | `#graph` | Intelligence Graph | Investigate | 3 | YES | OK |
-| `#health` | System Health | Administration | 8 | YES | OK |
+| `#health` | System Health | Administration | 6 | YES | OK |
 | `#indicators` | Indicators | Intelligence | 8 | YES | OK |
 | `#intel-feed` | Intelligence Feed | Intelligence | 0 | — | OK |
 | `#investigation` | Investigation | Investigate | 2 | YES | OK |
@@ -45,12 +45,12 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#new-investigation` | New Investigation | Investigate | 8 | — | OK |
 | `#operations` | Operations | Discover | 5 | YES | OK |
 | `#opps` | Opportunities | Intelligence | 7 | YES | OK |
-| `#orgs` | Organizations | Administration | 6 | YES | OK |
+| `#orgs` | Organizations | Administration | 5 | YES | OK |
 | `#prices` | Prices | Discover | 8 | YES | OK |
 | `#project` | Data Source | Discover | 7 | YES | OK |
 | `#projects` | Data Sources | Discover | 8 | YES | OK |
 | `#recon` | Reconnaissance | Discover | 0 | YES | OK |
-| `#reliability` | Reliability | Administration | 7 | YES | OK |
+| `#reliability` | Reliability | Administration | 8 | YES | OK |
 | `#reports` | Reports | Evidence | 5 | YES | OK |
 | `#research` | Research | Intelligence | 6 | YES | OK |
 | `#reviews` | Reviews | Intelligence | 7 | YES | OK |
@@ -58,15 +58,15 @@ _Every `#/route`: title, section, API calls made by its view, E2E reference._
 | `#runs` | Research Runs | Intelligence | 6 | YES | OK |
 | `#schedules` | Schedules | Discover | 9 | YES | OK |
 | `#search` | Global Search | Investigate | 5 | YES | OK |
-| `#security-tools` | Security Tools | Integrations | 0 | — | OK |
+| `#security-tools` | Security Tools | Integrations | 2 | — | OK |
 | `#settings` | Settings | Administration | 3 | YES | OK |
 | `#stix` | STIX / MISP | Integrations | 8 | YES | OK |
 | `#target` | Target | Discover | 5 | YES | OK |
 | `#targets` | Targets | Discover | 5 | YES | OK |
 | `#threat` | Threat Intelligence | Intelligence | 0 | — | OK |
 | `#timeline` | Timeline | Investigate | 4 | YES | OK |
-| `#transforms` | Transforms | Investigate | 4 | YES | OK |
-| `#users` | Users & Roles | Administration | 5 | YES | OK |
+| `#transforms` | Transforms | Investigate | 3 | YES | OK |
+| `#users` | Users & Roles | Administration | 4 | YES | OK |
 | `#watchlists` | Watchlists | Monitor | 3 | YES | OK |
 | `#webhook` | Webhook | Monitor | 7 | YES | OK |
 | `#webhooks` | Webhooks | Monitor | 5 | YES | OK |

@@ -51,6 +51,7 @@ One settings surface for general, security, collectors, scheduler, notifications
 | `POST` | `/api/v1/flags` | Flags Set |
 | `GET` | `/api/v1/settings/defaults` | Settings Defaults Get |
 | `PATCH` | `/api/v1/settings/defaults` | Settings Defaults Patch |
+| `POST` | `/api/v1/settings/reset` | Settings Reset |
 | `GET` | `/api/v1/settings/system` | Settings System |
 | `GET` | `/api/v1/verticals` | List Verticals |
 | `GET` | `/api/v1/verticals/{name}` | Get Vertical |

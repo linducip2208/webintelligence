@@ -247,6 +247,8 @@ def search(q: str = "", scope: str = "all", mode: str = "hybrid", kind: str = ""
            limit: int = 20, offset: int = 0, risk_min: float = None,
            risk_max: float = None, source: str = "", date_from: str = "",
            date_to: str = "", investigation_id: int = None,
+           confidence_min: float = None, confidence_max: float = None,
+           status: str = "",
            authorization: str = Header(""), x_api_key: str = Header("")):
     """Unified intelligence search: keyword, exact, semantic and hybrid modes
     over one engine. Org-scoped; no AI required for any mode. Legacy callers
@@ -262,7 +264,10 @@ def search(q: str = "", scope: str = "all", mode: str = "hybrid", kind: str = ""
                                  limit=limit, offset=offset, risk_min=risk_min,
                                  risk_max=risk_max, source=source or "",
                                  date_from=date_from or "", date_to=date_to or "",
-                                 investigation_id=investigation_id)
+                                 investigation_id=investigation_id,
+                                 confidence_min=confidence_min,
+                                 confidence_max=confidence_max,
+                                 status=status or "")
     facets = {}
     for it in items:
         facets[it.get("kind", "?")] = facets.get(it.get("kind", "?"), 0) + 1

@@ -5,7 +5,7 @@ category: Integrations
 order: 30
 slug: integrations/security-tools
 language: en
-shots: []
+shots: [33-security-tools.png]
 ---
 
 # Security Tools
@@ -18,6 +18,10 @@ Only real, adapter-backed tool integrations are documented here. Configuration, 
 
 - A project exists and you can see it in Data Sources.
 - You know which target you are authorized to investigate.
+
+## Screenshots
+
+![Collection and verification tooling with honest availability states.](shot:33-security-tools.png)
 
 ## Steps
 

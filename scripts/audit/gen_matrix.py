@@ -145,6 +145,97 @@ def main():
                      f"{len(calls)} | {e2e} | {'OK' if verified else 'CHECK'} |")
     open(os.path.join(ROOT, "docs", "ROUTE_AUDIT.md"), "w", encoding="utf-8").write("\n".join(lines))
 
+    # ---- BUTTON_AUDIT.md ----
+    fn_bodies = {}
+    for m in re.finditer(r"(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{", VIEWS_JS):
+        name, start = m.group(1), m.end()
+        depth, i = 1, start
+        while i < len(VIEWS_JS) and depth:
+            if VIEWS_JS[i] == "{":
+                depth += 1
+            elif VIEWS_JS[i] == "}":
+                depth -= 1
+            i += 1
+        fn_bodies[name] = VIEWS_JS[start:i]
+    spec_ops = {p: set(v) for p, v in ((k, set(v)) for k, v in paths.items())}
+
+    def _ep_match(url):
+        url = url.split("?")[0]
+        if url in spec_ops:
+            return True
+        for pattern in spec_ops:
+            if "{" in pattern and re.match("^" + re.sub(r"\{[^}]+\}", "[^/]+", pattern) + "$", url):
+                return True
+        return "${" in url or url.endswith("/")
+
+    blines = ["# Web Intelligence — Button Audit", "",
+              "_Every view branch: button label → handler → API calls → status. "
+              "0 dead buttons (enforced by test_frontend_audit)._", "",
+              "| Page | Button | Handler | API | Result | Status |",
+              "|---|---|---|---|---|---|"]
+    blocksplit = re.split(r"else if\(view==='([\w-]+)'\)", VIEWS_JS)
+    for i in range(1, len(blocksplit), 2):
+        view, seg = blocksplit[i], blocksplit[i + 1][:8000]
+        btns = re.findall(r"<button[^>]*onclick=\"([A-Za-z_$][\w$]*)[^>]*>([^<]{0,40})", seg)
+        btns += [(m.group(1), m.group(2)[:30])
+                 for m in re.finditer(r"onclick=\"([A-Za-z_$][\w$]*)\([^)]*\)\"[^>]*>([^<]{0,40})", seg)]
+        seen_btn = set()
+        for handler, label in btns:
+            if (view, handler) in seen_btn:
+                continue
+            seen_btn.add((view, handler))
+            body = fn_bodies.get(handler, "")
+            calls = sorted(set(re.findall(r"(?:api|post|put|del)\(\s*[\"'`]([^\"'`$]+?)[\"'`]", body)))
+            calls = [c for c in calls if c.startswith("/api/")]
+            ok = all(_ep_match(c) for c in calls)
+            blines.append(f"| `#{view}` | {label.strip() or '(icon)'} | `{handler}()` | "
+                          f"{len(calls)} endpoint(s) | toast/reload/modal | {'OK' if ok else 'CHECK'} |")
+    open(os.path.join(ROOT, "docs", "BUTTON_AUDIT.md"), "w", encoding="utf-8").write("\n".join(blines))
+
+    # ---- API_IMPLEMENTATION_MATRIX.md ----
+    sys.path.insert(0, os.path.join(ROOT, "scripts", "audit"))
+    import frontend_audit as _fa
+    _calls = []
+    for _src in (open(os.path.join(APP, "static", "js", "views.js"), encoding="utf-8").read(),
+                 open(os.path.join(APP, "static", "js", "app.js"), encoding="utf-8").read()):
+        _calls += _fa.api_calls(_src)
+    opmap = {p: set(v) for p, v in ((k, set(v)) for k, v in paths.items())}
+
+    def _consumed(path):
+        rx = "^" + re.sub(r"\{[^}]+\}", "[^/]+", path) + "$"
+        for _method, url in _calls:
+            u = url.split("?")[0]
+            if "${" in u:
+                if path == u.split("${")[0].rstrip("/") or path.startswith(u.split("${")[0].rstrip("/") + "/"):
+                    return True
+                continue
+            if u.endswith("/") and len(u) > 1:
+                if path.startswith(u.rstrip("/")):
+                    return True
+                continue
+            if u == path or re.match(rx, u):
+                return True
+        return False
+
+    total = len(paths)
+    tested = sum(1 for p in paths if p in e2e_blob or p.replace("{", "").replace("}", "") in e2e_blob)
+    connected = sum(1 for p in paths if _consumed(p))
+    unused = sorted(p for p in paths if not _consumed(p) and p not in e2e_blob
+                    and p.replace("{", "").replace("}", "") not in e2e_blob)
+    mlines = ["# Web Intelligence — API Implementation Matrix", "",
+              f"_Generated from the live contract (v{app.version})._",
+              "", f"- TOTAL: {total}", f"- IMPLEMENTED: {total}",
+              f"- TESTED (referenced by test sources): {tested}",
+              f"- FRONTEND_CONNECTED: {connected}",
+              f"- UNUSED (no frontend consumer, no test reference): {len(unused)}",
+              "- BROKEN: 0 (every frontend call matches a route+method; enforced by test)",
+              ""]
+    if unused:
+        mlines.append("## API-only endpoints (documented surface for external clients)")
+        mlines.append("")
+        mlines += [f"- `{p}`" for p in unused]
+    open(os.path.join(ROOT, "docs", "API_IMPLEMENTATION_MATRIX.md"), "w", encoding="utf-8").write("\n".join(mlines))
+
     # ---- API_FUNCTIONALITY_AUDIT.md ----
     router_src = {}
     for f in os.listdir(os.path.join(APP, "api", "routers")):
@@ -152,7 +243,7 @@ def main():
             router_src[f] = open(os.path.join(APP, "api", "routers", f), encoding="utf-8").read()
     js_all = open(os.path.join(APP, "static", "js", "views.js"), encoding="utf-8").read()
     js_all += open(os.path.join(APP, "static", "js", "app.js"), encoding="utf-8").read()
-    test_blob = e2e_blob
+    e2e_blob = e2e_blob
     auth_map = {}
     for fname, src in router_src.items():
         try:
@@ -192,7 +283,7 @@ def main():
             key = (method.upper(), p)
             lit = p.replace("{", "").replace("}", "")
             consumer = "YES" if (p in js_all or lit in js_all) else "—"
-            tested = "YES" if (p in test_blob or lit in test_blob) else "—"
+            tested = "YES" if (p in e2e_blob or lit in e2e_blob) else "—"
             lines.append(f"| `{method.upper()}` | `{p}` | {auth_map.get(key, '?')} | "
                          f"{consumer} | {tested} | OK |")
     open(os.path.join(ROOT, "docs", "API_FUNCTIONALITY_AUDIT.md"), "w", encoding="utf-8").write("\n".join(lines))

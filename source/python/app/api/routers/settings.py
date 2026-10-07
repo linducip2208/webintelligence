@@ -20,10 +20,20 @@ router = APIRouter()
 
 DEFAULTS_KEY = "ui:defaults"
 DEFAULTS = {"search_mode": "hybrid", "search_limit": 20,
-            "ni_scope": ["dns", "subdomains", "tls", "tech"]}
+            "ni_scope": ["dns", "subdomains", "tls", "tech"],
+            "timezone": "Asia/Jakarta"}
 SCOPES = {"dns", "subdomains", "tls", "tech", "content", "infra",
           "entities", "documents", "threat", "risk"}
 MODES = {"hybrid", "keyword", "semantic", "exact"}
+
+
+def _valid_tz(name: str) -> bool:
+    try:
+        import zoneinfo
+        zoneinfo.ZoneInfo(name or "")
+        return True
+    except Exception:
+        return False
 
 
 def _read():
@@ -63,6 +73,10 @@ def settings_defaults_patch(spec: dict, authorization: str = Header(""),
         if not isinstance(scope, list) or not scope or any(s not in SCOPES for s in scope):
             raise HTTPException(400, "ni_scope must be a non-empty list of known scopes")
         cur["ni_scope"] = scope
+    if "timezone" in spec:
+        if not _valid_tz(spec["timezone"]):
+            raise HTTPException(400, "unknown timezone")
+        cur["timezone"] = spec["timezone"]
     try:
         repo.kv_set(DEFAULTS_KEY, cur)
     except Exception as e:
@@ -70,6 +84,20 @@ def settings_defaults_patch(spec: dict, authorization: str = Header(""),
     from ..shared import _audit
     _audit(email, "settings.defaults.update", str(sorted(cur)))
     return cur
+
+
+@router.post("/api/v1/settings/reset")
+def settings_reset(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Reset workspace UI defaults to factory values (confirmation happens
+    in the UI). Only the ui:defaults key is touched."""
+    email, _, _ = _need(authorization, "configure", x_api_key)
+    try:
+        repo.kv_set(DEFAULTS_KEY, dict(DEFAULTS))
+    except Exception as e:
+        raise HTTPException(500, f"could not reset defaults: {e}"[:200])
+    from ..shared import _audit
+    _audit(email, "settings.defaults.reset", "ui:defaults")
+    return dict(DEFAULTS)
 
 
 @router.get("/api/v1/settings/system")

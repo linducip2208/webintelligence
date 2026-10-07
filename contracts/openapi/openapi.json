@@ -652,6 +652,58 @@
     }
    }
   },
+  "/api/v1/ai/credentials/inventory": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Ai Credentials Inventory",
+    "description": "Credential inventory: every configured credential by source\n(ENVIRONMENT / DATABASE / LOCAL), masked, with live status.\nRaw key material never appears here. No live provider calls.",
+    "operationId": "ai_credentials_inventory_api_v1_ai_credentials_inventory_get",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/ai/providers/db/test-all": {
    "post": {
     "tags": [
@@ -752,9 +804,68 @@
      }
     }
    },
+   "patch": {
+    "summary": "Ai Default Set",
+    "description": "Set the default provider+model cascade level. system/org need the\nconfigure permission; user scope sets the caller's own default.\nOptional use_cases: {role: {provider, model, enabled}} for system-level\nper-role routing (research, summarization, classification, risk, report).",
+    "operationId": "ai_default_set_api_v1_ai_default_patch",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
    "post": {
     "summary": "Ai Default Set",
-    "description": "Set the default provider+model cascade level. system/org need the\nconfigure permission; user scope sets the caller's own default.",
+    "description": "Set the default provider+model cascade level. system/org need the\nconfigure permission; user scope sets the caller's own default.\nOptional use_cases: {role: {provider, model, enabled}} for system-level\nper-role routing (research, summarization, classification, risk, report).",
     "operationId": "ai_default_set_api_v1_ai_default_post",
     "parameters": [
      {
@@ -4334,6 +4445,34 @@
       }
      },
      {
+      "name": "confidence_min",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "title": "Confidence Min"
+      }
+     },
+     {
+      "name": "confidence_max",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "title": "Confidence Max"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Status"
+      }
+     },
+     {
       "name": "authorization",
       "in": "header",
       "required": false,
@@ -6052,6 +6191,26 @@
        "default": 20,
        "title": "Size"
       }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
      }
     ],
     "responses": {
@@ -6781,12 +6940,44 @@
     ],
     "summary": "Entity History",
     "operationId": "entity_history_api_v1_entities_history_get",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "description": "Successful Response",
       "content": {
        "application/json": {
         "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
        }
       }
      }
@@ -6933,6 +7124,26 @@
       "schema": {
        "type": "integer",
        "title": "Eid"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
       }
      }
     ],
@@ -15925,6 +16136,67 @@
    "patch": {
     "summary": "Settings Defaults Patch",
     "operationId": "settings_defaults_patch_api_v1_settings_defaults_patch",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Authorization"
+      }
+     },
+     {
+      "name": "x-api-key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "X-Api-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Spec"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/reset": {
+   "post": {
+    "summary": "Settings Reset",
+    "description": "Reset workspace UI defaults to factory values (confirmation happens\nin the UI). Only the ui:defaults key is touched.",
+    "operationId": "settings_reset_api_v1_settings_reset_post",
     "parameters": [
      {
       "name": "authorization",

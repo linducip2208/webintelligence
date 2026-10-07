@@ -28,7 +28,7 @@ Persistence is **write-through**: every mutation commits to MySQL when reachable
 
 Security: SSRF guard + trusted-egress allowlist, token + scoped/expiring API-key auth, org isolation on every collection (IDOR-tested), HMAC webhook ingestion with replay window, per-IP rate limits (429), body-size guard (413), secret-redacted logs. Set `REQUIRE_AUTH=1` in production.
 
-API surface: **216 versioned paths under `/api/v1`** plus `/api/version`, `/healthz`, `/readyz`, `/metrics` and 5 docs-portal APIs (221 total, verified against `contracts/openapi/openapi.json`; full catalog below).
+API surface: versioned paths under `/api/v1` plus `/api/version`, `/healthz`, `/readyz`, `/metrics` and docs-portal APIs — the live count is generated from the contract, see `docs/API_COVERAGE.md` (full catalog below).
 
 ### Feature catalog (recorded from implementation)
 
@@ -105,7 +105,7 @@ API surface: **216 versioned paths under `/api/v1`** plus `/api/version`, `/heal
 | Feature | Key endpoints |
 |---|---|
 | Organizations + white-label branding, members, builtin + custom roles (RBAC), login disable | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles`, `/users/{email}/disable` |
-| Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export | see `/docs` (Settings view) + `contracts/openapi/openapi.json` (221 paths) |
+| Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export | see `/docs` (Settings view) + `contracts/openapi/openapi.json` (see `docs/API_COVERAGE.md` for the live count) |
 | Scoped/expiring API keys + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
 | Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
 | Commercial billing: plans, current plan, usage/quotas (402 on exceed) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
@@ -180,7 +180,7 @@ Persistensi **write-through**: setiap perubahan tersimpan ke MySQL jika terjangk
 
 Keamanan: pelindung SSRF + allowlist egress tepercaya, auth token + API-key berskop/kedaluwarsa, isolasi org di setiap koleksi (teruji IDOR), ingest webhook HMAC dengan jendela replay, rate limit per-IP (429), penjaga ukuran body (413), log yang menyensor rahasia. Setel `REQUIRE_AUTH=1` di produksi.
 
-Permukaan API: **216 path berversi di bawah `/api/v1`** ditambah `/api/version`, `/healthz`, `/readyz`, `/metrics` dan 5 API portal dokumentasi (total 221, terverifikasi terhadap `contracts/openapi/openapi.json`; katalog lengkap di bawah).
+Permukaan API: path berversi di bawah `/api/v1` ditambah `/api/version`, `/healthz`, `/readyz`, `/metrics` dan API portal dokumentasi — jumlah live dibuat dari kontrak, lihat `docs/API_COVERAGE.md` (katalog lengkap di bawah).
 
 ### Katalog fitur (dicatat dari implementasi)
 
@@ -257,7 +257,7 @@ Permukaan API: **216 path berversi di bawah `/api/v1`** ditambah `/api/version`,
 | Fitur | Endpoint utama |
 |---|---|
 | Organisasi + branding white-label, anggota, role bawaan + custom (RBAC), disable login | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles`, `/users/{email}/disable` |
-| CRUD manajemen penuh: detail project/target/job/schedule/alert/workflow/webhook/connector/dataset/dokumen, bulk ops, ekspor CSV | lihat `/docs` (view Settings) + `contracts/openapi/openapi.json` (221 path) |
+| CRUD manajemen penuh: detail project/target/job/schedule/alert/workflow/webhook/connector/dataset/dokumen, bulk ops, ekspor CSV | lihat `/docs` (view Settings) + `contracts/openapi/openapi.json` (lihat `docs/API_COVERAGE.md` untuk jumlah live) |
 | API key berskop/kedaluwarsa + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
 | Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
 | Billing komersial: paket, paket aktif, usage/kuota (402 jika lewat) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
@@ -320,7 +320,7 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 
 الأمان: حماية SSRF + قائمة egress موثوقة، مصادقة بالرمز + مفاتيح API محددة النطاق ومنتهية الصلاحية، عزل المنظمات في كل مجموعة (مختبر ضد IDOR)، استقبال ويب هوك بتوقيع HMAC مع نافذة إعادة، حدود معدل لكل IP (429)، حد حجم الجسم (413)، سجلات تُخفي الأسرار. اضبط `REQUIRE_AUTH=1` في الإنتاج.
 
-سطح API: **216 مسارًا مُصدَرًا تحت `/api/v1`** بالإضافة إلى `/api/version` و`/healthz` و`/readyz` و`/metrics` وخمسة API لبوابة التوثيق (221 إجمالًا، تم التحقق مقابل `contracts/openapi/openapi.json`؛ الفهرس الكامل أدناه).
+سطح API: مسارات مُصدَرة تحت `/api/v1` بالإضافة إلى `/api/version` و`/healthz` و`/readyz` و`/metrics` وواجهات بوابة التوثيق — العدد الحي مولّد من العقد، انظر `docs/API_COVERAGE.md` (الفهرس الكامل أدناه).
 
 ### فهرس الميزات (موثق من التنفيذ)
 
@@ -397,7 +397,7 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 | الميزة | نقاط النهاية الرئيسية |
 |---|---|
 | المنظمات + branding، الأعضاء، أدوار مدمجة + مخصصة (RBAC)، تعطيل الدخول | `POST / GET /api/v1/orgs`، `/orgs/{oid}/branding`، `/memberships`، `/roles`، `/users/{email}/disable` |
-| إدارة CRUD كاملة: صفحات تفصيل project/target/job/schedule/alert/workflow/webhook/connector/dataset/document، عمليات جماعية، تصدير CSV | انظر `/docs` + `contracts/openapi/openapi.json` (221 مسارًا) |
+| إدارة CRUD كاملة: صفحات تفصيل project/target/job/schedule/alert/workflow/webhook/connector/dataset/document، عمليات جماعية، تصدير CSV | انظر `/docs` + `contracts/openapi/openapi.json` (انظر `docs/API_COVERAGE.md` للعدد الحي) |
 | مفاتيح API محددة النطاق/منتهية + إلغاء | `POST / GET /api/v1/apikeys`، `POST /api/v1/apikeys/{kid}/revoke` |
 | المصادقة: دخول (Bearer)، OIDC | `POST /api/v1/auth/login`، `/auth/oidc/login`، `/callback`، `/providers` |
 | الفوترة: الخطط، الخطة الحالية، الاستخدام/الحصص (402 عند التجاوز) | `GET /api/v1/billing/plans`، `/plan`، `/usage` |

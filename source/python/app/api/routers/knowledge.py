@@ -326,8 +326,7 @@ def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_ap
     Without credentials returns an honest error; never fake analysis."""
     from ...ai import fallback as _fb
     from ...ai import safety as _safe
-    from ...ai.factory import fallback_order
-    from ...ai import registry as _reg
+    from ...ai.chain import build_chain as _bc, resolve_role as _role
     from ...ai import prompts as _pr
     email, org, _ = _need(authorization, "research", x_api_key)
     run = next((x for x in STORE["research"]
@@ -342,14 +341,24 @@ def research_analyze(rid: int, spec: dict, authorization: str = Header(""), x_ap
     messages = [{"role": "user", "content": _safe.wrap_evidence(
         [{"text": f"[{e['id']}] {e.get('snippet', '')} ({e.get('url', '')})"} for e in ev])},
         {"role": "user", "content": prompt}]
-    names = fallback_order() or _fb.default_names(_reg)
-    out = _fb.chat_fallback([(n, _reg.get(n)) for n in names], messages,
-                            run.get("ai_model", ""))
+    explicit = spec.get("ai_provider", "") or ""
+    model = spec.get("ai_model", "") or run.get("ai_model", "")
+    role = _role(repo, "research")
+    if not explicit and role.get("provider"):
+        explicit, model = role["provider"], role.get("model", "") or model
+    from ...ai import registry as _reg
+    chain, use_model, default_used = _bc(STORE, repo, _reg, explicit, model, email, org)
+    if not chain:
+        raise HTTPException(502, "AI analysis is not configured. "
+                                 "Configure an AI provider first.")
+    out = _fb.chat_fallback(chain, messages, use_model)
     if out.get("error"):
         raise HTTPException(502, f"ai unavailable: {out['error']}"[:300])
     run.update({"status": "done", "analysis": out.get("text", "")[:8000],
                 "ai_provider": out.get("provider", ""),
                 "ai_model": out.get("model", ""),
+                "default_used": default_used,
+                "fallbacks_tried": out.get("fallbacks_tried", []),
                 "prompt_version": "summarize_evidence@v1",
                 "finished_at": time.time()})
     repo.sync("research", run)

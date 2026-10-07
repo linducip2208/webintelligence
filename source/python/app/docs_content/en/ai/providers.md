@@ -34,8 +34,10 @@ Providers are added through the UI: choose, credential, test live, discover mode
 
 | Method | Endpoint | Description |
 |---|---|---|
+| `GET` | `/api/v1/ai/credentials/inventory` | Ai Credentials Inventory |
 | `GET` | `/api/v1/ai/default` | Ai Default View |
 | `POST` | `/api/v1/ai/default` | Ai Default Set |
+| `PATCH` | `/api/v1/ai/default` | Ai Default Set |
 | `GET` | `/api/v1/ai/health` | Ai Health |
 | `GET` | `/api/v1/ai/models` | Ai Models |
 | `GET` | `/api/v1/ai/provider-presets` | Ai Provider Presets |

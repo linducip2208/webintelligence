@@ -58,6 +58,8 @@ def _base(kind, it, title, subtitle="", open_kind=None, route=None):
         # legacy passthroughs for older clients
         "name": it.get("name"), "domain": it.get("domain"), "url": it.get("url"),
         "value": it.get("value"),
+        # confidence as stored (entities 0-100, findings 0-1); see docs
+        "confidence": it.get("confidence"),
     }
 
 
@@ -141,7 +143,8 @@ def _score(it, terms, q):
 
 
 def _apply_filters(items, kinds=None, risk_min=None, risk_max=None, source=None,
-                   date_from=None, date_to=None):
+                   date_from=None, date_to=None, confidence_min=None,
+                   confidence_max=None, status=None):
     if kinds:
         items = [i for i in items if i["kind"] in kinds]
     if risk_min is not None:
@@ -156,6 +159,17 @@ def _apply_filters(items, kinds=None, risk_min=None, risk_max=None, source=None,
         items = [i for i in items if _epoch(i.get("seen")) >= df or _epoch(i.get("updated_at")) >= df]
     if dt:
         items = [i for i in items if (_epoch(i.get("seen")) or _epoch(i.get("updated_at"))) <= dt]
+    if confidence_min is not None:
+        items = [i for i in items
+                 if isinstance(i.get("confidence"), (int, float))
+                 and i["confidence"] >= confidence_min]
+    if confidence_max is not None:
+        items = [i for i in items
+                 if isinstance(i.get("confidence"), (int, float))
+                 and i["confidence"] <= confidence_max]
+    if status:
+        s = status.lower()
+        items = [i for i in items if s in str(i.get("status") or "").lower()]
     return items
 
 

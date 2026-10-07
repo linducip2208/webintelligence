@@ -9,10 +9,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .version import APP_VERSION
 from .api.shared import _rate_ok, _key_lookup, _secret, tok, STORE, get_redis
 from .api.routers import system, catalog, collection, intel, knowledge, ops, cases, docs, settings
 
-app = FastAPI(title="Web Intelligence Platform", version="2.14.0",
+app = FastAPI(title="Web Intelligence Platform", version=APP_VERSION,
               docs_url="/api-docs",
               description="Universal Intelligence Platform. Auth: Bearer login token "
                           "(POST /api/v1/auth/login) or X-API-Key header with scopes. "

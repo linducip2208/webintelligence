@@ -8,6 +8,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 import frontend_audit as FA
 
+APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app")
+APP_DIR = os.path.normpath(APP_DIR)
+
+
+def test_js_syntax_valid():
+    import shutil
+    import subprocess
+    if not shutil.which("node"):
+        import pytest
+        pytest.skip("node unavailable")
+    for name in ("js/app.js", "js/views.js", "js/viewdocs.js", "docs.js"):
+        p = os.path.join(APP_DIR, "static", name)
+        r = subprocess.run(["node", "--check", p], capture_output=True, text=True, timeout=60)
+        assert r.returncode == 0, f"{name}: {r.stderr[:300]}"
+
 
 def test_handlers_defined():
     srcs = FA.js_sources()
