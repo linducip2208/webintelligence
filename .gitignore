@@ -7,3 +7,12 @@ venv/
 *.log
 webintel.db
 collector-win-test.exe
+# runtime data (never commit: local DBs, vectors, raw captures, redis dumps)
+dump.rdb
+*.rdb
+data/
+source/python/data/
+# docs screenshot working files (final PNGs + manifest ARE committed)
+*.tmp
+playwright-report/
+test-results/

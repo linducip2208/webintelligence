@@ -9,7 +9,9 @@ Workflow: **Search / Investigate → Collect → Normalize → Resolve entities 
 
 Primary navigation: **Dashboard · Investigate (New Investigation, Investigations, Cases, Global Search, Entities, Intelligence Graph, Timeline) · Discover (Targets, Attack Surface, Reconnaissance, Collectors, Data Sources, Connectors) · Intelligence (Findings, Indicators, Risk Analysis, Threat Intelligence, Intelligence Feed) · Monitor (Watchlists, Alerts, Workflows) · Evidence (Evidence, Documents, Reports) · Integrations (STIX/MISP, External APIs, Security Tools, AI Providers) · Administration (Users & Roles, Settings, Audit Log, System Health).** All UI assets are local Tabler — no CDN, works offline; timestamps render in Asia/Jakarta (WIB).
 
-Theme: **light default, dark + system supported**, persisted per browser with pre-paint init (no flash). Sidebar folds to icon-only with hover-expand (state persisted). Global search: `Ctrl+K`/`Cmd+K`, type inference (domain/URL/IPv4/IPv6/email/keyword), grouped results with risk + last seen + source. The 5-step New Investigation wizard resolves the workspace project via API (never silent `project_id=1`) and reports real queued/running/completed/failed states. AI is provider-agnostic (OpenAI-compatible, Anthropic-compatible, Google-compatible, Ollama-style endpoints via presets); AI output is always labeled AI-generated and core functions work without AI.
+Theme: **light default, dark + system supported**, persisted per browser with pre-paint init (no flash). Sidebar folds to icon-only with hover-expand (state persisted). Global search: `Ctrl+K`/`Cmd+K`, type inference (domain/URL/IPv4/IPv6/email/keyword), grouped results with risk + last seen + source. The 5-step New Investigation wizard resolves the workspace project via API (never silent `project_id=1`) and reports real queued/running/success/failed states. AI is provider-agnostic (OpenAI-compatible, Anthropic-compatible, Google-compatible, Ollama-style endpoints via presets); AI output is always labeled AI-generated and core functions work without AI.
+
+> **Documentation portal:** the complete product, tutorial and API documentation lives at **`/docs`** (110 pages, English/Indonesia/Arabic with RTL, offline-capable local search, real UI screenshots). Start with [Your First Investigation](/docs/getting-started/first-investigation) or [5 Minutes to First Result](/docs/getting-started/5-minute-investigation). Interactive API reference remains at `/api-docs`.
 
 Visual system: soft neutral light canvas, white cards, Tabler `bg-*-lt` semantic tints (blue/azure discovery, purple intelligence/AI, green health, yellow/orange warning, red critical), icon-dot + text badges (never color alone), hero with local SVG network art, KPI cards with tinted icon blocks + real week-over-week trends, risk distribution, graph preview, colored activity timeline, severity-accented findings/alerts, entity-type identity colors, accent-color setting (Blue/Azure/Indigo/Purple/Cyan/Teal, persisted, pre-paint), gradient login, dark-mode + RTL + mobile verified. No CDN, no external images.
 
@@ -26,7 +28,7 @@ Persistence is **write-through**: every mutation commits to MySQL when reachable
 
 Security: SSRF guard + trusted-egress allowlist, token + scoped/expiring API-key auth, org isolation on every collection (IDOR-tested), HMAC webhook ingestion with replay window, per-IP rate limits (429), body-size guard (413), secret-redacted logs. Set `REQUIRE_AUTH=1` in production.
 
-API surface: **143 versioned paths under `/api/v1`** (verified against `contracts/openapi/openapi.json`; full catalog below).
+API surface: **216 versioned paths under `/api/v1`** plus `/api/version`, `/healthz`, `/readyz`, `/metrics` and 5 docs-portal APIs (221 total, verified against `contracts/openapi/openapi.json`; full catalog below).
 
 ### Feature catalog (recorded from implementation)
 
@@ -103,7 +105,7 @@ API surface: **143 versioned paths under `/api/v1`** (verified against `contract
 | Feature | Key endpoints |
 |---|---|
 | Organizations + white-label branding, members, builtin + custom roles (RBAC), login disable | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles`, `/users/{email}/disable` |
-| Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export | see `/docs` (Settings view) + `contracts/openapi/openapi.json` (178 paths) |
+| Full management CRUD: projects/targets/jobs/schedules/alerts/workflows/webhooks/connectors/datasets/documents detail pages, bulk ops, CSV export | see `/docs` (Settings view) + `contracts/openapi/openapi.json` (221 paths) |
 | Scoped/expiring API keys + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
 | Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
 | Commercial billing: plans, current plan, usage/quotas (402 on exceed) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
@@ -145,6 +147,18 @@ go build -o ..\..\..\build\linux\collector .\cmd\collector
 ```
 Open http://127.0.0.1:8000/ for the dashboard (real data only).
 
+### Commands (run from repo root)
+```bat
+python -m pytest source/python/tests tests/unit -q   & rem unit + docs + search + AI + settings + frontend audit
+python -m pytest tests/e2e tests/integration tests/security -q   & rem E2E / integration / security
+set UI_E2E=1 & python -m pytest tests/e2e/test_functional_journey.py -q   & rem hermetic browser journey
+cd source\go\collector & go test ./... & go vet ./...   & rem Go collector
+python scripts/docs/all.py --skip-shots   & rem regenerate docs content + validate + reports
+python scripts/docs/generate_screenshots.py --update   & rem real-UI screenshots + manifest
+python scripts/audit/frontend_audit.py   & rem dead handlers / dead endpoints / dead routes
+python scripts/audit/gen_matrix.py & python scripts/audit/gen_ai_audit.py   & rem functionality + AI audits
+```
+
 ### Deploy (aaPanel)
 See `deploy/aaPanel/README.md` and `deploy/scripts/deploy_aapanel.sh`. Nginx: `deploy/nginx/webintel.conf`. systemd units: `deploy/systemd/`.
 
@@ -166,7 +180,7 @@ Persistensi **write-through**: setiap perubahan tersimpan ke MySQL jika terjangk
 
 Keamanan: pelindung SSRF + allowlist egress tepercaya, auth token + API-key berskop/kedaluwarsa, isolasi org di setiap koleksi (teruji IDOR), ingest webhook HMAC dengan jendela replay, rate limit per-IP (429), penjaga ukuran body (413), log yang menyensor rahasia. Setel `REQUIRE_AUTH=1` di produksi.
 
-Permukaan API: **143 path berversi di bawah `/api/v1`** (terverifikasi terhadap `contracts/openapi/openapi.json`; katalog lengkap di bawah).
+Permukaan API: **216 path berversi di bawah `/api/v1`** ditambah `/api/version`, `/healthz`, `/readyz`, `/metrics` dan 5 API portal dokumentasi (total 221, terverifikasi terhadap `contracts/openapi/openapi.json`; katalog lengkap di bawah).
 
 ### Katalog fitur (dicatat dari implementasi)
 
@@ -243,7 +257,7 @@ Permukaan API: **143 path berversi di bawah `/api/v1`** (terverifikasi terhadap 
 | Fitur | Endpoint utama |
 |---|---|
 | Organisasi + branding white-label, anggota, role bawaan + custom (RBAC), disable login | `POST / GET /api/v1/orgs`, `/orgs/{oid}/branding`, `/memberships`, `/roles`, `/users/{email}/disable` |
-| CRUD manajemen penuh: detail project/target/job/schedule/alert/workflow/webhook/connector/dataset/dokumen, bulk ops, ekspor CSV | lihat `/docs` (view Settings) + `contracts/openapi/openapi.json` (178 path) |
+| CRUD manajemen penuh: detail project/target/job/schedule/alert/workflow/webhook/connector/dataset/dokumen, bulk ops, ekspor CSV | lihat `/docs` (view Settings) + `contracts/openapi/openapi.json` (221 path) |
 | API key berskop/kedaluwarsa + revoke | `POST / GET /api/v1/apikeys`, `POST /api/v1/apikeys/{kid}/revoke` |
 | Auth: login (Bearer), OIDC login/callback/providers | `POST /api/v1/auth/login`, `/auth/oidc/login`, `/callback`, `/providers` |
 | Billing komersial: paket, paket aktif, usage/kuota (402 jika lewat) | `GET /api/v1/billing/plans`, `/plan`, `/usage` |
@@ -306,7 +320,7 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 
 الأمان: حماية SSRF + قائمة egress موثوقة، مصادقة بالرمز + مفاتيح API محددة النطاق ومنتهية الصلاحية، عزل المنظمات في كل مجموعة (مختبر ضد IDOR)، استقبال ويب هوك بتوقيع HMAC مع نافذة إعادة، حدود معدل لكل IP (429)، حد حجم الجسم (413)، سجلات تُخفي الأسرار. اضبط `REQUIRE_AUTH=1` في الإنتاج.
 
-سطح API: **143 مسارًا مُصدَرًا تحت `/api/v1`** (تم التحقق مقابل `contracts/openapi/openapi.json`؛ الفهرس الكامل أدناه).
+سطح API: **216 مسارًا مُصدَرًا تحت `/api/v1`** بالإضافة إلى `/api/version` و`/healthz` و`/readyz` و`/metrics` وخمسة API لبوابة التوثيق (221 إجمالًا، تم التحقق مقابل `contracts/openapi/openapi.json`؛ الفهرس الكامل أدناه).
 
 ### فهرس الميزات (موثق من التنفيذ)
 
@@ -383,7 +397,7 @@ Lihat `docs/MASTER_BUILD_SPEC.md` untuk arsitektur lengkap.
 | الميزة | نقاط النهاية الرئيسية |
 |---|---|
 | المنظمات + branding، الأعضاء، أدوار مدمجة + مخصصة (RBAC)، تعطيل الدخول | `POST / GET /api/v1/orgs`، `/orgs/{oid}/branding`، `/memberships`، `/roles`، `/users/{email}/disable` |
-| إدارة CRUD كاملة: صفحات تفصيل project/target/job/schedule/alert/workflow/webhook/connector/dataset/document، عمليات جماعية، تصدير CSV | انظر `/docs` + `contracts/openapi/openapi.json` (178 مسارًا) |
+| إدارة CRUD كاملة: صفحات تفصيل project/target/job/schedule/alert/workflow/webhook/connector/dataset/document، عمليات جماعية، تصدير CSV | انظر `/docs` + `contracts/openapi/openapi.json` (221 مسارًا) |
 | مفاتيح API محددة النطاق/منتهية + إلغاء | `POST / GET /api/v1/apikeys`، `POST /api/v1/apikeys/{kid}/revoke` |
 | المصادقة: دخول (Bearer)، OIDC | `POST /api/v1/auth/login`، `/auth/oidc/login`، `/callback`، `/providers` |
 | الفوترة: الخطط، الخطة الحالية، الاستخدام/الحصص (402 عند التجاوز) | `GET /api/v1/billing/plans`، `/plan`، `/usage` |

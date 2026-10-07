@@ -243,19 +243,31 @@ def list_changes(page: int = 1, size: int = 20,
 
 
 @router.get("/api/v1/search")
-def search(q: str = "", scope: str = "all"):
-    from ...search.service import search as svc
-
-    if not q:
-        return {"items": [], "facets": {}}
-    items = svc({"projects": STORE["projects"], "targets": STORE["targets"],
-                 "articles": STORE["articles"], "events": STORE["events"],
-                 "findings": STORE["findings"],
-                 "documents": STORE["documents"]}, q, scope)
+def search(q: str = "", scope: str = "all", mode: str = "hybrid", kind: str = "",
+           limit: int = 20, offset: int = 0, risk_min: float = None,
+           risk_max: float = None, source: str = "", date_from: str = "",
+           date_to: str = "", investigation_id: int = None,
+           authorization: str = Header(""), x_api_key: str = Header("")):
+    """Unified intelligence search: keyword, exact, semantic and hybrid modes
+    over one engine. Org-scoped; no AI required for any mode. Legacy callers
+    using q/scope keep the {items, facets} shape plus total/mode."""
+    from ...search.unified import unified_search
+    _, org, _ = _ctx(authorization, x_api_key)
+    kinds = None
+    if kind:
+        kinds = [kind]
+    elif scope and scope != "all":
+        kinds = [scope]
+    items, total = unified_search(STORE, org, q, mode=mode, kinds=kinds,
+                                 limit=limit, offset=offset, risk_min=risk_min,
+                                 risk_max=risk_max, source=source or "",
+                                 date_from=date_from or "", date_to=date_to or "",
+                                 investigation_id=investigation_id)
     facets = {}
     for it in items:
         facets[it.get("kind", "?")] = facets.get(it.get("kind", "?"), 0) + 1
-    return {"items": items, "facets": facets}
+    return {"items": items, "facets": facets, "total": total, "mode": mode,
+            "offset": offset}
 
 
 

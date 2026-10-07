@@ -147,7 +147,7 @@ html[data-wi-nav="static"] .topbar-sticky{position:static}
 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-expanded="false" aria-controls="sidebar-menu">☰</button>
 <h1 class="navbar-brand mb-0"><span class="brand-mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32"><defs><linearGradient id="wlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#206bc4"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs><circle cx="16" cy="16" r="13" fill="url(#wlg)"/><circle cx="16" cy="16" r="5" fill="#fff"/><circle cx="23" cy="9" r="2.4" fill="#22d3ee"/></svg></span> <span class="brand-txt">WEB INTELLIGENCE</span></h1>
 <div class="navbar-text text-muted small brand-txt" data-i18n="tagline">Investigate • Connect • Decide</div>
-<div class="text-muted small brand-txt">v2.13 · <span data-i18n="live">live data only</span></div>
+<div class="text-muted small brand-txt"><span id="side-ver">v?</span> · <span data-i18n="live">live data only</span></div>
 <nav aria-label="Primary navigation"><div class="collapse navbar-collapse" id="sidebar-menu"><div id="nav" class="w-100" role="list"></div></div></nav>
 <div class="navbar-footer mt-auto pt-2 border-top">
 <div class="d-flex gap-2 my-2">
@@ -195,7 +195,7 @@ html[data-wi-nav="static"] .topbar-sticky{position:static}
 <div class="col"><h2 class="page-title" id="title">Dashboard</h2><div id="sub" class="text-muted small"></div></div>
 <div class="col-auto ms-auto d-print-none"><div class="btn-list">
 <button class="btn btn-primary" onclick="go('new-investigation')" id="cta-new">+ New Investigation</button>
-<button class="btn" onclick="load()">Refresh</button><a class="btn" href="/docs" target="_blank" rel="noopener">Docs</a><span id="actions"></span>
+<button class="btn" onclick="load()">Refresh</button><button class="btn" onclick="helpOpen()" aria-label="Open page help">?</button><a class="btn" href="/docs" target="_blank" rel="noopener">Docs</a><span id="actions"></span>
 </div></div>
 </div></div></div>
 <main id="main-content" class="page-body" tabindex="-1"><div class="container-xl">
@@ -209,6 +209,7 @@ html[data-wi-nav="static"] .topbar-sticky{position:static}
 <div id="modal-root"></div>
 <script src="/static/vendor/tabler/tabler.min.js"></script>
 <script src="/static/js/app.js"></script>
+<script src="/static/js/viewdocs.js"></script>
 <script src="/static/js/views.js"></script>
 </body>
 </html>

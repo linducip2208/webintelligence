@@ -100,8 +100,14 @@ def test_mega_pipeline(monkeypatch):
     assert r3["change"] == "UNCHANGED"
     assert len(c.get("/api/v1/alerts").json()["items"]) == n_alerts
     # ENTITY -> EVIDENCE -> CLAIM -> CONTRADICTION (both preserved)
+    # unique candidate: the shared in-memory STORE persists across test files,
+    # so a fixed name could LINK to another suite's entity instead of NEW.
+    import uuid as _uuid
+
+    _tag = _uuid.uuid4().hex[:8]
     ent = c.post("/api/v1/entities/resolve",
-                 json={"candidate": {"name": "Acme", "domain": "acme.com"}}).json()
+                 json={"candidate": {"name": f"MegaAcme-{_tag}",
+                                     "domain": f"mega-{_tag}.example"}}).json()
     assert ent["verdict"] == "NEW"
     ev1 = c.post("/api/v1/evidence", json={"source": "A", "url": url,
                                            "content_hash": "h1"}).json()

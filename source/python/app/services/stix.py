@@ -306,23 +306,45 @@ def import_bundle(store, bundle: dict, org=1, source="stix-import"):
             skipped.append("relationship deferred to second pass")
         else:
             skipped.append(f"unsupported type '{t}'")
-    # second pass: relationships between imported/resolved refs
+    # second pass: relationships between imported/resolved refs.
+    # idmap holds ENTITY ids; graph edges need NODE ids, so resolve each
+    # endpoint entity to its graph node (creating the node when missing).
+    # An edge is never written against a nonexistent node.
+    def _node_for_entity(ent):
+        key = str(ent.get("domain") or ent.get("name") or "")
+        if not key:
+            return None
+        kind = str(ent.get("kind") or "ioc")
+        for n in store.get("nodes", []):
+            if n.get("org", 1) == org and n.get("kind") == kind and n.get("key") == key:
+                return n["id"]
+        nid = max([n.get("id", 0) for n in store.get("nodes", [])] + [0]) + 1
+        store.get("nodes", []).append({"id": nid, "org": org, "kind": kind,
+                                       "key": key, "name": key})
+        return nid
+
+    by_entity = {e.get("id"): e for e in store.get("entities", [])}
     nxt_g = max([e.get("id", 0) for e in store.get("edges", [])] + [0])
     for o in bundle["objects"]:
         if o.get("type") != "relationship":
             continue
-        s = idmap.get(o.get("source_ref"))
-        t_ = idmap.get(o.get("target_ref"))
-        if not s or not t_:
+        ent_s = by_entity.get(idmap.get(o.get("source_ref")))
+        ent_t = by_entity.get(idmap.get(o.get("target_ref")))
+        if not ent_s or not ent_t:
             skipped.append("relationship with unmapped endpoint")
             continue
-        if any(e.get("src") == s and e.get("dst") == t_ and e.get("rel") == o.get("relationship_type")
+        s, t_ = _node_for_entity(ent_s), _node_for_entity(ent_t)
+        if not s or not t_:
+            skipped.append("relationship endpoint has no usable key")
+            continue
+        rel = str(o.get("relationship_type", "related-to")).upper().replace("-", "_")
+        if any(e.get("src") == s and e.get("dst") == t_ and e.get("rel") == rel
                for e in store.get("edges", [])):
+            skipped.append("relationship already present")
             continue
         nxt_g += 1
         store.get("edges", []).append(
-            {"id": nxt_g, "org": org, "src": s, "dst": t_,
-             "rel": str(o.get("relationship_type", "related-to")).upper().replace("-", "_"),
+            {"id": nxt_g, "org": org, "src": s, "dst": t_, "rel": rel,
              "confidence": o.get("confidence", 50), "evidence": [f"stix:{source}"]})
         created["relationships"] += 1
     # evidence/provenance record of the import itself

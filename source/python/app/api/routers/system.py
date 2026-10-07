@@ -215,6 +215,35 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
     else:
         names = fallback_order() or _fb.default_names(aireg)
         chain = [(n, aireg.get(n)) for n in names]
+        # Defaults cascade (user -> org -> system) leads the chain when the
+        # caller names no provider. Unknown/stale defaults are skipped openly.
+        try:
+            _dflt = (_ai_default_get("user", org0, email0)
+                     or _ai_default_get("org", org0)
+                     or _ai_default_get("system") or {})
+        except Exception:
+            _dflt = {}
+        if _dflt.get("provider"):
+            _dp, _dm = _dflt["provider"], _dflt.get("model", "")
+            _inst = None
+            try:
+                from ...core.crypto import decrypt as _dec0
+                from ...ai.factory import build_provider as _bp0
+                if _dp.startswith("db:"):
+                    _row = next((x for x in STORE["ai_providers"]
+                                 if x.get("name") == _dp[3:] and x.get("enabled")), None)
+                    if _row:
+                        _inst = _bp0(_row.get("protocol", "chat"), _row.get("base_url", ""),
+                                     _dec0(_row.get("api_key_enc", "")),
+                                     _row.get("model", "") or _dm)
+                        _dp = _row["name"]
+                else:
+                    _inst = aireg.get(_dp)
+                if _inst is not None:
+                    chain.insert(0, (_dp, _inst))
+                    use_model = _dm or use_model
+            except Exception:
+                pass
         # Enabled DB-configured providers join the default chain too, so
         # every AI added via Settings works without naming it explicitly.
         seen = {n for n, _ in chain}
@@ -236,6 +265,9 @@ def ai_chat(spec: dict, authorization: str = Header(""), x_api_key: str = Header
                     (_o.getenv("AI_EXTRA_MODELS", "") or "").split(",") if x.strip()]
     if use_model and allowed != ["*"] and use_model not in allowed:
         raise HTTPException(403, f"model {use_model} not in plan {org_plan}")
+    if not chain:
+        raise HTTPException(502, "AI analysis is not configured. "
+                                 "Configure an AI provider first.")
     out = _fb.chat_fallback(chain, messages, use_model)
     out["org"] = org0
     _record_usage(out, spec.get("prompt_version", ""))
@@ -333,7 +365,120 @@ def retention_run(spec: dict, authorization: str = Header(""), x_api_key: str = 
 
 @router.get("/api/v1/ai/health")
 def ai_health():
-    return muse.health_check()
+    """Default env-provider health PLUS last-known state of every enabled DB
+    provider. No live calls here (use Test / Test All for live checks)."""
+    base = muse.health_check()
+    providers = [{
+        "name": "default (environment)", "kind": "env",
+        "status": "up" if base.get("ok") else "down",
+        "latency_ms": base.get("latency_ms", 0),
+        "model": settings.muse_model,
+        "last_success_at": 0.0, "last_failure_at": 0.0,
+        "error": "" if base.get("ok") else str(base.get("reason", ""))[:200],
+    }]
+    for p in STORE["ai_providers"]:
+        if not p.get("enabled"):
+            continue
+        st = p.get("last_test_status", "untested")
+        providers.append({
+            "name": p.get("name", ""), "kind": "db",
+            "status": ("up" if st == "passed" else "down" if st == "failed" else "untested"),
+            "latency_ms": p.get("last_test_latency_ms", 0),
+            "model": p.get("model", ""),
+            "last_success_at": p.get("last_success_at", 0.0),
+            "last_failure_at": p.get("last_failure_at", 0.0),
+            "error": p.get("last_test_error", ""),
+        })
+    base["providers"] = providers
+    return base
+
+
+@router.post("/api/v1/ai/providers/db/test-all", tags=["admin"])
+def ai_provider_test_all(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Sequential live test of every enabled provider (sequential = no fan-out
+    stampede against vendor rate limits)."""
+    from ...core.crypto import decrypt
+    email, _, _ = _need(authorization, "configure")
+    results = []
+    for p in [x for x in STORE["ai_providers"] if x.get("enabled")][:25]:
+        try:
+            key = decrypt(p.get("api_key_enc", ""))
+        except Exception:
+            key = ""
+        if not key:
+            res = {"success": False, "provider": {"name": p.get("name", "")},
+                   "connection": {"authenticated": False, "latency_ms": 0},
+                   "model": {"selected": p.get("model", ""), "available": False},
+                   "models": [], "error": {"code": "INVALID_CONFIGURATION",
+                                           "message": "No API key saved for this provider."}}
+        else:
+            try:
+                _validate_endpoint(p.get("base_url", ""), p.get("preset", ""))
+                res = _run_test(p.get("base_url", ""), p.get("protocol", "chat"),
+                               key, p.get("model", ""), p.get("name", ""))
+            except HTTPException as he:
+                res = {"success": False, "provider": {"name": p.get("name", "")},
+                       "connection": {"authenticated": False, "latency_ms": 0},
+                       "model": {"selected": p.get("model", ""), "available": False},
+                       "models": [], "error": {"code": "INVALID_CONFIGURATION",
+                                               "message": str(he.detail)[:200]}}
+        _record_test(p, res)
+        results.append({"name": p.get("name", ""), "success": bool(res.get("success")),
+                        "latency_ms": res.get("connection", {}).get("latency_ms", 0),
+                        "error": (res.get("error") or {}).get("code", "")})
+    _audit(email, "ai.provider.test-all", f"{sum(1 for r in results if r['success'])}/{len(results)}")
+    return {"tested": len(results), "results": results}
+
+
+def _ai_default_get(scope: str, org: int = 0, email: str = ""):
+    key = {"system": "ai:default:system", "org": f"ai:default:org:{org}",
+           "user": f"ai:default:user:{email}"}.get(scope, "")
+    try:
+        return repo.kv_get(key) if key else None
+    except Exception:
+        return None
+
+
+@router.get("/api/v1/ai/default")
+def ai_default_view(authorization: str = Header(""), x_api_key: str = Header("")):
+    """Resolved AI defaults: system, organization and caller-user values plus
+    the effective default actually used when no provider is named."""
+    email, org, _ = _ctx(authorization, x_api_key)
+    system = _ai_default_get("system") or {}
+    orgd = _ai_default_get("org", org) or {}
+    userd = _ai_default_get("user", org, email) or {}
+    effective = userd or orgd or system
+    return {"system": system, "organization": orgd, "user": userd,
+            "effective": effective}
+
+
+@router.post("/api/v1/ai/default")
+def ai_default_set(spec: dict, authorization: str = Header(""), x_api_key: str = Header("")):
+    """Set the default provider+model cascade level. system/org need the
+    configure permission; user scope sets the caller's own default."""
+    scope = (spec.get("scope") or "system").lower()
+    if scope not in ("system", "org", "user"):
+        raise HTTPException(400, "scope must be system|org|user")
+    email, org, _ = _ctx(authorization, x_api_key)
+    if scope in ("system", "org"):
+        email, _, _ = _need(authorization, "configure", x_api_key)
+    elif not email:
+        raise HTTPException(401, "sign in to set a personal default")
+    provider = (spec.get("provider") or "").strip()
+    model = (spec.get("model") or "").strip()
+    if provider:
+        known = set(aireg.names()) | {x.get("name", "") for x in STORE["ai_providers"]}
+        if provider not in known and not provider.startswith("db:"):
+            raise HTTPException(404, f"unknown provider {provider}")
+    key = {"system": "ai:default:system", "org": f"ai:default:org:{org}",
+           "user": f"ai:default:user:{email}"}[scope]
+    value = {"provider": provider, "model": model}
+    try:
+        repo.kv_set(key, value)
+    except Exception as e:
+        raise HTTPException(500, f"could not save default: {e}"[:200])
+    _audit(email, "ai.default.set", f"{scope}:{provider}/{model}")
+    return {"ok": True, "scope": scope, **value}
 
 
 @router.get("/api/v1/browser/health", tags=["sources"])
@@ -347,7 +492,8 @@ def browser_health():
 
 @router.get("/api/version")
 def api_version():
-    return {"app": "universal-intelligence", "api": "v1", "version": "2.5.0",
+    from ...main import app as _app
+    return {"app": "universal-intelligence", "api": "v1", "version": _app.version,
             "contracts": {"jobs": "1.0", "results": "1.0", "events": "1.0"},
             "deprecation": "v1 stable; no deprecation scheduled"}
 
@@ -698,9 +844,40 @@ def ai_provider_presets():
     return {"presets": list_presets()}
 
 
+def _mask_key(enc: str) -> str:
+    """Last-4 masked form of the stored key (decrypted in memory only,
+    never logged or persisted). Empty when no key is saved."""
+    try:
+        from ...core.crypto import decrypt
+        raw = decrypt(enc or "")
+    except Exception:
+        return ""
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    return "••••••••" + raw[-4:]
+
+
 def _public_provider(p: dict) -> dict:
-    """Provider row safe for API responses: never includes key material."""
-    return {k: v for k, v in p.items() if k != "api_key_enc"}
+    """Provider row safe for API responses: never includes key material.
+
+    Adds honest derived state: key_configured, masked_key, configured,
+    capabilities, default_model, models_cached (+ source label).
+    """
+    from ...ai.presets import get_preset, capabilities_for, default_model_for
+    out = {k: v for k, v in p.items() if k != "api_key_enc"}
+    preset = get_preset(p.get("preset", "") or "")
+    key_required = preset.get("key_required", True) if preset else True
+    masked = _mask_key(p.get("api_key_enc", ""))
+    out["key_configured"] = bool(masked)
+    out["masked_key"] = masked
+    out["configured"] = bool(p.get("base_url")) and (not key_required or bool(masked))
+    out["created_at"] = p.get("created_at", 0.0)
+    out["capabilities"] = capabilities_for(p.get("preset", ""), p.get("protocol", "chat"))
+    out["default_model"] = p.get("model", "") or default_model_for(p.get("preset", ""))
+    out["models_cached"] = list(p.get("models_cached") or [])
+    out["models_source"] = p.get("models_source", "")
+    return out
 
 
 def _validate_endpoint(base_url: str, preset_id: str = ""):
@@ -722,14 +899,30 @@ def _validate_endpoint(base_url: str, preset_id: str = ""):
 
 
 def _record_test(p: dict, result: dict):
-    """Persist non-secret test metadata only (status/latency/code)."""
+    """Persist non-secret test metadata only (status/latency/code + discovered
+    model ids for the provider cards; key material never stored here)."""
     import time as _t
     conn = result.get("connection", {})
     err = result.get("error", {})
     p["last_tested_at"] = _t.time()
     p["last_test_status"] = "passed" if result.get("success") else "failed"
+    if result.get("success"):
+        p["last_success_at"] = p["last_tested_at"]
+    else:
+        p["last_failure_at"] = p["last_tested_at"]
     p["last_test_latency_ms"] = conn.get("latency_ms", 0)
     p["last_test_error"] = err.get("code", "") if err else ""
+    models = [m.get("id", "") for m in (result.get("models") or []) if m.get("id")]
+    if models:
+        p["models_cached"] = models[:50]
+        p["models_source"] = "REMOTE DISCOVERED"
+    elif not p.get("models_cached"):
+        from ...ai.presets import get_preset
+        preset = get_preset(p.get("preset", "") or "")
+        if preset and not preset.get("discovery"):
+            p["models_source"] = "PROVIDER CATALOG"
+        elif (p.get("preset", "") or "") == "ollama":
+            p["models_source"] = "LOCAL MODEL"
     try:
         repo.sync("ai_providers", p)
     except Exception:
@@ -766,13 +959,16 @@ def ai_provider_create(spec: dict, authorization: str = Header(""), x_api_key: s
     if not valid_protocol(proto):
         raise HTTPException(400, "protocol must be chat|responses|anthropic|google")
     _validate_endpoint(spec["base_url"], spec.get("preset", ""))
+    import time as _t
     item = {"id": max([x.get("id", 0) for x in STORE["ai_providers"]] + [0]) + 1,
             "name": spec["name"], "preset": spec.get("preset", ""),
             "base_url": spec["base_url"], "protocol": proto,
             "api_key_enc": encrypt(spec.get("api_key", "")),
             "model": spec.get("model", ""), "enabled": True,
+            "created_at": _t.time(),
             "last_tested_at": 0.0, "last_test_status": "untested",
-            "last_test_latency_ms": 0.0, "last_test_error": ""}
+            "last_test_latency_ms": 0.0, "last_test_error": "",
+            "models_cached": [], "models_source": ""}
     STORE["ai_providers"].append(item)
     _audit(email, "ai.provider.create", item["name"])
     return _public_provider(item)

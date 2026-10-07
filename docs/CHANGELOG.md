@@ -1,6 +1,26 @@
 # Changelog
 
 ## v2.14.0 — commercial productization
+- Functionality final audit: unified search engine (keyword/exact/semantic/
+  hybrid, ranking, filters, pagination, org isolation — no AI required),
+  search console with result actions, 20-vendor AI preset catalog with
+  capabilities, enriched provider listing (masked keys, test history,
+  cached models), aggregate AI health, Test All, system/org/user AI defaults
+  cascade, sectioned Settings shell with persisted workspace/search defaults,
+  Playwright functional journey E2E (31 views + live collection + settings
+  persistence), static frontend audit gate (479 functions, 345 API calls)
+- Documentation portal at `/docs`: 115 pages (EN/ID/AR with RTL), local
+  search (Ctrl+K), 32 Playwright screenshots from the real UI with manifest,
+  OpenAPI-generated API reference (221/221 paths), sitemap and coverage
+  reports, contextual in-app help drawer + empty-state doc links
+- `/api/version` reports the single application version (was hardcoded 2.5.0)
+- Redis client works with redis-py 4 and 5+, reconnects on URL change and
+  retries instead of caching the first failure forever (queue + rate limits
+  verified live against Memurai)
+- STIX import maps relationships to graph nodes (previously wrote entity IDs
+  as node IDs, producing dangling `node: null` edges); re-import dedupes
+- Redis-live tests tolerate redis-py 4/5; order-dependent graph/entity tests
+  fixed via hermetic fixtures
 - Operations center (/operations: scans+workflows+deliveries, filters,
   result links) + dashboard cards
 - Attack Surface view (domains/IPs/certs/tech/links/risk per target)

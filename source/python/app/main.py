@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api.shared import _rate_ok, _key_lookup, _secret, tok, STORE, get_redis
-from .api.routers import system, catalog, collection, intel, knowledge, ops, cases
+from .api.routers import system, catalog, collection, intel, knowledge, ops, cases, docs, settings
 
-app = FastAPI(title="Web Intelligence Platform", version="2.0.0",
+app = FastAPI(title="Web Intelligence Platform", version="2.14.0",
               docs_url="/api-docs",
               description="Universal Intelligence Platform. Auth: Bearer login token "
                           "(POST /api/v1/auth/login) or X-API-Key header with scopes. "
@@ -32,11 +32,6 @@ if _os.path.isdir(_STATIC):
     @app.get("/", include_in_schema=False)
     def _index():
         return FileResponse(_os.path.join(_STATIC, "index.html"))
-
-    @app.get("/docs", include_in_schema=False)
-    def _docs():
-        """Structured usage guide (ID/EN). Interactive API reference lives at /api-docs."""
-        return FileResponse(_os.path.join(_STATIC, "docs.html"))
 
 
 @app.middleware("http")
@@ -181,7 +176,7 @@ def _rate_ok(ip: str) -> bool:
     return True
 
 
-for _r in (system, catalog, collection, intel, knowledge, ops, cases):
+for _r in (system, catalog, collection, intel, knowledge, ops, cases, docs, settings):
     app.include_router(_r.router)
 
 

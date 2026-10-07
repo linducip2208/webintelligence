@@ -94,7 +94,10 @@ def test_ai_provider_crud_no_secret_leak():
         created = c.post("/api/v1/ai/providers/db", json={"name": "prov-x",
                          "preset": "ollama", "base_url": base, "api_key": "K" * 16,
                          "model": "m1"}).json()
-        assert "api_key_enc" not in created and "key" not in str(created).lower().replace("monkey", "")
+        assert "api_key_enc" not in created
+        assert "K" * 16 not in str(created)  # raw key never echoed
+        assert created["masked_key"].endswith("KKKK")  # masked form only
+        assert created["key_configured"] is True
         listed = c.get("/api/v1/ai/providers/db").json()["items"]
         assert all("api_key_enc" not in x for x in listed)
         assert c.post("/api/v1/ai/providers/db", json={"name": "prov-x",

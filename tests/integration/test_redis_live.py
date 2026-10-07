@@ -14,7 +14,15 @@ SERVER = "redis://127.0.0.1:6379/15"
 
 
 def _cli():
-    return redis.Redis.from_url(SERVER, socket_timeout=3, protocol=2)
+    kw = {"socket_timeout": 3}
+    try:
+        import inspect
+        # `protocol` (RESP version) exists only on redis-py >= 5
+        if "protocol" in inspect.signature(redis.Redis.__init__).parameters:
+            kw["protocol"] = 2
+    except Exception:
+        pass
+    return redis.Redis.from_url(SERVER, **kw)
 
 
 def test_redis_live_available():

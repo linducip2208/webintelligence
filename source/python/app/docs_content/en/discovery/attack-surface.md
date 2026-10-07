@@ -1,0 +1,80 @@
+---
+title: Attack Surface
+description: See every exposed asset for a target in one overview.
+category: Discovery
+order: 30
+slug: discovery/attack-surface
+language: en
+shots: []
+---
+
+# Attack Surface
+
+> See every exposed asset for a target in one overview.
+
+The attack surface overview lists exposed assets per target: hosts, technologies, certificates and changes.
+
+## Prerequisites
+
+- A project exists and you can see it in Data Sources.
+- You know which target you are authorized to investigate.
+
+## Steps
+
+1. Open the view with the **Try it** link below.
+2. Follow the on-screen form — every action reports queued, running, completed, failed or cancelled.
+3. Verify the result appears in the list and in the audit log.
+4. Link the result into your investigation or case.
+
+## API
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/attack-surface` | Attack Surface |
+
+
+## Examples
+
+```bash
+curl http://127.0.0.1:8000/api/v1/attack-surface -H "Authorization: Bearer TOKEN"
+```
+
+```python
+import httpx
+r = httpx.get("http://127.0.0.1:8000/api/v1/attack-surface", headers={"Authorization": "Bearer TOKEN"})
+print(r.json())
+```
+
+```javascript
+const r = await fetch("http://127.0.0.1:8000/api/v1/attack-surface", {headers: {Authorization: "Bearer TOKEN"}});
+console.log(await r.json());
+```
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/search -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{}'
+```
+
+_Replace `TOKEN` with a real Bearer token or use `X-API-Key: wi_…`. Never commit real tokens to documentation._
+
+## Verification
+
+- The new or changed record is visible in the list view.
+- `GET /api/v1/audit?size=20` shows the action with your identity.
+- Related views (graph, timeline, feed) reflect the change.
+
+## Troubleshooting
+
+- Empty list: run collection first — the platform shows real data only.
+- 401: sign in or supply a key; see [Authentication](/docs/security/authentication).
+- 429: slow down; see [Rate Limits](/docs/api/rate-limits).
+
+> **Try it:** [Open in application](/#attack) — opens the live view in the application.
+
+
+## Related
+
+- [Targets](/docs/discovery/targets)
+- [Reconnaissance](/docs/discovery/reconnaissance)
+- [Collectors](/docs/discovery/collectors)
+- [Connectors](/docs/discovery/connectors)
+- [Data Sources](/docs/discovery/data-sources)
